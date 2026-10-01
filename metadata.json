@@ -1,0 +1,6 @@
+{
+  "name": "Sistem Monitoring Realisasi SPP & Pengadaan",
+  "description": "Sistem monitoring realisasi SPP dan PO pengadaan barang real-time dengan kalkulasi hari kerja non-libur, integrasi Google Sheet, notifikasi H+3, analitik vendor, RBAC 2FA, dan ekspor GitHub Pages.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
