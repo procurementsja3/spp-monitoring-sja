@@ -4,7 +4,6 @@ import {
   BarChart3, 
   Calendar, 
   Database, 
-  Sparkles, 
   Plus, 
   PanelLeftClose, 
   PanelLeft, 
@@ -83,13 +82,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleSelectNav = (tabId: string) => {
     setActiveTab(tabId);
-    if (isMobileOpen) {
-      onCloseMobile();
-    }
-  };
-
-  const handleOpenPromptFromSidebar = () => {
-    onOpenPromptGuide();
     if (isMobileOpen) {
       onCloseMobile();
     }
@@ -255,32 +247,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             );
           })}
-
-          <div className="pt-3 px-2">
-            {(!isCollapsed || isMobileOpen) && (
-              <p className="text-[10px] uppercase font-mono tracking-wider text-slate-400 font-bold">
-                Dokumentasi &amp; Ekspor
-              </p>
-            )}
-          </div>
-
-          {/* Prompt & GitHub Ready */}
-          <button
-            onClick={handleOpenPromptFromSidebar}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-indigo-300 hover:bg-indigo-950/40 hover:text-indigo-200 transition-all group relative border border-indigo-900/30"
-            title={isCollapsed && !isMobileOpen ? 'Prompt & GitHub Ready' : undefined}
-          >
-            <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
-            {(!isCollapsed || isMobileOpen) && (
-              <span className="flex-1 text-left font-semibold truncate">Prompt &amp; GitHub</span>
-            )}
-
-            {isCollapsed && !isMobileOpen && (
-              <div className="absolute left-full ml-2 px-2.5 py-1 bg-slate-950 text-white text-[11px] rounded shadow-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 border border-slate-700">
-                Prompt &amp; GitHub Ready
-              </div>
-            )}
-          </button>
         </div>
 
         {/* Sidebar Footer: User Card, SLA Info & Logout Button */}
