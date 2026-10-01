@@ -91,7 +91,7 @@ export default function App() {
       const saved = localStorage.getItem('sja_active_user');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return INITIAL_USERS[0]; // Default Superadmin
+    return null; // Menampilkan halaman login terlebih dahulu saat pertama kali aplikasi dibuka
   });
 
   // 2. Data SPP Utama dengan LocalStorage Persistence (Dibersihkan sesuai permintaan "hapus data sesuai foto")
