@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { SPPItem, IndonesianHoliday, SJAArea, UserProfile } from '../types';
 import { calculateWorkingDays } from '../utils/holidayCalendar';
-import { AREA_METADATA } from '../utils/initialData';
-import { Plus, Trash2, Clock, Calendar, User, Tag, Layers, Check, Building } from 'lucide-react';
+import { AREA_METADATA, AREA_PIC_LIST } from '../utils/initialData';
+import { Plus, Trash2, Clock, Calendar, User, Tag, Layers, Check, Building, Edit2 } from 'lucide-react';
 
 interface DraftRow {
   tempId: string;
@@ -47,12 +47,13 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     const code = AREA_METADATA[rowArea]?.code || 'SJA';
+    const defaultPic = AREA_PIC_LIST[rowArea]?.[0] || 'Felita';
 
     return {
       tempId: `draft-${Date.now()}-${index}-${Math.random()}`,
       budgetReceivedDate: todayISO,
       sppNumber: `SPP/${code}/${year}/${month}/${randomNum}`,
-      pic: 'Budi Santoso',
+      pic: defaultPic,
       area: rowArea,
       poDate: '',
       poNumber: '',
@@ -62,8 +63,8 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
 
   const [rows, setRows] = useState<DraftRow[]>([createDefaultRow(0, initialArea)]);
   const [commonDate, setCommonDate] = useState(new Date().toISOString().split('T')[0]);
-  const [commonPic, setCommonPic] = useState('Budi Santoso');
   const [commonArea, setCommonArea] = useState<SJAArea>(initialArea);
+  const [commonPic, setCommonPic] = useState(AREA_PIC_LIST[initialArea]?.[0] || 'Felita');
 
   useEffect(() => {
     if (editItem) {
@@ -117,6 +118,29 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     );
   };
 
+  // Saat area pada suatu baris diubah, otomatis update prefix no SPP dan set PIC default area tersebut
+  const handleUpdateRowArea = (tempId: string, newArea: SJAArea) => {
+    const code = AREA_METADATA[newArea]?.code || 'SJA';
+    const defaultPicForArea = AREA_PIC_LIST[newArea]?.[0] || 'Felita';
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.tempId !== tempId) return r;
+        const parts = r.sppNumber.split('/');
+        let newSpp = r.sppNumber;
+        if (parts.length >= 4) {
+          parts[1] = code;
+          newSpp = parts.join('/');
+        }
+        return { 
+          ...r, 
+          area: newArea, 
+          sppNumber: newSpp,
+          pic: defaultPicForArea 
+        };
+      })
+    );
+  };
+
   const handleApplyCommonDate = () => {
     setRows((prev) => prev.map((r) => ({ ...r, budgetReceivedDate: commonDate })));
   };
@@ -126,6 +150,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
   };
 
   const handleApplyCommonArea = () => {
+    const defaultPicForArea = AREA_PIC_LIST[commonArea]?.[0] || 'Felita';
     setRows((prev) =>
       prev.map((r) => {
         const code = AREA_METADATA[commonArea]?.code || 'SJA';
@@ -135,7 +160,12 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
           parts[1] = code;
           newSpp = parts.join('/');
         }
-        return { ...r, area: commonArea, sppNumber: newSpp };
+        return { 
+          ...r, 
+          area: commonArea, 
+          sppNumber: newSpp,
+          pic: defaultPicForArea
+        };
       })
     );
   };
@@ -170,7 +200,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     const payload: Partial<SPPItem>[] = rows.map((r) => ({
       budgetReceivedDate: r.budgetReceivedDate,
       sppNumber: r.sppNumber.trim(),
-      pic: r.pic,
+      pic: r.pic.trim() || AREA_PIC_LIST[r.area]?.[0] || 'Felita',
       area: r.area,
       poDate: r.poDate || undefined,
       poNumber: r.poNumber.trim() || undefined,
@@ -184,13 +214,13 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
   const allAreas: SJAArea[] = ['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'];
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-5xl w-full my-6 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xl max-w-5xl w-full my-6 flex flex-col max-h-[92vh] transition-colors">
         {/* Header Modal */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50 rounded-t-xl shrink-0">
+        <div className="p-4 sm:p-5 border-b border-slate-200/90 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950 rounded-t-2xl shrink-0">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Layers className="w-5 h-5 text-slate-800" />
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Layers className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               <span>
                 {editItem
                   ? 'Edit Dokumen SPP'
@@ -199,36 +229,36 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                     }`}
               </span>
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {isSuperadmin
-                ? 'Superadmin dapat menginput data untuk semua area cabang SJA tanpa batasan jumlah.'
+                ? 'Superadmin dapat memilih area cabang dan PIC pengadaan resmi masing-masing cabang.'
                 : `Input pengajuan SPP khusus cabang ${currentUser.name}.`}
             </p>
           </div>
 
           <div className="flex items-center gap-3">
             {!editItem && (
-              <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-md border bg-white text-slate-700 border-slate-200 shadow-xs">
-                {rows.length} Baris Data Input
+              <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-lg border bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200/90 dark:border-slate-800 shadow-2xs">
+                {rows.length} Baris Data
               </span>
             )}
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 font-bold text-sm p-1 rounded"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-sm p-1 rounded-lg"
             >
               ✕
             </button>
           </div>
         </div>
 
-        {/* Toolbar Tambah Baris Cepat */}
+        {/* Toolbar Tambah Baris Cepat (Hanya saat Input Baru) */}
         {!editItem && (
-          <div className="p-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+          <div className="p-3 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleAddRow}
-                className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded shadow-xs"
+                className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-2xs transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ Tambah Baris</span>
@@ -237,7 +267,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
               <button
                 type="button"
                 onClick={handleAdd5Rows}
-                className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded border border-slate-200"
+                className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded-lg border border-slate-200/90 dark:border-slate-700 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ 5 Baris</span>
@@ -246,38 +276,43 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
               <button
                 type="button"
                 onClick={handleAdd10Rows}
-                className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded border border-slate-200"
+                className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded-lg border border-slate-200/90 dark:border-slate-700 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ 10 Baris</span>
               </button>
             </div>
 
-            {/* Tombol Terapkan Cepat Tgl/PIC/Area */}
-            <div className="flex items-center gap-2 bg-slate-50 p-1 rounded border border-slate-200">
-              <span className="text-[11px] text-slate-500 font-medium pl-1">Salin Nilai:</span>
+            {/* Bulk Apply Bar */}
+            <div className="flex items-center flex-wrap gap-2 text-[11px] bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200/80 dark:border-slate-800">
+              <span className="text-slate-500 dark:text-slate-400 font-semibold">Terapkan Massal:</span>
+
+              {/* Bulk Date */}
               <input
                 type="date"
                 value={commonDate}
                 onChange={(e) => setCommonDate(e.target.value)}
-                className="px-2 py-0.5 bg-white border border-slate-200 rounded font-mono text-[11px]"
-                title="Pilih tanggal terima budget bersama"
+                className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-md font-mono text-[11px] text-slate-800 dark:text-slate-200"
               />
               <button
                 type="button"
                 onClick={handleApplyCommonDate}
-                className="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded text-[11px]"
+                className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium rounded-md shadow-2xs"
               >
-                Terapkan Tgl
+                Tgl Budget
               </button>
 
-              {/* Area selector for superadmin */}
+              {/* Bulk Area (Superadmin) */}
               {isSuperadmin && (
                 <>
                   <select
                     value={commonArea}
-                    onChange={(e) => setCommonArea(e.target.value as SJAArea)}
-                    className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[11px] font-semibold text-blue-700"
+                    onChange={(e) => {
+                      const area = e.target.value as SJAArea;
+                      setCommonArea(area);
+                      setCommonPic(AREA_PIC_LIST[area]?.[0] || 'Felita');
+                    }}
+                    className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-md text-[11px] font-semibold text-blue-700 dark:text-blue-400"
                   >
                     {allAreas.map((a) => (
                       <option key={a} value={a}>
@@ -288,36 +323,38 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                   <button
                     type="button"
                     onClick={handleApplyCommonArea}
-                    className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-semibold rounded text-[11px]"
+                    className="px-2 py-1 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-900/50 text-blue-700 dark:text-blue-300 font-semibold rounded-md shadow-2xs"
                   >
-                    Terapkan Area
+                    Area
                   </button>
                 </>
               )}
 
+              {/* Bulk PIC */}
               <select
                 value={commonPic}
                 onChange={(e) => setCommonPic(e.target.value)}
-                className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[11px]"
+                className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-md text-[11px] text-slate-800 dark:text-slate-200 font-medium"
               >
-                <option value="Budi Santoso">Budi Santoso</option>
-                <option value="Siti Rahmawati">Siti Rahmawati</option>
-                <option value="Denny Wijaya">Denny Wijaya</option>
-                <option value="Rian Pratama">Rian Pratama</option>
+                {(AREA_PIC_LIST[commonArea] || []).map((picName) => (
+                  <option key={picName} value={picName}>
+                    {picName} ({AREA_METADATA[commonArea].name.split(' ')[1]})
+                  </option>
+                ))}
               </select>
               <button
                 type="button"
                 onClick={handleApplyCommonPic}
-                className="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded text-[11px]"
+                className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/90 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium rounded-md shadow-2xs"
               >
-                Terapkan PIC
+                PIC
               </button>
             </div>
           </div>
         )}
 
         {/* List Baris Input */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-3">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-3.5">
           <div className="space-y-3">
             {rows.map((row, idx) => {
               const calc = calculateWorkingDays(row.budgetReceivedDate, row.poDate || undefined, holidays);
@@ -326,49 +363,49 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
               const isOntime = processDays <= (row.slaLimit || 10);
               const areaInfo = AREA_METADATA[row.area] || { name: row.area, code: 'SJA' };
 
+              const branchPics = AREA_PIC_LIST[row.area] || [];
+              const isPredefinedPic = branchPics.includes(row.pic);
+
               return (
                 <div
                   key={row.tempId}
-                  className="p-3 bg-white border border-slate-200 hover:border-slate-300 rounded-lg shadow-xs space-y-2 text-xs transition-colors"
+                  className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 space-y-3 relative hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-2xs"
                 >
-                  <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                  {/* Row Header */}
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded bg-slate-900 text-white flex items-center justify-center font-mono font-bold text-xs">
-                        #{idx + 1}
+                      <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-bold font-mono flex items-center justify-center">
+                        {idx + 1}
                       </span>
-                      <span className="font-bold text-slate-800">
-                        Data SPP {idx + 1}
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                        {row.sppNumber}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-blue-50 text-blue-700 border border-blue-200">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold font-mono border ${
+                          row.area === 'SEPANJANG'
+                            ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900/50'
+                            : row.area === 'KARAWANG'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50'
+                            : row.area === 'SUKODONO'
+                            ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900/50'
+                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/50'
+                        }`}
+                      >
                         {areaInfo.name}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-slate-900">
-                        {processDays} Hari Kerja
-                      </span>
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${
-                          isClose ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {isClose ? 'CLOSE' : 'OPEN'}
-                      </span>
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${
-                          isOntime ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {isOntime ? 'ONTIME' : 'TERLAMBAT'}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                        Durasi: <strong className={isOntime ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>{processDays} hr</strong> (SLA {row.slaLimit} hr)
                       </span>
 
-                      {!editItem && rows.length > 1 && (
+                      {rows.length > 1 && !editItem && (
                         <button
                           type="button"
                           onClick={() => handleRemoveRow(row.tempId)}
-                          className="text-slate-400 hover:text-rose-600 p-1 rounded"
-                          title="Hapus baris data ini"
+                          className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded transition-colors"
+                          title="Hapus baris ini"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -376,18 +413,19 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2.5 pt-1">
-                    {/* Area Dropdown (Visible/Editable for Superadmin) */}
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                        <Building className="w-3 h-3 text-slate-400" />
-                        <span>Area Cabang *</span>
-                      </label>
-                      {isSuperadmin ? (
+                  {/* Form Input Columns */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
+                    {/* Area Selector (Superadmin only) */}
+                    {isSuperadmin && (
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                          <Building className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                          <span>Area Cabang *</span>
+                        </label>
                         <select
                           value={row.area}
-                          onChange={(e) => handleUpdateRow(row.tempId, 'area', e.target.value as SJAArea)}
-                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded text-slate-900 focus:outline-none focus:bg-white text-xs font-semibold"
+                          onChange={(e) => handleUpdateRowArea(row.tempId, e.target.value as SJAArea)}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs font-semibold"
                         >
                           {allAreas.map((a) => (
                             <option key={a} value={a}>
@@ -395,20 +433,13 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                             </option>
                           ))}
                         </select>
-                      ) : (
-                        <input
-                          type="text"
-                          disabled
-                          value={AREA_METADATA[row.area]?.name || row.area}
-                          className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded text-slate-700 text-xs font-semibold cursor-not-allowed"
-                        />
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {/* 1. Tanggal Terima Budget */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-slate-400" />
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                         <span>Tgl Terima Budget *</span>
                       </label>
                       <input
@@ -416,14 +447,14 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                         required
                         value={row.budgetReceivedDate}
                         onChange={(e) => handleUpdateRow(row.tempId, 'budgetReceivedDate', e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-mono text-slate-900 focus:outline-none focus:bg-white text-xs"
+                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs"
                       />
                     </div>
 
                     {/* 2. Nomor SPP */}
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                        <Tag className="w-3 h-3 text-slate-400" />
+                    <div className={isSuperadmin ? '' : 'md:col-span-2'}>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                        <Tag className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                         <span>Nomor SPP *</span>
                       </label>
                       <input
@@ -432,44 +463,73 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                         value={row.sppNumber}
                         onChange={(e) => handleUpdateRow(row.tempId, 'sppNumber', e.target.value)}
                         placeholder="SPP/2026/03/XXXX"
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-mono text-slate-900 focus:outline-none focus:bg-white text-xs font-semibold"
+                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs font-semibold"
                       />
                     </div>
 
-                    {/* 3. PIC */}
+                    {/* 3. PIC Pengadaan (Dropdown Otomatis Per Masing-Masing Area + Opsi Ketik Manual) */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                        <User className="w-3 h-3 text-slate-400" />
-                        <span>PIC Pengadaan *</span>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <User className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                          <span>PIC Pengadaan *</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {areaInfo.name.split(' ')[1]}
+                        </span>
                       </label>
                       <select
-                        value={row.pic}
-                        onChange={(e) => handleUpdateRow(row.tempId, 'pic', e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded text-slate-900 focus:outline-none focus:bg-white text-xs"
+                        value={isPredefinedPic ? row.pic : '__CUSTOM__'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__CUSTOM__') {
+                            handleUpdateRow(row.tempId, 'pic', '');
+                          } else {
+                            handleUpdateRow(row.tempId, 'pic', val);
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs font-medium transition-colors"
                       >
-                        <option value="Budi Santoso">Budi Santoso</option>
-                        <option value="Siti Rahmawati">Siti Rahmawati</option>
-                        <option value="Denny Wijaya">Denny Wijaya</option>
-                        <option value="Rian Pratama">Rian Pratama</option>
+                        {branchPics.map((picName) => (
+                          <option key={picName} value={picName}>
+                            {picName}
+                          </option>
+                        ))}
+                        <option value="__CUSTOM__">✍️ Lainnya (Ketik Manual)...</option>
                       </select>
+
+                      {/* Kotak Input Manual bila memilih Lainnya atau saat nama tidak ada di list bawaan */}
+                      {(!isPredefinedPic || row.pic === '') && (
+                        <div className="mt-1.5 animate-in fade-in">
+                          <input
+                            type="text"
+                            required
+                            value={row.pic}
+                            onChange={(e) => handleUpdateRow(row.tempId, 'pic', e.target.value)}
+                            placeholder="Ketik nama PIC manual..."
+                            className="w-full px-2.5 py-1 bg-white dark:bg-slate-900 border border-blue-500 rounded-lg text-xs font-semibold text-blue-900 dark:text-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-slate-400"
+                            autoFocus
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* 4. Tanggal PO */}
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
                         Tanggal PO (Opsional)
                       </label>
                       <input
                         type="date"
                         value={row.poDate}
                         onChange={(e) => handleUpdateRow(row.tempId, 'poDate', e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-mono text-slate-900 focus:outline-none focus:bg-white text-xs"
+                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs"
                       />
                     </div>
 
                     {/* 5. Nomor PO */}
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
                         Nomor PO (Opsional)
                       </label>
                       <input
@@ -477,7 +537,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                         value={row.poNumber}
                         onChange={(e) => handleUpdateRow(row.tempId, 'poNumber', e.target.value)}
                         placeholder="PO/2026/03/XXXX"
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-mono text-slate-900 focus:outline-none focus:bg-white text-xs"
+                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs"
                       />
                     </div>
                   </div>
@@ -486,14 +546,14 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
             })}
           </div>
 
-          {/* Kotak Kalkulasi Hari Kerja */}
-          <div className="p-4 bg-slate-900 text-white rounded-lg space-y-2 mt-4">
+          {/* Kotak Kalkulasi Hari Kerja Eksekutif */}
+          <div className="p-4 bg-slate-900 dark:bg-slate-950 text-white rounded-xl space-y-2.5 mt-4 border border-slate-800">
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 font-medium flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-cyan-400" />
-                <span>Jumlah Hari Proses (Rumus Pengurangan):</span>
+                <Clock className="w-4 h-4 text-blue-400" />
+                <span>Jumlah Hari Proses (Formula Hari Kerja):</span>
               </span>
-              <span className="font-mono text-cyan-300 font-bold text-sm">
+              <span className="font-mono text-blue-300 font-bold text-sm">
                 {avgProcessDays} Hari Kerja (Rata-rata dari {rows.length} Data)
               </span>
             </div>
@@ -507,14 +567,14 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
               </div>
               <div>
                 <span className="text-slate-400 block">Status SLA:</span>
-                <span className="font-bold font-mono text-cyan-400">
+                <span className="font-bold font-mono text-blue-400">
                   {ontimeCount} ONTIME <span className="text-slate-400 font-normal">/</span> {lateCount} TERLAMBAT
                 </span>
               </div>
               <div>
                 <span className="text-slate-400 block">Pengecualian:</span>
                 <span className="text-slate-300 font-mono">
-                  {totalWeekendSkipped} akhir pekan, {totalHolidaySkipped} libur
+                  {totalWeekendSkipped} akhir pekan, {totalHolidaySkipped} libur SKB
                 </span>
               </div>
             </div>
@@ -524,17 +584,17 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
           </div>
 
           {/* Footer Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 shrink-0">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200/90 dark:border-slate-800 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold text-xs transition-colors"
+              className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg font-semibold text-xs transition-colors"
             >
               Batal
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold text-xs shadow-md transition-colors flex items-center gap-1.5"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs shadow-md transition-colors flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
               <span>Simpan SPP ({rows.length} Data)</span>

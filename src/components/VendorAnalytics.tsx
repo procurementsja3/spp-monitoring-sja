@@ -56,79 +56,79 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({ items }) => {
   const overallOntimeRate = totalSpp > 0 ? ((ontimeTotal / totalSpp) * 100).toFixed(1) : '0';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header Analitik */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-200 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-200/90 dark:border-slate-800/90 pb-4">
         <div>
-          <h2 className="text-base font-bold text-slate-900 tracking-tight">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white tracking-tight">
             Dashboard Analitik &amp; Efisiensi Realisasi SPP per PIC
           </h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Pemantauan kecepatan pemrosesan, rasio ketepatan waktu SLA, dan status PO per penanggung jawab.
           </p>
         </div>
-        <div className="flex items-center gap-3 text-xs">
-          <span className="text-slate-500">Rasio Ketepatan SLA Keseluruhan:</span>
-          <span className="font-mono font-bold text-emerald-700">{overallOntimeRate}%</span>
+        <div className="flex items-center gap-3 text-xs bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200/80 dark:border-slate-800">
+          <span className="text-slate-500 dark:text-slate-400">Rasio Ketepatan SLA Keseluruhan:</span>
+          <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">{overallOntimeRate}%</span>
         </div>
       </div>
 
       {/* Ringkasan Status Efisiensi */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 bg-white border border-slate-200 rounded-lg">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">Total Staf PIC Aktif</span>
-            <Users className="w-4 h-4 text-slate-700" />
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-xl shadow-2xs">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Total Staf PIC Aktif</span>
+            <Users className="w-4 h-4 text-slate-400 dark:text-slate-500" />
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-900">
+          <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
             {picMetrics.length} <span className="text-xs font-normal font-sans text-slate-400">Personil</span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
             Menangani total {totalSpp} pengajuan SPP
           </p>
         </div>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-lg">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">Penyelesaian Tepat Waktu (Ontime)</span>
-            <CheckCircle className="w-4 h-4 text-emerald-600" />
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-xl shadow-2xs">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Penyelesaian Tepat Waktu (Ontime)</span>
+            <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div className="text-2xl font-bold font-mono text-emerald-600">
+          <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
             {ontimeTotal} <span className="text-xs font-normal font-sans text-slate-400">SPP ({overallOntimeRate}%)</span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
             Durasi &le; batas limit hari kerja yang ditentukan
           </p>
         </div>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-lg">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">Terlambat Melewati SLA</span>
-            <AlertTriangle className="w-4 h-4 text-rose-600" />
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-xl shadow-2xs">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Terlambat Melewati SLA</span>
+            <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
           </div>
-          <div className="text-2xl font-bold font-mono text-rose-600">
+          <div className="text-2xl font-bold font-mono text-rose-600 dark:text-rose-400">
             {lateTotal} <span className="text-xs font-normal font-sans text-slate-400">SPP</span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
             Memerlukan percepatan penerbitan nomor PO
           </p>
         </div>
       </div>
 
       {/* Tabel Evaluasi Scorecard PIC */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-xs">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-xl overflow-hidden shadow-2xs">
+        <div className="p-4 border-b border-slate-200/90 dark:border-slate-800/90 flex items-center justify-between">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
             Evaluasi Efisiensi &amp; Kecepatan Proses per PIC
           </h3>
-          <span className="text-[11px] text-slate-400 font-mono">
+          <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
             Kalkulasi hari kerja (Sabtu, Minggu &amp; Libur Nasional tidak dihitung)
           </span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left text-slate-700">
-            <thead className="bg-slate-50 text-slate-500 uppercase font-mono text-[11px] border-b border-slate-200">
+          <table className="w-full text-xs text-left text-slate-700 dark:text-slate-300">
+            <thead className="bg-slate-50/90 dark:bg-slate-950/80 text-slate-500 dark:text-slate-400 uppercase font-mono text-[11px] border-b border-slate-200/90 dark:border-slate-800/90">
               <tr>
                 <th className="px-4 py-2.5">Nama PIC</th>
                 <th className="px-4 py-2.5 text-center">Total SPP</th>
@@ -139,10 +139,10 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({ items }) => {
                 <th className="px-4 py-2.5 text-center">Status Performa</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
               {picMetrics.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400 text-xs">
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400 dark:text-slate-500 text-xs">
                     Belum ada data analitik kinerja PIC. Silakan tambahkan data SPP baru atau sinkronkan dengan Google Sheet.
                   </td>
                 </tr>
@@ -151,56 +151,57 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({ items }) => {
                   const isVeryGood = p.tier === 'Sangat Efisien';
                   const isUnderEvaluation = p.tier === 'Perlu Perhatian';
 
-                return (
-                  <tr key={p.pic} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-slate-900">
-                      {p.pic}
-                    </td>
-                    <td className="px-4 py-3 text-center font-mono">{p.total}</td>
-                    <td className="px-4 py-3 text-center font-mono text-emerald-700 font-semibold">
-                      {p.closed}
-                    </td>
-                    <td className="px-4 py-3 text-center font-mono text-amber-700 font-semibold">
-                      {p.open}
-                    </td>
-                    <td className="px-4 py-3 text-center font-mono">
-                      <div className="inline-flex items-center gap-2">
+                  return (
+                    <tr key={p.pic} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
+                        {p.pic}
+                      </td>
+                      <td className="px-4 py-3 text-center font-mono">{p.total}</td>
+                      <td className="px-4 py-3 text-center font-mono text-emerald-700 dark:text-emerald-400 font-semibold">
+                        {p.closed}
+                      </td>
+                      <td className="px-4 py-3 text-center font-mono text-amber-700 dark:text-amber-400 font-semibold">
+                        {p.open}
+                      </td>
+                      <td className="px-4 py-3 text-center font-mono">
+                        <div className="inline-flex items-center gap-2">
+                          <span
+                            className={`font-bold ${
+                              p.ontimeRate >= 80 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                            }`}
+                          >
+                            {p.ontimeRate}%
+                          </span>
+                          <div className="w-12 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${
+                                p.ontimeRate >= 80 ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-rose-500'
+                              }`}
+                              style={{ width: `${p.ontimeRate}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center font-mono text-slate-800 dark:text-slate-200">
+                        {p.avgDays} hari kerja
+                      </td>
+                      <td className="px-4 py-3 text-center">
                         <span
-                          className={`font-bold ${
-                            p.ontimeRate >= 80 ? 'text-emerald-700' : 'text-rose-600'
+                          className={`text-xs font-semibold ${
+                            isVeryGood
+                              ? 'text-emerald-700 dark:text-emerald-400'
+                              : isUnderEvaluation
+                              ? 'text-rose-700 dark:text-rose-400'
+                              : 'text-slate-700 dark:text-slate-300'
                           }`}
                         >
-                          {p.ontimeRate}%
+                          {p.tier}
                         </span>
-                        <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${
-                              p.ontimeRate >= 80 ? 'bg-emerald-600' : 'bg-rose-500'
-                            }`}
-                            style={{ width: `${p.ontimeRate}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center font-mono text-slate-800">
-                      {p.avgDays} hari kerja
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={`text-xs font-semibold ${
-                          isVeryGood
-                            ? 'text-emerald-700'
-                            : isUnderEvaluation
-                            ? 'text-rose-700'
-                            : 'text-slate-700'
-                        }`}
-                      >
-                        {p.tier}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              }))}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

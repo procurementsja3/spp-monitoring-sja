@@ -11,13 +11,12 @@ import {
   CheckCircle, 
   Send, 
   Clock, 
-  AlertCircle,
-  AlertTriangle,
-  Check,
-  Plus,
-  RotateCcw,
-  Sparkles,
-  Inbox
+  AlertCircle, 
+  AlertTriangle, 
+  Check, 
+  Plus, 
+  RotateCcw, 
+  Inbox 
 } from 'lucide-react';
 
 interface SPPTableProps {
@@ -105,11 +104,9 @@ export const SPPTable: React.FC<SPPTableProps> = ({
 
   const handleToggleSelectAll = () => {
     if (isAllFilteredSelected) {
-      // Unselect filtered items
       const filteredItemIds = new Set(filteredItems.map((i) => i.id));
       setSelectedIds((prev) => prev.filter((id) => !filteredItemIds.has(id)));
     } else {
-      // Select all filtered items
       const newSelected = new Set([...selectedIds, ...filteredItems.map((i) => i.id)]);
       setSelectedIds(Array.from(newSelected));
     }
@@ -179,19 +176,19 @@ export const SPPTable: React.FC<SPPTableProps> = ({
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-sm">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-xl shadow-2xs overflow-hidden transition-colors">
       {/* Controls Bar: Search & Filter Segmented Controls */}
-      <div className="p-4 border-b border-slate-200 space-y-3">
+      <div className="p-4 border-b border-slate-200/90 dark:border-slate-800/90 space-y-3">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           {/* Search box */}
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari Nomor SPP, PIC, Nomor PO..."
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white text-slate-900 placeholder-slate-400"
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
             />
           </div>
 
@@ -201,10 +198,10 @@ export const SPPTable: React.FC<SPPTableProps> = ({
             {items.length > 0 && onClearAll && (
               <button
                 onClick={handlePromptClearAll}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-rose-200 hover:bg-rose-50 text-rose-700 text-xs font-semibold rounded-md transition-colors whitespace-nowrap"
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-700 dark:text-rose-400 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shadow-2xs"
                 title="Hapus / Kosongkan seluruh data SPP saat ini"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                 <span>Kosongkan Data ({items.length})</span>
               </button>
             )}
@@ -212,16 +209,16 @@ export const SPPTable: React.FC<SPPTableProps> = ({
             {/* Tombol Ekspor */}
             <button
               onClick={onOpenExportModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-md transition-colors whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200/90 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shadow-2xs"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Ekspor Excel</span>
             </button>
             <button
               onClick={onOpenExportModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-md transition-colors whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200/90 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shadow-2xs"
             >
-              <FileText className="w-3.5 h-3.5 text-rose-600" />
+              <FileText className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
               <span>Laporan PDF</span>
             </button>
           </div>
@@ -229,33 +226,39 @@ export const SPPTable: React.FC<SPPTableProps> = ({
 
         {/* Filter Segmented Row */}
         <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-          <div className="flex items-center gap-1 text-slate-500 font-medium mr-1">
+          <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium mr-1">
             <Filter className="w-3.5 h-3.5" />
             <span>Filter:</span>
           </div>
 
           {/* Filter Status PO */}
-          <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-md">
+          <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200/60 dark:border-slate-800/80">
             <button
               onClick={() => setFilterPO('ALL')}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                filterPO === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                filterPO === 'ALL'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Semua PO
             </button>
             <button
               onClick={() => setFilterPO('OPEN')}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                filterPO === 'OPEN' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                filterPO === 'OPEN'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Open PO
             </button>
             <button
               onClick={() => setFilterPO('CLOSE')}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                filterPO === 'CLOSE' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                filterPO === 'CLOSE'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Close PO
@@ -263,27 +266,33 @@ export const SPPTable: React.FC<SPPTableProps> = ({
           </div>
 
           {/* Filter SLA */}
-          <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-md">
+          <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200/60 dark:border-slate-800/80">
             <button
               onClick={() => setFilterSLA('ALL')}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                filterSLA === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                filterSLA === 'ALL'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Semua SLA
             </button>
             <button
               onClick={() => setFilterSLA('ONTIME')}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                filterSLA === 'ONTIME' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                filterSLA === 'ONTIME'
+                  ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-2xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Ontime
             </button>
             <button
               onClick={() => setFilterSLA('TERLAMBAT')}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                filterSLA === 'TERLAMBAT' ? 'bg-white text-rose-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                filterSLA === 'TERLAMBAT'
+                  ? 'bg-white dark:bg-slate-800 text-rose-700 dark:text-rose-400 shadow-2xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Tidak Ontime
@@ -291,19 +300,23 @@ export const SPPTable: React.FC<SPPTableProps> = ({
           </div>
 
           {/* Filter Alert H+3 */}
-          <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-md">
+          <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200/60 dark:border-slate-800/80">
             <button
               onClick={() => setFilterAlert('ALL')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                filterAlert === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                filterAlert === 'ALL'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Semua Alert
             </button>
             <button
               onClick={() => setFilterAlert('H3')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                filterAlert === 'H3' ? 'bg-rose-600 text-white shadow-xs font-semibold' : 'text-rose-700 hover:text-rose-900'
+              className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                filterAlert === 'H3'
+                  ? 'bg-rose-600 text-white shadow-2xs font-semibold'
+                  : 'text-rose-700 dark:text-rose-400 hover:text-rose-900 dark:hover:text-rose-300'
               }`}
             >
               Alert H+3
@@ -314,7 +327,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
           <select
             value={selectedPic}
             onChange={(e) => setSelectedPic(e.target.value)}
-            className="text-xs bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-slate-700 focus:outline-none"
+            className="text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg px-2.5 py-1 text-slate-700 dark:text-slate-300 focus:outline-none"
           >
             <option value="ALL">Semua PIC</option>
             {uniquePics.map((p) => (
@@ -329,7 +342,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
             <select
               value={activeAreaFilter}
               onChange={(e) => onSelectAreaFilter(e.target.value as SJAArea | 'ALL')}
-              className="text-xs bg-blue-50 border border-blue-200 text-blue-800 font-semibold rounded-md px-2 py-1 focus:outline-none"
+              className="text-xs bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900/60 text-blue-800 dark:text-blue-300 font-semibold rounded-lg px-2.5 py-1 focus:outline-none"
             >
               <option value="ALL">🌐 Semua Area Cabang</option>
               <option value="SEPANJANG">🏢 SJA Sepanjang</option>
@@ -340,7 +353,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
           )}
 
           <div className="ml-auto flex items-center gap-2 text-xs font-mono">
-            <span className="text-slate-500 font-semibold">
+            <span className="text-slate-500 dark:text-slate-400 font-semibold">
               Menampilkan {filteredItems.length} dari {items.length} SPP
             </span>
           </div>
@@ -348,9 +361,9 @@ export const SPPTable: React.FC<SPPTableProps> = ({
 
         {/* Selection Bulk Action Floating Bar */}
         {selectedIds.length > 0 && (
-          <div className="flex items-center justify-between bg-rose-50 border border-rose-200 px-3.5 py-2 rounded-lg text-xs animate-in fade-in">
-            <div className="flex items-center gap-2 text-rose-900 font-semibold">
-              <span className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center text-[11px] font-bold">
+          <div className="flex items-center justify-between bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 px-3.5 py-2 rounded-lg text-xs animate-in fade-in">
+            <div className="flex items-center gap-2 text-rose-900 dark:text-rose-300 font-semibold">
+              <span className="w-5 h-5 rounded-full bg-rose-200 dark:bg-rose-900/80 flex items-center justify-center text-[11px] font-bold">
                 {selectedIds.length}
               </span>
               <span>Dokumen SPP dipilih</span>
@@ -358,13 +371,13 @@ export const SPPTable: React.FC<SPPTableProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setSelectedIds([])}
-                className="px-2.5 py-1 text-slate-600 hover:text-slate-800 font-medium hover:bg-rose-100 rounded transition-colors"
+                className="px-2.5 py-1 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-medium hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded transition-colors"
               >
                 Batal Pilih
               </button>
               <button
                 onClick={handlePromptDeleteBatch}
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded shadow-xs transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg shadow-2xs transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Hapus Data Terpilih ({selectedIds.length})</span>
@@ -376,8 +389,8 @@ export const SPPTable: React.FC<SPPTableProps> = ({
 
       {/* High-Density Data Grid */}
       <div className="overflow-x-auto">
-        <table className="w-full text-xs text-left text-slate-700">
-          <thead className="bg-slate-50 text-slate-500 uppercase font-mono tracking-wider border-b border-slate-200 text-[11px]">
+        <table className="w-full text-xs text-left text-slate-700 dark:text-slate-300">
+          <thead className="bg-slate-50/90 dark:bg-slate-950/80 text-slate-500 dark:text-slate-400 uppercase font-mono tracking-wider border-b border-slate-200/90 dark:border-slate-800/90 text-[11px]">
             <tr>
               <th className="px-3 py-2.5 w-8 text-center">
                 <input
@@ -385,7 +398,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                   checked={isAllFilteredSelected}
                   onChange={handleToggleSelectAll}
                   disabled={filteredItems.length === 0}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  className="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   title="Pilih Semua Data"
                 />
               </th>
@@ -401,19 +414,19 @@ export const SPPTable: React.FC<SPPTableProps> = ({
               <th className="px-4 py-2.5 text-right whitespace-nowrap">Aksi</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 font-sans">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
             {filteredItems.length === 0 ? (
               <tr>
                 <td colSpan={11} className="py-16 text-center">
                   <div className="max-w-md mx-auto flex flex-col items-center justify-center space-y-3 px-4">
-                    <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shadow-xs">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-500 shadow-2xs">
                       <Inbox className="w-7 h-7" />
                     </div>
                     <div className="space-y-1">
-                      <h3 className="text-sm font-bold text-slate-800">
+                      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                         {items.length === 0 ? 'Data SPP Masih Kosong' : 'Tidak Ada Data yang Cocok'}
                       </h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                         {items.length === 0
                           ? 'Belum ada data pengajuan SPP yang tersimpan. Anda dapat langsung menginput data baru melalui tombol di bawah atau sinkronkan dengan Google Sheet per area.'
                           : 'Tidak ditemukan dokumen SPP yang sesuai dengan kata kunci pencarian atau filter yang sedang aktif.'}
@@ -423,7 +436,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                       {items.length === 0 && onOpenNewSPP && (
                         <button
                           onClick={onOpenNewSPP}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
                         >
                           <Plus className="w-4 h-4" />
                           <span>+ Input SPP Baru</span>
@@ -432,10 +445,10 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                       {items.length === 0 && onLoadSampleData && (
                         <button
                           onClick={onLoadSampleData}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 transition-colors"
-                          title="Muat contoh data dummy untuk pengujian"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                          title="Muat contoh data demo untuk pengujian"
                         >
-                          <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                          <RotateCcw className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                           <span>Muat Contoh Data Demo</span>
                         </button>
                       )}
@@ -448,7 +461,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                             setFilterAlert('ALL');
                             setSelectedPic('ALL');
                           }}
-                          className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition-colors"
+                          className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 transition-colors"
                         >
                           Reset Semua Filter
                         </button>
@@ -466,8 +479,12 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                 return (
                   <tr
                     key={item.id}
-                    className={`hover:bg-slate-50/80 transition-colors ${
-                      isSelected ? 'bg-blue-50/40' : item.isHPlus3Overdue ? 'bg-rose-50/30' : ''
+                    className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
+                      isSelected
+                        ? 'bg-blue-50/50 dark:bg-blue-950/30'
+                        : item.isHPlus3Overdue
+                        ? 'bg-rose-50/40 dark:bg-rose-950/20'
+                        : ''
                     }`}
                   >
                     {/* Checkbox select */}
@@ -476,22 +493,22 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSelectItem(item.id)}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        className="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                     </td>
 
                     {/* 1. Tanggal Terima Budget */}
-                    <td className="px-4 py-3 font-mono whitespace-nowrap text-slate-600">
+                    <td className="px-4 py-3 font-mono whitespace-nowrap text-slate-600 dark:text-slate-400">
                       {item.budgetReceivedDate}
                     </td>
 
                     {/* 2. Nomor SPP */}
-                    <td className="px-4 py-3 font-mono font-semibold text-slate-900 whitespace-nowrap">
+                    <td className="px-4 py-3 font-mono font-semibold text-slate-900 dark:text-white whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <span>{item.sppNumber}</span>
                         {item.isHPlus3Overdue && (
                           <span
-                            className="inline-flex items-center px-1.5 py-0.2 text-[10px] font-bold text-rose-700 bg-rose-100 rounded"
+                            className="inline-flex items-center px-1.5 py-0.2 text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-950/60 rounded"
                             title="Peringatan: Belum dibuatkan PO setelah H+3 hari kerja dari tim budget"
                           >
                             H+3 ALERT
@@ -503,14 +520,14 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                     {/* Area Cabang */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono border ${
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold font-mono border ${
                           item.area === 'SEPANJANG'
-                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900/50'
                             : item.area === 'KARAWANG'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50'
                             : item.area === 'SUKODONO'
-                            ? 'bg-purple-50 text-purple-700 border-purple-200'
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                            ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900/50'
+                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/50'
                         }`}
                       >
                         {AREA_METADATA[item.area]?.name || item.area}
@@ -518,23 +535,23 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                     </td>
 
                     {/* 3. PIC */}
-                    <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-800">
+                    <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-800 dark:text-slate-200">
                       {item.pic}
                     </td>
 
                     {/* 4. Tanggal PO */}
-                    <td className="px-4 py-3 font-mono whitespace-nowrap text-slate-600">
-                      {item.poDate || <span className="text-slate-400 italic">-</span>}
+                    <td className="px-4 py-3 font-mono whitespace-nowrap text-slate-600 dark:text-slate-400">
+                      {item.poDate || <span className="text-slate-400 dark:text-slate-600 italic">-</span>}
                     </td>
 
-                    {/* 5. Nomor PO - Otomatis terupdate menjadi Close jika ada nomor PO */}
+                    {/* 5. Nomor PO */}
                     <td className="px-4 py-3 font-mono whitespace-nowrap">
                       {item.poNumber ? (
-                        <span className="font-semibold text-slate-900">{item.poNumber}</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{item.poNumber}</span>
                       ) : (
                         <button
                           onClick={() => handleOpenQuickPo(item)}
-                          className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded transition-colors"
+                          className="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 px-2.5 py-1 rounded-lg transition-colors border border-blue-200/60 dark:border-blue-900/50"
                         >
                           <Edit3 className="w-3 h-3" />
                           <span>+ Masukkan No. PO</span>
@@ -542,45 +559,45 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                       )}
                     </td>
 
-                    {/* 6. Jumlah Hari Proses (Kalkulasi Hari Kerja Tanpa Weekend & Libur Nasional) */}
+                    {/* 6. Jumlah Hari Proses (Kalkulasi Hari Kerja) */}
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       <div
                         className={`font-mono font-bold text-xs ${
-                          isOverdue ? 'text-rose-600' : 'text-emerald-700'
+                          isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'
                         }`}
-                        title="Dihitung dari tgl terima budget dikurangi tgl PO (Sabtu, Minggu & Libur Nasional tidak dihitung)"
+                        title="Dihitung dari tgl terima budget sampai tgl PO (Sabtu, Minggu & Libur Nasional tidak dihitung)"
                       >
                         {item.processDays} hari kerja
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        SLA limit: {item.slaLimit} hr
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                        SLA: {item.slaLimit} hr
                       </div>
                     </td>
 
-                    {/* 7. Status PO (CLOSE jika posisi sudah ada nomor PO, OPEN jika belum) */}
+                    {/* 7. Status PO */}
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       {hasPO ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs">
+                        <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold text-xs">
                           <Check className="w-3.5 h-3.5" />
                           <span>Close</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-amber-700 font-semibold text-xs">
+                        <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-semibold text-xs">
                           <Clock className="w-3.5 h-3.5" />
                           <span>Open</span>
                         </span>
                       )}
                     </td>
 
-                    {/* 8. Status SLA (ONTIME atau TIDAK ONTIME) */}
+                    {/* 8. Status SLA */}
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       {isOverdue ? (
-                        <span className="text-rose-700 font-semibold text-xs inline-flex items-center gap-1">
+                        <span className="text-rose-700 dark:text-rose-400 font-semibold text-xs inline-flex items-center gap-1">
                           <AlertCircle className="w-3.5 h-3.5" />
                           <span>Tidak Ontime</span>
                         </span>
                       ) : (
-                        <span className="text-emerald-700 font-semibold text-xs inline-flex items-center gap-1">
+                        <span className="text-emerald-700 dark:text-emerald-400 font-semibold text-xs inline-flex items-center gap-1">
                           <CheckCircle className="w-3.5 h-3.5" />
                           <span>Ontime</span>
                         </span>
@@ -593,7 +610,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                         {item.isHPlus3Overdue && (
                           <button
                             onClick={() => onSendInstantAlert(item)}
-                            className="p-1 rounded text-amber-600 hover:text-amber-800 hover:bg-amber-50 transition-colors"
+                            className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
                             title="Kirim pengingat pesan instan / email ke staf terkait"
                           >
                             <Send className="w-3.5 h-3.5" />
@@ -601,15 +618,14 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                         )}
                         <button
                           onClick={() => onEdit(item)}
-                          className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                           title="Edit Dokumen SPP"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
-                        {/* Tombol Hapus: Terbuka untuk Superadmin dan Area User */}
                         <button
                           onClick={() => handlePromptDeleteSingle(item)}
-                          className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                           title="Hapus Dokumen SPP ini"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -624,27 +640,27 @@ export const SPPTable: React.FC<SPPTableProps> = ({
         </table>
       </div>
 
-      {/* Modal Konfirmasi Hapus Data (Single, Batch, All) */}
+      {/* Modal Konfirmasi Hapus Data */}
       {deleteConfirmModal.isOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-md w-full p-5 space-y-4">
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-md w-full p-5 space-y-4">
             <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-full bg-rose-100 text-rose-600 shrink-0">
+              <div className="p-2.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 shrink-0">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                   {deleteConfirmModal.type === 'single'
                     ? 'Hapus Dokumen SPP?'
                     : deleteConfirmModal.type === 'batch'
                     ? `Hapus ${deleteConfirmModal.targetCount} Dokumen SPP?`
                     : 'Kosongkan Seluruh Data SPP?'}
                 </h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   {deleteConfirmModal.type === 'single' && (
                     <>
                       Apakah Anda yakin ingin menghapus SPP{' '}
-                      <span className="font-mono font-semibold text-slate-800">
+                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
                         {deleteConfirmModal.targetItem?.sppNumber}
                       </span>{' '}
                       (Area: {deleteConfirmModal.targetItem?.area})? Data ini akan dihapus permanen dari sistem.
@@ -664,11 +680,11 @@ export const SPPTable: React.FC<SPPTableProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setDeleteConfirmModal({ isOpen: false, type: 'single' })}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors"
+                className="px-3.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
               >
                 Batal
               </button>
@@ -686,26 +702,26 @@ export const SPPTable: React.FC<SPPTableProps> = ({
 
       {/* Modal Quick Input No PO */}
       {quickPoModalItem && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-md w-full p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Penerbitan Nomor PO Realisasi</h3>
-                <p className="text-xs text-slate-500">
-                  SPP: <span className="font-mono font-semibold">{quickPoModalItem.sppNumber}</span>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Penerbitan Nomor PO Realisasi</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  SPP: <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{quickPoModalItem.sppNumber}</span>
                 </p>
               </div>
               <button
                 onClick={() => setQuickPoModalItem(null)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm font-bold"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveQuickPo} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveQuickPo} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
                   Nomor PO *
                 </label>
                 <input
@@ -714,12 +730,12 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                   value={inputPoNumber}
                   onChange={(e) => setInputPoNumber(e.target.value)}
                   placeholder="PO/2026/03/0112"
-                  className="w-full px-3 py-2 border border-slate-300 rounded font-mono focus:outline-none focus:border-slate-900"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:border-blue-600"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
                   Tanggal PO *
                 </label>
                 <input
@@ -727,25 +743,25 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                   required
                   value={inputPoDate}
                   onChange={(e) => setInputPoDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded font-mono focus:outline-none focus:border-slate-900"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:border-blue-600"
                 />
               </div>
 
-              <div className="p-3 bg-emerald-50 rounded border border-emerald-200 text-emerald-800 text-[11px]">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg border border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[11px]">
                 💡 Memasukkan Nomor PO otomatis mengupdate status PO menjadi <strong>CLOSE</strong> dan menghentikan perhitungan hari kerja SLA.
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setQuickPoModalItem(null)}
-                  className="px-3 py-1.5 border border-slate-300 rounded text-slate-700 hover:bg-slate-50 font-medium"
+                  className="px-3.5 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded font-medium shadow-xs"
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium shadow-2xs"
                 >
                   Simpan &amp; Close PO
                 </button>

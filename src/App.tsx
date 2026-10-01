@@ -44,6 +44,32 @@ import { Security2FAModal } from './components/Security2FAModal';
 import { PromptGitHubModal } from './components/PromptGitHubModal';
 
 export default function App() {
+  // 0. Theme Mode: 'dark' atau 'light' (Luxury Enterprise Experience)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('sja_theme');
+      if (saved === 'dark' || saved === 'light') return saved;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('sja_theme', theme);
+    } catch {}
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // 1. User & Authentication (5 Akun: 1 Superadmin + 4 Area Cabang)
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
@@ -504,7 +530,13 @@ export default function App() {
 
   // Jika belum login, tampilkan layar login
   if (!currentUser) {
-    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <LoginView
+        onLoginSuccess={handleLoginSuccess}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+      />
+    );
   }
 
   // Filter items berdasarkan hak akses area pengguna
@@ -533,7 +565,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex font-sans selection:bg-slate-900 selection:text-white">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans selection:bg-blue-600 selection:text-white transition-colors duration-200">
       {/* Sidebar System (Navigasi, + Input SPP, Filter Area & Logout) */}
       <Sidebar
         activeTab={activeTab}
@@ -546,7 +578,6 @@ export default function App() {
           setEditItem(null);
           setIsFormOpen(true);
         }}
-        onOpenPromptGuide={() => setIsPromptGuideOpen(true)}
         onOpenSecurity={() => setIsSecurityOpen(true)}
         onLogout={handleLogout}
         currentUser={currentUser}
@@ -577,6 +608,8 @@ export default function App() {
           }}
           onLogout={handleLogout}
           isSidebarCollapsed={isSidebarCollapsed}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
         />
 
         {/* Main Content Viewport */}
@@ -699,18 +732,18 @@ export default function App() {
           onClose={() => setIsPromptGuideOpen(false)}
         />
 
-        {/* Footer Minimalis */}
-        <footer className="border-t border-slate-200 bg-white py-4 px-6 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2 mt-auto">
+        {/* Footer Minimalis & Mewah */}
+        <footer className="border-t border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-950/90 backdrop-blur-md py-4 px-6 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2 mt-auto transition-colors">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-800">Sistem Monitoring Realisasi SPP</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200">Sistem Monitoring Realisasi SPP</span>
             <span>·</span>
             <span>PT SJA Procurement Management</span>
             <span>·</span>
-            <span className="font-mono text-blue-600 font-bold">
+            <span className="font-mono text-blue-600 dark:text-blue-400 font-semibold">
               {currentUser.role === 'SUPERADMIN' ? 'Akses: Superadmin (All Areas)' : `Akses: ${currentUser.name}`}
             </span>
           </div>
-          <div className="flex items-center gap-4 text-slate-400 font-mono text-[11px]">
+          <div className="flex items-center gap-4 text-slate-400 dark:text-slate-500 font-mono text-[11px]">
             <span>Kalkulasi: Working Days (SKB 3 Menteri)</span>
             <span>·</span>
             <span>Multi-Area Google Sheet Sync</span>

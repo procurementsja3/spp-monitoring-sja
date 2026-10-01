@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, SystemNotification } from '../types';
-import { Bell, ShieldCheck, Menu, PanelLeft, Calendar, Clock, LogOut } from 'lucide-react';
+import { Bell, ShieldCheck, Menu, PanelLeft, Calendar, Clock, LogOut, Sun, Moon } from 'lucide-react';
 
 interface TopHeaderProps {
   currentUser: UserProfile;
@@ -11,6 +11,8 @@ interface TopHeaderProps {
   onToggleSidebar: () => void;
   onLogout: () => void;
   isSidebarCollapsed: boolean;
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -22,6 +24,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onToggleSidebar,
   onLogout,
   isSidebarCollapsed,
+  theme,
+  onToggleTheme,
 }) => {
   const unreadAlerts = notifications.filter((n) => !n.read).length;
   const urgentCount = notifications.filter((n) => !n.read && n.severity === 'urgent').length;
@@ -52,7 +56,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const minutes = String(currentTime.getMinutes()).padStart(2, '0');
   const seconds = String(currentTime.getSeconds()).padStart(2, '0');
 
-  // Deteksi zona waktu (WIB / WITA / WIT / GMT)
+  // Deteksi zona waktu (WIB / WITA / WIT)
   const tzOffsetHours = -currentTime.getTimezoneOffset() / 60;
   let tzName = 'WIB';
   if (tzOffsetHours === 8) tzName = 'WITA';
@@ -71,32 +75,31 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const isSuperadmin = currentUser.role === 'SUPERADMIN';
 
   return (
-    <header className="border-b border-slate-200 bg-white sticky top-0 z-30 shadow-xs">
-      <div className="px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
+    <header className="border-b border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-950/90 backdrop-blur-md sticky top-0 z-30 transition-colors duration-200">
+      <div className="px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
         {/* Left: Sidebar Toggle Button & Current Page Title */}
         <div className="flex items-center gap-3 shrink-0">
-          {/* Sidebar Toggle Button (Mobile & Desktop) */}
           <button
             onClick={onToggleSidebar}
-            className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 shadow-xs transition-colors"
+            className="p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800 transition-colors shadow-2xs"
             title={isSidebarCollapsed ? 'Buka / Perluas Sidebar' : 'Ciutkan Sidebar'}
           >
-            <Menu className="w-5 h-5 lg:hidden" />
-            <PanelLeft className="w-5 h-5 hidden lg:block" />
+            <Menu className="w-4 h-4 lg:hidden" />
+            <PanelLeft className="w-4 h-4 hidden lg:block" />
           </button>
 
           <div className="flex items-center gap-2">
-            <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate max-w-[140px] sm:max-w-xs md:max-w-none">
+            <h1 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white tracking-tight truncate max-w-[130px] sm:max-w-xs md:max-w-none">
               {tabLabels[activeTab] || 'Monitoring Realisasi SPP'}
             </h1>
-            <span className="hidden xl:inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 text-slate-600 border border-slate-200">
-              SLA 10 Hari
+            <span className="hidden xl:inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+              SLA 10 Hari Kerja
             </span>
             <span
-              className={`hidden md:inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-bold border ${
+              className={`hidden md:inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-mono font-semibold border ${
                 isSuperadmin
-                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900/50'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50'
               }`}
             >
               {isSuperadmin ? 'Semua Area (Superadmin)' : `Area: ${currentUser.name}`}
@@ -104,58 +107,78 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </div>
         </div>
 
-        {/* Center: Kolom Sistem Hari, Tanggal & Jam Digital Otomatis Real-time */}
+        {/* Center: Kolom Tanggal & Jam Digital Otomatis Real-time (Executive Styling) */}
         <div className="flex items-center justify-center">
           {/* Desktop & Tablet Display */}
-          <div className="hidden md:flex items-center gap-2.5 bg-slate-50 border border-slate-200/90 rounded-lg px-3.5 py-1.5 shadow-2xs">
+          <div className="hidden md:flex items-center gap-3 bg-slate-50/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800/90 rounded-lg px-3.5 py-1.5 shadow-2xs">
             {/* Hari & Tanggal */}
-            <div className="flex items-center gap-1.5 text-xs text-slate-700">
-              <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <span className="font-bold text-slate-900">{dayName},</span>
-              <span className="font-medium text-slate-600">
+            <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
+              <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+              <span className="font-semibold text-slate-900 dark:text-white">{dayName},</span>
+              <span className="font-medium text-slate-600 dark:text-slate-400">
                 {dateNumber} {monthName} {yearNumber}
               </span>
             </div>
 
             {/* Separator Divider */}
-            <span className="h-3.5 w-px bg-slate-300" aria-hidden="true" />
+            <span className="h-3.5 w-px bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
 
             {/* Jam Digital Real-time */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <span className="relative flex h-2 w-2" title="Sistem Jam Real-time Aktif">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <div className="font-mono text-xs font-bold text-slate-900 tracking-wider flex items-center tabular-nums">
+              <div className="font-mono text-xs font-bold text-slate-900 dark:text-white tracking-wider flex items-center tabular-nums">
                 <span>{hours}</span>
-                <span className="text-blue-600 animate-pulse">:</span>
+                <span className="text-blue-600 dark:text-blue-400 animate-pulse">:</span>
                 <span>{minutes}</span>
-                <span className="text-blue-600 animate-pulse">:</span>
-                <span className="text-blue-600 font-extrabold">{seconds}</span>
-                <span className="ml-1 text-[10px] text-slate-500 font-semibold">{tzName}</span>
+                <span className="text-blue-600 dark:text-blue-400 animate-pulse">:</span>
+                <span className="text-blue-600 dark:text-blue-400 font-extrabold">{seconds}</span>
+                <span className="ml-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{tzName}</span>
               </div>
             </div>
           </div>
 
           {/* Mobile Display (Compact) */}
-          <div className="flex md:hidden items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-md text-[11px] font-mono font-bold text-slate-800">
+          <div className="flex md:hidden items-center gap-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2 py-1 rounded-md text-[11px] font-mono font-bold text-slate-800 dark:text-slate-200">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>{hours}:{minutes}:{seconds}</span>
             <span className="text-[9px] text-slate-400 font-sans uppercase">{dayName.slice(0, 3)}</span>
           </div>
         </div>
 
-        {/* Right: Security & Role status, Notification Bell, Logout */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        {/* Right: Theme Toggle (Dark/Light), Security, Notification, Logout */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* TOMBOL MODE GELAP / TERANG (LUXURY EXECUTIVE TOGGLE) */}
+          <button
+            onClick={onToggleTheme}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium transition-all shadow-2xs"
+            title={theme === 'dark' ? 'Beralih ke Mode Terang (Light Mode)' : 'Beralih ke Mode Gelap (Dark Mode)'}
+            aria-label="Toggle dark/light mode"
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400 animate-spin-slow" />
+                <span className="hidden sm:inline font-medium text-amber-300 text-[11px]">Terang</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-indigo-600" />
+                <span className="hidden sm:inline font-medium text-slate-600 text-[11px]">Gelap</span>
+              </>
+            )}
+          </button>
+
           {/* Security & Role button */}
           <button
             onClick={onOpenSecurity}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium transition-colors shadow-2xs"
             title="Kelola Role & Keamanan 2FA"
           >
             <ShieldCheck
               className={`w-4 h-4 ${
-                currentUser.twoFactorEnabled ? 'text-emerald-600' : 'text-amber-500'
+                currentUser.twoFactorEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'
               }`}
             />
             <span className="hidden sm:inline font-mono font-semibold">
@@ -166,7 +189,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           {/* Notification Alert Bell */}
           <button
             onClick={onOpenNotifications}
-            className="relative p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 shadow-xs transition-colors"
+            className="relative p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/90 dark:border-slate-800 shadow-2xs transition-colors"
             title="Notifikasi & Peringatan H+3"
           >
             <Bell className="w-4 h-4" />
@@ -184,7 +207,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           {/* Quick Logout Button */}
           <button
             onClick={onLogout}
-            className="p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 shadow-xs transition-colors"
+            className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200/90 dark:border-slate-800 shadow-2xs transition-colors"
             title="Keluar / Ganti Akun"
           >
             <LogOut className="w-4 h-4" />

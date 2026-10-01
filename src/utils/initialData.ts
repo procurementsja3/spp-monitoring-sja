@@ -67,6 +67,18 @@ export const AREA_METADATA: Record<SJAArea, { name: string; code: string; color:
   SEMARANG: { name: 'SJA Semarang', code: 'SMG', color: 'amber' },
 };
 
+// Daftar resmi PIC Pengadaan per Cabang SJA
+export const AREA_PIC_LIST: Record<SJAArea, string[]> = {
+  SEPANJANG: ['Felita', 'Yuli', 'Tika', 'Ayu'],
+  KARAWANG: ['Ozi', 'Yusa', 'Frans', 'Siti Kardiah'],
+  SUKODONO: ['Aji', 'Ida', 'George'],
+  SEMARANG: ['Dika', 'Safira', 'Ratnawati'],
+};
+
+export const getPicListForArea = (area: SJAArea): string[] => {
+  return AREA_PIC_LIST[area] || AREA_PIC_LIST.SEPANJANG;
+};
+
 export const DEFAULT_AREA_SHEET_CONFIGS: AreaSheetConfigMap = {
   SEPANJANG: {
     webAppUrl: '',
@@ -122,7 +134,7 @@ export const SAMPLE_DEMO_ITEMS: Array<{
     id: 'SPP-SPJ-001',
     budgetReceivedDate: '2026-03-02',
     sppNumber: 'SPP/SPJ/2026/03/0014',
-    pic: 'Budi Santoso',
+    pic: 'Felita',
     area: 'SEPANJANG',
     poDate: '2026-03-05',
     poNumber: 'PO/SPJ/2026/03/0112',
@@ -132,7 +144,7 @@ export const SAMPLE_DEMO_ITEMS: Array<{
     id: 'SPP-SPJ-002',
     budgetReceivedDate: '2026-03-24',
     sppNumber: 'SPP/SPJ/2026/03/0088',
-    pic: 'Budi Santoso',
+    pic: 'Yuli',
     area: 'SEPANJANG',
     poDate: '',
     poNumber: '',
@@ -143,7 +155,7 @@ export const SAMPLE_DEMO_ITEMS: Array<{
     id: 'SPP-KRW-001',
     budgetReceivedDate: '2026-03-04',
     sppNumber: 'SPP/KRW/2026/03/0029',
-    pic: 'Siti Rahmawati',
+    pic: 'Ozi',
     area: 'KARAWANG',
     poDate: '2026-03-06',
     poNumber: 'PO/KRW/2026/03/0118',
@@ -153,7 +165,7 @@ export const SAMPLE_DEMO_ITEMS: Array<{
     id: 'SPP-KRW-002',
     budgetReceivedDate: '2026-03-22',
     sppNumber: 'SPP/KRW/2026/03/0063',
-    pic: 'Siti Rahmawati',
+    pic: 'Frans',
     area: 'KARAWANG',
     poDate: '',
     poNumber: '',
@@ -164,7 +176,7 @@ export const SAMPLE_DEMO_ITEMS: Array<{
     id: 'SPP-SKD-001',
     budgetReceivedDate: '2026-03-02',
     sppNumber: 'SPP/SKD/2026/03/0045',
-    pic: 'Denny Wijaya',
+    pic: 'Aji',
     area: 'SUKODONO',
     poDate: '2026-03-20',
     poNumber: 'PO/SKD/2026/03/0145',
@@ -174,7 +186,7 @@ export const SAMPLE_DEMO_ITEMS: Array<{
     id: 'SPP-SKD-002',
     budgetReceivedDate: '2026-03-25',
     sppNumber: 'SPP/SKD/2026/03/0091',
-    pic: 'Denny Wijaya',
+    pic: 'Ida',
     area: 'SUKODONO',
     poDate: '',
     poNumber: '',
@@ -185,7 +197,7 @@ export const SAMPLE_DEMO_ITEMS: Array<{
     id: 'SPP-SMG-001',
     budgetReceivedDate: '2026-03-16',
     sppNumber: 'SPP/SMG/2026/03/0051',
-    pic: 'Rian Pratama',
+    pic: 'Dika',
     area: 'SEMARANG',
     poDate: '2026-03-24',
     poNumber: 'PO/SMG/2026/03/0150',
@@ -195,7 +207,7 @@ export const SAMPLE_DEMO_ITEMS: Array<{
     id: 'SPP-SMG-002',
     budgetReceivedDate: '2026-03-26',
     sppNumber: 'SPP/SMG/2026/03/0072',
-    pic: 'Rian Pratama',
+    pic: 'Safira',
     area: 'SEMARANG',
     poDate: '',
     poNumber: '',

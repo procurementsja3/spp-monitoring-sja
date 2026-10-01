@@ -1,6 +1,6 @@
 import React from 'react';
 import { SPPItem } from '../types';
-import { Clock, CheckCircle2, AlertTriangle, Layers, CalendarCheck } from 'lucide-react';
+import { Clock, CheckCircle2, AlertTriangle, Layers, CalendarCheck, ArrowUpRight } from 'lucide-react';
 
 interface KPISummaryProps {
   items: SPPItem[];
@@ -35,83 +35,86 @@ export const KPISummary: React.FC<KPISummaryProps> = ({
   return (
     <div className="space-y-3">
       {activeFilterLabel && (
-        <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-100 px-3 py-1.5 rounded-md">
-          <span>
-            Filter Aktif: <strong className="text-slate-900">{activeFilterLabel}</strong>
-          </span>
+        <div className="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 px-3.5 py-2 rounded-lg transition-colors">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+            <span>
+              Filter Aktif: <strong className="text-slate-900 dark:text-white font-semibold">{activeFilterLabel}</strong>
+            </span>
+          </div>
           <button
             onClick={onResetFilter}
-            className="text-slate-500 hover:text-slate-900 underline font-medium cursor-pointer"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline font-medium cursor-pointer transition-colors"
           >
-            Tampilkan Semua ({total} SPP)
+            Tampilkan Semua ({total} Dokumen)
           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
         {/* Card 1: Total SPP */}
         <div
           onClick={onResetFilter}
-          className="p-4 bg-white border border-slate-200 rounded-lg hover:border-slate-300 transition-colors cursor-pointer group"
+          className="p-4 bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800/90 rounded-xl hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-200 cursor-pointer group shadow-2xs hover:shadow-xs relative overflow-hidden"
         >
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">Total SPP Diterima</span>
-            <Layers className="w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-colors" />
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Total SPP</span>
+            <Layers className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
           </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-slate-900">
+          <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white">
             {total}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1 truncate">
-            Dari Team Budget
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
+            Dari Tim Budget
           </div>
         </div>
 
         {/* Card 2: SLA Ontime Rate */}
         <div
           onClick={onFilterLate}
-          className="p-4 bg-white border border-slate-200 rounded-lg hover:border-slate-300 transition-colors cursor-pointer group"
+          className="p-4 bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800/90 rounded-xl hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-200 cursor-pointer group shadow-2xs hover:shadow-xs"
         >
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">SLA Ontime Rate</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px]">SLA Ontime Rate</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-slate-900">
+          <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white">
             {ontimeRate}%
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            <span className="text-emerald-700 font-medium">{ontimeCount} on-time</span>
-            <span className="mx-1">·</span>
-            <span className="text-rose-600 font-medium">{lateCount} terlambat</span>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
+            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{ontimeCount} on-time</span>
+            <span>·</span>
+            <span className="text-rose-600 dark:text-rose-400 font-medium">{lateCount} lewat</span>
           </div>
         </div>
 
         {/* Card 3: Status PO (Close / Open) */}
         <div
           onClick={onFilterOpen}
-          className="p-4 bg-white border border-slate-200 rounded-lg hover:border-slate-300 transition-colors cursor-pointer group"
+          className="p-4 bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800/90 rounded-xl hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-200 cursor-pointer group shadow-2xs hover:shadow-xs"
         >
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">Status PO Realisasi</span>
-            <CalendarCheck className="w-4 h-4 text-slate-400 group-hover:text-slate-700" />
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Realisasi PO</span>
+            <CalendarCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-slate-900">
-            {closedPOs} <span className="text-sm font-normal text-slate-400 font-sans">Close /</span> {openPOs} <span className="text-xs font-normal text-amber-700 font-sans">Open</span>
+          <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white">
+            {closedPOs} <span className="text-xs font-normal text-slate-400 font-sans">Close /</span> {openPOs} <span className="text-xs font-normal text-amber-600 dark:text-amber-400 font-sans">Open</span>
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            Otomatis Close saat No. PO terisi
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
+            {openPOs > 0 ? `${openPOs} menunggu No. PO` : 'Semua PO terpenuhi'}
           </div>
         </div>
 
         {/* Card 4: Rata-rata Hari Proses Kerja */}
-        <div className="p-4 bg-white border border-slate-200 rounded-lg">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span className="font-medium">Rata-rata Durasi</span>
-            <Clock className="w-4 h-4 text-slate-400" />
+        <div className="p-4 bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800/90 rounded-xl shadow-2xs">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Rata-rata Durasi</span>
+            <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
           </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-slate-900">
-            {avgProcessDays} <span className="text-xs font-medium text-slate-500 font-sans">hari kerja</span>
+          <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white">
+            {avgProcessDays} <span className="text-xs font-normal text-slate-400 font-sans">hari kerja</span>
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
             Sabtu, Minggu &amp; Libur diskip
           </div>
         </div>
@@ -119,24 +122,24 @@ export const KPISummary: React.FC<KPISummaryProps> = ({
         {/* Card 5: Alert H+3 & Keterlambatan */}
         <div
           onClick={onFilterHPlus3}
-          className={`p-4 rounded-lg border transition-colors cursor-pointer group ${
+          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer group shadow-2xs hover:shadow-xs ${
             h3AlertCount > 0
-              ? 'bg-rose-50/60 border-rose-200 hover:border-rose-300'
-              : 'bg-white border-slate-200 hover:border-slate-300'
+              ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700'
+              : 'bg-white dark:bg-slate-900/90 border-slate-200/90 dark:border-slate-800/90 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
-          <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
-            <span className="font-medium">Alert H+3 Tanpa PO</span>
-            <AlertTriangle className={`w-4 h-4 ${h3AlertCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+          <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px]">Alert H+3 Tanpa PO</span>
+            <AlertTriangle className={`w-3.5 h-3.5 ${h3AlertCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`} />
           </div>
-          <div className={`text-2xl font-bold font-mono tracking-tight ${h3AlertCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
-            {h3AlertCount} <span className="text-xs font-normal font-sans text-rose-600">dokumen</span>
+          <div className={`text-2xl font-bold font-mono tracking-tight ${h3AlertCount > 0 ? 'text-rose-700 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+            {h3AlertCount} <span className="text-xs font-normal font-sans text-rose-600 dark:text-rose-400">dokumen</span>
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
             {significantDelayCount > 0 ? (
-              <span className="text-rose-700 font-medium">{significantDelayCount} keterlambatan kritis</span>
+              <span className="text-rose-700 dark:text-rose-400 font-medium">{significantDelayCount} keterlambatan kritis</span>
             ) : (
-              'Batas proses aman'
+              'Batas durasi aman'
             )}
           </div>
         </div>
