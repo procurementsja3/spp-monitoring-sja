@@ -27,6 +27,7 @@ import {
 } from './utils/holidayCalendar';
 import { generateSHA256Hash } from './utils/cryptoSim';
 import { fetchFromGoogleSheet, pushToGoogleSheet } from './utils/googleSheetsConnector';
+import { getStoredLogo, saveStoredLogo, removeStoredLogo } from './utils/logoManager';
 
 // Components
 import { LoginView } from './components/LoginView';
@@ -68,6 +69,20 @@ export default function App() {
 
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  // Logo Perusahaan Kustom dengan LocalStorage Auto-Save
+  const [customLogo, setCustomLogo] = useState<string | null>(() => getStoredLogo());
+
+  const handleUpdateLogo = (newLogo: string | null) => {
+    setCustomLogo(newLogo);
+    if (newLogo) {
+      saveStoredLogo(newLogo);
+      addAuditLog('UPDATE_LOGO', 'Memperbarui dan menyimpan foto profil / logo perusahaan otomatis');
+    } else {
+      removeStoredLogo();
+      addAuditLog('RESET_LOGO', 'Mereset logo perusahaan kembali ke default SJA');
+    }
   };
 
   // 1. User & Authentication (5 Akun: 1 Superadmin + 4 Area Cabang)
@@ -535,6 +550,7 @@ export default function App() {
         onLoginSuccess={handleLoginSuccess}
         theme={theme}
         onToggleTheme={handleToggleTheme}
+        customLogo={customLogo}
       />
     );
   }
@@ -584,6 +600,8 @@ export default function App() {
         activeAreaFilter={activeAreaFilter}
         onSelectAreaFilter={setActiveAreaFilter}
         totalItemsCount={areaScopedItems.length}
+        customLogo={customLogo}
+        onUpdateLogo={handleUpdateLogo}
       />
 
       {/* Main Content Area dengan transisi margin/padding sesuai toggle sidebar */}

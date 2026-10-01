@@ -41,18 +41,15 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     ? currentAreaFilter
     : 'SEPANJANG';
 
+  // Baris default dibuat KOSONG untuk Nomor SPP (tanpa dummy auto-generate)
   const createDefaultRow = (index = 0, rowArea: SJAArea = initialArea): DraftRow => {
     const todayISO = new Date().toISOString().split('T')[0];
-    const year = new Date().getFullYear();
-    const month = String(new Date().getMonth() + 1).padStart(2, '0');
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const code = AREA_METADATA[rowArea]?.code || 'SJA';
     const defaultPic = AREA_PIC_LIST[rowArea]?.[0] || 'Felita';
 
     return {
       tempId: `draft-${Date.now()}-${index}-${Math.random()}`,
       budgetReceivedDate: todayISO,
-      sppNumber: `SPP/${code}/${year}/${month}/${randomNum}`,
+      sppNumber: '', // Dibuat kosong sesuai permintaan pengguna
       pic: defaultPic,
       area: rowArea,
       poDate: '',
@@ -65,6 +62,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
   const [commonDate, setCommonDate] = useState(new Date().toISOString().split('T')[0]);
   const [commonArea, setCommonArea] = useState<SJAArea>(initialArea);
   const [commonPic, setCommonPic] = useState(AREA_PIC_LIST[initialArea]?.[0] || 'Felita');
+  const [customRowCount, setCustomRowCount] = useState<number>(20);
 
   useEffect(() => {
     if (editItem) {
@@ -107,6 +105,18 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     setRows((prev) => [...prev, ...newItems]);
   };
 
+  // Handler tambah baris kustom manual (20, 30, 50 atau angka bebas lainnya)
+  const handleAddCustomRows = (count?: number) => {
+    const n = count !== undefined ? count : Number(customRowCount);
+    if (isNaN(n) || n <= 0) return;
+    const clamped = Math.min(n, 200); // Batas aman hingga 200 baris sekaligus
+    const newItems: DraftRow[] = [];
+    for (let i = 0; i < clamped; i++) {
+      newItems.push(createDefaultRow(rows.length + i, commonArea));
+    }
+    setRows((prev) => [...prev, ...newItems]);
+  };
+
   const handleRemoveRow = (tempId: string) => {
     if (rows.length <= 1) return;
     setRows((prev) => prev.filter((r) => r.tempId !== tempId));
@@ -118,18 +128,20 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     );
   };
 
-  // Saat area pada suatu baris diubah, otomatis update prefix no SPP dan set PIC default area tersebut
+  // Saat area pada suatu baris diubah, otomatis update PIC default area tersebut
   const handleUpdateRowArea = (tempId: string, newArea: SJAArea) => {
     const code = AREA_METADATA[newArea]?.code || 'SJA';
     const defaultPicForArea = AREA_PIC_LIST[newArea]?.[0] || 'Felita';
     setRows((prev) =>
       prev.map((r) => {
         if (r.tempId !== tempId) return r;
-        const parts = r.sppNumber.split('/');
         let newSpp = r.sppNumber;
-        if (parts.length >= 4) {
-          parts[1] = code;
-          newSpp = parts.join('/');
+        if (r.sppNumber && r.sppNumber.includes('/')) {
+          const parts = r.sppNumber.split('/');
+          if (parts.length >= 4) {
+            parts[1] = code;
+            newSpp = parts.join('/');
+          }
         }
         return { 
           ...r, 
@@ -154,11 +166,13 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     setRows((prev) =>
       prev.map((r) => {
         const code = AREA_METADATA[commonArea]?.code || 'SJA';
-        const parts = r.sppNumber.split('/');
         let newSpp = r.sppNumber;
-        if (parts.length >= 4) {
-          parts[1] = code;
-          newSpp = parts.join('/');
+        if (r.sppNumber && r.sppNumber.includes('/')) {
+          const parts = r.sppNumber.split('/');
+          if (parts.length >= 4) {
+            parts[1] = code;
+            newSpp = parts.join('/');
+          }
         }
         return { 
           ...r, 
@@ -251,36 +265,93 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
           </div>
         </div>
 
-        {/* Toolbar Tambah Baris Cepat (Hanya saat Input Baru) */}
+        {/* Toolbar Tambah Baris Cepat & Input Manual Baris (Hanya saat Input Baru) */}
         {!editItem && (
-          <div className="p-3 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
-            <div className="flex items-center gap-2">
+          <div className="p-3 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={handleAddRow}
                 className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-2xs transition-colors"
+                title="Tambah 1 baris"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ Tambah Baris</span>
+                <span>+ 1 Baris</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleAdd5Rows}
-                className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded-lg border border-slate-200/90 dark:border-slate-700 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded-lg border border-slate-200/90 dark:border-slate-700 transition-colors"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ 5 Baris</span>
+                <Plus className="w-3 h-3" />
+                <span>+5</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleAdd10Rows}
-                className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded-lg border border-slate-200/90 dark:border-slate-700 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded-lg border border-slate-200/90 dark:border-slate-700 transition-colors"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ 10 Baris</span>
+                <Plus className="w-3 h-3" />
+                <span>+10</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => handleAddCustomRows(20)}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded-lg border border-slate-200/90 dark:border-slate-700 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                <span>+20</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleAddCustomRows(30)}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded-lg border border-slate-200/90 dark:border-slate-700 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                <span>+30</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleAddCustomRows(50)}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded-lg border border-slate-200/90 dark:border-slate-700 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                <span>+50</span>
+              </button>
+
+              {/* Fitur Tambah Baris Manual (Ketik Angka Bebas Sesuai Foto 2) */}
+              <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-800">
+                <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px]">Ketik jumlah:</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="150"
+                  value={customRowCount || ''}
+                  onChange={(e) => setCustomRowCount(parseInt(e.target.value) || 0)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomRows();
+                    }
+                  }}
+                  placeholder="20 / 30 / 50..."
+                  className="w-16 px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-700 rounded-lg text-center font-mono text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAddCustomRows()}
+                  disabled={!customRowCount || customRowCount <= 0}
+                  className="px-2.5 py-1 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 text-white font-semibold rounded-lg shadow-2xs transition-colors text-[11px]"
+                  title={`Tambah ${customRowCount || 0} baris baru`}
+                >
+                  + Tambah Baris
+                </button>
+              </div>
             </div>
 
             {/* Bulk Apply Bar */}
@@ -377,8 +448,8 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                       <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-bold font-mono flex items-center justify-center">
                         {idx + 1}
                       </span>
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                        {row.sppNumber}
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 font-mono">
+                        {row.sppNumber ? row.sppNumber : `Baris #${idx + 1} (Nomor SPP Belum Diisi)`}
                       </span>
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-semibold font-mono border ${
@@ -451,7 +522,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                       />
                     </div>
 
-                    {/* 2. Nomor SPP */}
+                    {/* 2. Nomor SPP (Kosong secara default, user ketik sendiri) */}
                     <div className={isSuperadmin ? '' : 'md:col-span-2'}>
                       <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
                         <Tag className="w-3 h-3 text-blue-600 dark:text-blue-400" />
@@ -462,8 +533,8 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                         required
                         value={row.sppNumber}
                         onChange={(e) => handleUpdateRow(row.tempId, 'sppNumber', e.target.value)}
-                        placeholder="SPP/2026/03/XXXX"
-                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs font-semibold"
+                        placeholder={`Contoh: SPP/${AREA_METADATA[row.area]?.code || 'SJA'}/2026/10/...`}
+                        className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs font-semibold placeholder:text-slate-400 placeholder:font-normal"
                       />
                     </div>
 

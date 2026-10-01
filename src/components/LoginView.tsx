@@ -7,12 +7,14 @@ interface LoginViewProps {
   onLoginSuccess: (user: UserProfile) => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
+  customLogo?: string | null;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ 
   onLoginSuccess,
   theme = 'dark',
-  onToggleTheme 
+  onToggleTheme,
+  customLogo,
 }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -74,9 +76,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
       <div className="max-w-md w-full relative z-10 space-y-6">
         {/* Brand Card Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 text-white font-bold text-xl shadow-md mb-1 ring-1 ring-blue-500/30">
-            SJA
-          </div>
+          {customLogo ? (
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-md mb-1 p-1">
+              <img
+                src={customLogo}
+                alt="Logo Perusahaan"
+                className="w-full h-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 text-white font-bold text-xl shadow-md mb-1 ring-1 ring-blue-500/30">
+              SJA
+            </div>
+          )}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
             Sistem Monitoring Realisasi SPP
           </h1>

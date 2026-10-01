@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   ClipboardList, 
   BarChart3, 
@@ -12,10 +12,15 @@ import {
   ShieldCheck,
   Building,
   LogOut,
-  Layers
+  Layers,
+  Camera,
+  RotateCcw,
+  Upload,
+  Check
 } from 'lucide-react';
 import { UserProfile, SJAArea } from '../types';
 import { AREA_METADATA } from '../utils/initialData';
+import { processImageFile } from '../utils/logoManager';
 
 interface SidebarProps {
   activeTab: string;
@@ -32,6 +37,8 @@ interface SidebarProps {
   activeAreaFilter: SJAArea | 'ALL';
   onSelectAreaFilter: (area: SJAArea | 'ALL') => void;
   totalItemsCount: number;
+  customLogo: string | null;
+  onUpdateLogo: (newLogo: string | null) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -48,8 +55,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeAreaFilter,
   onSelectAreaFilter,
   totalItemsCount,
+  customLogo,
+  onUpdateLogo,
 }) => {
   const isSuperadmin = currentUser.role === 'SUPERADMIN';
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const dataUrl = await processImageFile(file);
+      onUpdateLogo(dataUrl);
+      showToast('Logo berhasil diperbarui & disimpan otomatis!');
+      setIsLogoModalOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Gagal memproses file foto');
+    } finally {
+      // Reset input agar bisa memilih file yang sama jika diinginkan
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleResetLogo = () => {
+    onUpdateLogo(null);
+    showToast('Logo direset kembali ke default SJA');
+    setIsLogoModalOpen(false);
+  };
 
   const navItems = [
     {
@@ -90,6 +134,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
+      {/* Toast Notifikasi Sukses Simpan Otomatis */}
+      {toastMessage && (
+        <div className="fixed bottom-5 left-5 z-50 bg-slate-900 dark:bg-slate-800 text-white border border-slate-700 shadow-xl px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* Mobile Backdrop Overlay */}
       {isMobileOpen && (
         <div
@@ -107,12 +159,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isMobileOpen ? 'translate-x-0 w-64 shadow-2xl' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        {/* Sidebar Header: Brand Crest & Collapse Button */}
+        {/* Sidebar Header: Brand Crest, Interactive Logo & Collapse Button */}
         <div className="h-16 px-4 flex items-center justify-between border-b border-slate-200/90 dark:border-slate-800/90 shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-9 h-9 rounded-lg bg-blue-600 dark:bg-blue-600 text-white flex items-center justify-center font-bold text-sm tracking-tight shadow-md shrink-0 ring-1 ring-white/10">
-              SJA
+            {/* Interactive Logo Wrapper with Auto-Save */}
+            <div className="relative group/logo shrink-0">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml"
+                className="hidden"
+                onChange={handleFileSelected}
+              />
+
+              <button
+                type="button"
+                onClick={() => setIsLogoModalOpen(true)}
+                className="relative block rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 transition-transform active:scale-95"
+                title="Klik untuk mengubah & menyimpan logo baru otomatis"
+              >
+                {customLogo ? (
+                  <img
+                    src={customLogo}
+                    alt="Logo Perusahaan"
+                    className="w-9 h-9 rounded-lg object-contain bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 shadow-md shrink-0 p-0.5"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm tracking-tight shadow-md shrink-0 ring-1 ring-white/10">
+                    SJA
+                  </div>
+                )}
+
+                {/* Camera Hover Badge */}
+                <div className="absolute inset-0 bg-slate-900/70 rounded-lg flex items-center justify-center text-white opacity-0 group-hover/logo:opacity-100 transition-opacity backdrop-blur-2xs">
+                  <Camera className="w-4 h-4 text-white" />
+                </div>
+              </button>
             </div>
+
             {(!isCollapsed || isMobileOpen) && (
               <div className="min-w-0 transition-opacity duration-200">
                 <span className="block font-semibold text-sm tracking-tight text-slate-900 dark:text-white truncate">
@@ -294,6 +378,77 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </aside>
+
+      {/* Modal Edit / Ganti Logo Perusahaan (Auto-Save) */}
+      {isLogoModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xl max-w-sm w-full p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Ganti Logo / Foto Profil
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Tersimpan otomatis ke browser Anda
+                </p>
+              </div>
+              <button
+                onClick={() => setIsLogoModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Preview Logo Saat Ini */}
+            <div className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2">
+              <div className="w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-1">
+                {customLogo ? (
+                  <img
+                    src={customLogo}
+                    alt="Pratinjau Logo"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl rounded-lg">
+                    SJA
+                  </div>
+                )}
+              </div>
+              <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                {customLogo ? 'Logo Kustom Aktif' : 'Logo Bawaan Standar (SJA)'}
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-2xs transition-colors cursor-pointer"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Pilih Foto dari Komputer</span>
+              </button>
+
+              {customLogo && (
+                <button
+                  type="button"
+                  onClick={handleResetLogo}
+                  className="w-full py-2 px-3 border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl font-medium text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Kembalikan ke Logo Bawaan SJA</span>
+                </button>
+              )}
+            </div>
+
+            <p className="text-[10px] text-center text-slate-400 font-mono">
+              Mendukung file PNG, JPG, WebP, dan SVG (disimpan otomatis).
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 };
