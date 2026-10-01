@@ -80,6 +80,7 @@ export interface SystemNotification {
 
 export interface GoogleSheetConfig {
   webAppUrl: string;
+  spreadsheetUrl?: string; // URL tautan langsung ke dokumen Google Spreadsheet
   sheetName: string;
   autoSync: boolean;
   lastSyncTime?: string;

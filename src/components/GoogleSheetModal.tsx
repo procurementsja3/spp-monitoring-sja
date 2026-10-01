@@ -14,7 +14,9 @@ import {
   Globe,
   Radio,
   CheckCircle2,
-  Zap
+  Zap,
+  FileSpreadsheet,
+  ExternalLink
 } from 'lucide-react';
 
 interface GoogleSheetModalProps {
@@ -53,6 +55,7 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   };
 
   const [urlInput, setUrlInput] = useState(currentConfig.webAppUrl || '');
+  const [spreadsheetUrlInput, setSpreadsheetUrlInput] = useState(currentConfig.spreadsheetUrl || '');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isTestingPing, setIsTestingPing] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -60,6 +63,7 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   // Update input text when active area changes
   useEffect(() => {
     setUrlInput(areaConfigs[selectedArea]?.webAppUrl || '');
+    setSpreadsheetUrlInput(areaConfigs[selectedArea]?.spreadsheetUrl || '');
     setFeedbackMsg(null);
   }, [selectedArea, areaConfigs]);
 
@@ -240,6 +244,11 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                     title={isConfigured ? 'Web App URL Tersambung' : 'Belum Ada URL'}
                   />
                 </div>
+                <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
+                  {areaKey === 'SEPANJANG' ? 'Lampiran 1' :
+                   areaKey === 'KARAWANG' ? 'Lampiran 2' :
+                   areaKey === 'SUKODONO' ? 'Lampiran 3' : 'Lampiran 4'}
+                </div>
                 <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 font-mono">
                   <span>User: <strong className="text-slate-700">{spec.username}</strong></span>
                   <span className={isConfigured ? 'text-emerald-600 font-semibold' : 'text-slate-400'}>
@@ -272,6 +281,68 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
           <span>{feedbackMsg.text}</span>
         </div>
       )}
+
+      {/* Card Akses Langsung Buka Dokumen Google Spreadsheet */}
+      <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 dark:border-emerald-800/60 pb-2.5">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-emerald-600 text-white shadow-2xs">
+              <FileSpreadsheet className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-emerald-950 dark:text-emerald-300 uppercase tracking-wider font-mono">
+                Akses Langsung Dokumen Spreadsheet · {currentSpec.name}
+              </h3>
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                Buka atau simpan link Google Sheet untuk cabang ini
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const url = currentConfig.spreadsheetUrl?.trim() || 'https://docs.google.com/spreadsheets/';
+                window.open(url, '_blank');
+              }}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Buka G Sheet {currentSpec.name.split(' ')[1]}</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-semibold text-emerald-900 dark:text-emerald-300 mb-1">
+            URL / Tautan Dokumen Google Spreadsheet:
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="url"
+              value={spreadsheetUrlInput}
+              onChange={(e) => setSpreadsheetUrlInput(e.target.value)}
+              placeholder={`https://docs.google.com/spreadsheets/d/... (Link Google Sheet ${currentSpec.name})`}
+              className="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-lg text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const clean = spreadsheetUrlInput.trim();
+                onUpdateAreaConfig(selectedArea, { spreadsheetUrl: clean });
+                setFeedbackMsg({
+                  type: 'success',
+                  text: `Tautan Dokumen Google Spreadsheet untuk ${currentSpec.name} berhasil disimpan.`,
+                });
+              }}
+              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+            >
+              Simpan Tautan
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Form Konfigurasi Web App URL Area */}
       <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-xs space-y-4">

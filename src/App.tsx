@@ -602,6 +602,8 @@ export default function App() {
         totalItemsCount={areaScopedItems.length}
         customLogo={customLogo}
         onUpdateLogo={handleUpdateLogo}
+        areaConfigs={areaConfigs}
+        onUpdateAreaConfig={handleUpdateAreaConfig}
       />
 
       {/* Main Content Area dengan transisi margin/padding sesuai toggle sidebar */}

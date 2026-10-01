@@ -82,24 +82,28 @@ export const getPicListForArea = (area: SJAArea): string[] => {
 export const DEFAULT_AREA_SHEET_CONFIGS: AreaSheetConfigMap = {
   SEPANJANG: {
     webAppUrl: '',
+    spreadsheetUrl: '',
     sheetName: 'SPP_Sepanjang',
     autoSync: false,
     syncStatus: 'idle',
   },
   KARAWANG: {
     webAppUrl: '',
+    spreadsheetUrl: '',
     sheetName: 'SPP_Karawang',
     autoSync: false,
     syncStatus: 'idle',
   },
   SUKODONO: {
     webAppUrl: '',
+    spreadsheetUrl: '',
     sheetName: 'SPP_Sukodono',
     autoSync: false,
     syncStatus: 'idle',
   },
   SEMARANG: {
     webAppUrl: '',
+    spreadsheetUrl: '',
     sheetName: 'SPP_Semarang',
     autoSync: false,
     syncStatus: 'idle',
