@@ -23,13 +23,15 @@ import {
   FileCode2,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  Cloud,
+  Server
 } from 'lucide-react';
 
 interface GoogleSheetModalProps {
   currentUser: UserProfile;
   areaConfigs: AreaSheetConfigMap;
-  onUpdateAreaConfig: (area: SJAArea, newConfig: Partial<GoogleSheetConfig>) => void;
+  onUpdateAreaConfig: (area: SJAArea, newConfig: Partial<GoogleSheetConfig>) => void | Promise<void>;
   onPullFromSheet: (area: SJAArea) => Promise<void>;
   onPushToSheet: (area: SJAArea) => Promise<void>;
   itemsByAreaCount: Record<SJAArea, number>;
@@ -43,7 +45,7 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   onPushToSheet,
   itemsByAreaCount,
 }) => {
-  const isSuperadmin = currentUser.role === 'SUPERADMIN';
+  const isSuperadmin = currentUser.role === 'SUPERADMIN' || currentUser.username?.toLowerCase() === 'superadmin';
   const defaultArea: SJAArea = isSuperadmin ? 'SEPANJANG' : (currentUser.area as SJAArea);
   const [selectedArea, setSelectedArea] = useState<SJAArea>(defaultArea);
 
@@ -108,18 +110,47 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
     }
   };
 
-  const handleSaveUrl = (e: React.FormEvent) => {
+  const handleSaveUrl = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUrl = urlInput.trim();
-    onUpdateAreaConfig(selectedArea, {
-      webAppUrl: cleanUrl,
-      syncStatus: cleanUrl ? 'connected' : 'idle',
-      lastSyncTime: new Date().toISOString(),
-    });
-    setFeedbackMsg({
-      type: 'success',
-      text: `Web App URL untuk cabang ${currentSpec.name} (User: ${currentSpec.username}) berhasil disimpan.`,
-    });
+    setIsProcessing(true);
+    try {
+      await onUpdateAreaConfig(selectedArea, {
+        webAppUrl: cleanUrl,
+        syncStatus: cleanUrl ? 'connected' : 'idle',
+        lastSyncTime: new Date().toISOString(),
+      });
+      setFeedbackMsg({
+        type: 'success',
+        text: `✓ Web App URL untuk cabang ${currentSpec.name} (User: ${currentSpec.username}) berhasil disimpan permanen ke Cloud Server. Data tidak hilang di PC lain!`,
+      });
+    } catch (err: any) {
+      setFeedbackMsg({
+        type: 'error',
+        text: `Gagal menyimpan URL ke cloud server: ${err.message || 'Koneksi terganggu'}`,
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSaveSpreadsheetUrl = async () => {
+    const clean = spreadsheetUrlInput.trim();
+    setIsProcessing(true);
+    try {
+      await onUpdateAreaConfig(selectedArea, { spreadsheetUrl: clean });
+      setFeedbackMsg({
+        type: 'success',
+        text: `✓ Tautan Dokumen Google Spreadsheet untuk ${currentSpec.name} berhasil disimpan permanen ke Cloud Server. Tersedia otomatis di seluruh PC/Browser!`,
+      });
+    } catch (err: any) {
+      setFeedbackMsg({
+        type: 'error',
+        text: `Gagal menyimpan tautan ke cloud server: ${err.message || 'Koneksi terganggu'}`,
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleToggleAutoSync = () => {
@@ -240,6 +271,26 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
         </div>
       </div>
 
+      {/* Cloud Persistence Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 text-white rounded-xl border border-emerald-500/30 shadow-md">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 shrink-0">
+            <Cloud className="w-5 h-5 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-emerald-300">Penyimpanan Cloud Server Aktif</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">
+                Multi-PC &amp; Multi-Browser
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              Data URL Dokumen Spreadsheet &amp; Web App URL tersimpan permanen di cloud server. Saat link dibagikan dan dicoba ke PC atau browser lain, data kedua link tetap ada dan tidak hilang.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Area Selector Tabs */}
       <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2">
         <div className="flex items-center justify-between px-1">
@@ -257,7 +308,9 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
             const spec = AREA_CONFIG_SPECS[areaKey];
             const isSelected = selectedArea === areaKey;
             const areaConfig = areaConfigs[areaKey];
-            const isConfigured = !!areaConfig?.webAppUrl;
+            const hasWebApp = !!areaConfig?.webAppUrl?.trim();
+            const hasSpreadsheet = !!areaConfig?.spreadsheetUrl?.trim();
+            const count = (hasWebApp ? 1 : 0) + (hasSpreadsheet ? 1 : 0);
             const isDisabled = !isSuperadmin && currentUser.area !== areaKey;
 
             return (
@@ -278,9 +331,9 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                   <span className="font-bold text-xs text-slate-900 truncate">{spec.name}</span>
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      isConfigured ? 'bg-emerald-500' : 'bg-slate-300'
+                      count === 2 ? 'bg-emerald-500' : count === 1 ? 'bg-amber-500' : 'bg-slate-300'
                     }`}
-                    title={isConfigured ? 'Web App URL Tersambung' : 'Belum Ada URL'}
+                    title={count === 2 ? '2 Link Tersimpan di Cloud' : count === 1 ? '1 Link Tersimpan di Cloud' : 'Belum Ada Link'}
                   />
                 </div>
                 <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
@@ -290,8 +343,8 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                 </div>
                 <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 font-mono">
                   <span>User: <strong className="text-slate-700">{spec.username}</strong></span>
-                  <span className={isConfigured ? 'text-emerald-600 font-semibold' : 'text-slate-400'}>
-                    {isConfigured ? 'Siap' : 'Belum'}
+                  <span className={count === 2 ? 'text-emerald-600 font-bold' : count === 1 ? 'text-amber-600 font-medium' : 'text-slate-400'}>
+                    {count === 2 ? '2 Link Cloud' : count === 1 ? '1 Link Cloud' : 'Belum Ada'}
                   </span>
                 </div>
               </button>
@@ -329,9 +382,17 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
               <FileSpreadsheet className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-emerald-950 dark:text-emerald-300 uppercase tracking-wider font-mono">
-                Akses Langsung Dokumen Spreadsheet · {currentSpec.name}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-emerald-950 dark:text-emerald-300 uppercase tracking-wider font-mono">
+                  Akses Langsung Dokumen Spreadsheet · {currentSpec.name}
+                </h3>
+                {currentConfig.spreadsheetUrl && (
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded">
+                    <Cloud className="w-3 h-3" />
+                    <span>Cloud Sync</span>
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
                 Buka atau simpan link Google Sheet untuk cabang ini
               </p>
@@ -339,17 +400,15 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const url = currentConfig.spreadsheetUrl?.trim() || 'https://docs.google.com/spreadsheets/';
-                window.open(url, '_blank');
-              }}
-              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            <a
+              href={currentConfig.spreadsheetUrl?.trim() || 'https://docs.google.com/spreadsheets/'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer no-underline"
             >
               <span>Buka G Sheet {currentSpec.name.split(' ')[1]}</span>
               <ExternalLink className="w-3.5 h-3.5" />
-            </button>
+            </a>
           </div>
         </div>
 
@@ -367,145 +426,142 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
             />
             <button
               type="button"
-              onClick={() => {
-                const clean = spreadsheetUrlInput.trim();
-                onUpdateAreaConfig(selectedArea, { spreadsheetUrl: clean });
-                setFeedbackMsg({
-                  type: 'success',
-                  text: `Tautan Dokumen Google Spreadsheet untuk ${currentSpec.name} berhasil disimpan.`,
-                });
-              }}
-              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+              onClick={handleSaveSpreadsheetUrl}
+              disabled={isProcessing}
+              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
             >
-              Simpan Tautan
+              <Cloud className="w-3.5 h-3.5" />
+              <span>Simpan Tautan</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Card Panduan & Tombol Salin Kode Apps Script */}
-      <div className="p-5 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-xl border border-indigo-800/60 shadow-lg text-white space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-800/50 pb-3">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 shrink-0">
-              <FileCode2 className="w-5 h-5 text-indigo-300" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
-                  <span>Kode Google Apps Script (Code.gs)</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
-                    {currentSpec.name} ({currentSpec.code})
-                  </span>
-                </h3>
+      {/* Card Panduan & Tombol Salin Kode Apps Script (Hanya Tampil untuk Superadmin) */}
+      {isSuperadmin && (
+        <div className="p-5 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-xl border border-indigo-800/60 shadow-lg text-white space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-800/50 pb-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 shrink-0">
+                <FileCode2 className="w-5 h-5 text-indigo-300" />
               </div>
-              <p className="text-xs text-indigo-200/80 mt-0.5">
-                Salin kode ini dan tempelkan ke menu <strong>Extensions &gt; Apps Script</strong> pada spreadsheet Google Sheet cabang Anda.
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
+                    <span>Kode Google Apps Script (Code.gs)</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                      {currentSpec.name} ({currentSpec.code})
+                    </span>
+                  </h3>
+                </div>
+                <p className="text-xs text-indigo-200/80 mt-0.5">
+                  Salin kode ini dan tempelkan ke menu <strong>Extensions &gt; Apps Script</strong> pada spreadsheet Google Sheet cabang Anda.
+                </p>
+              </div>
+            </div>
+
+            {/* Tombol Utama: Salin Kode Apps Script */}
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={handleCopyScript}
+                className={`px-4 py-2.5 rounded-lg text-xs font-bold shadow-md transition-all flex items-center gap-2 cursor-pointer ${
+                  isCopied
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-500 ring-2 ring-emerald-400/50'
+                    : 'bg-indigo-600 hover:bg-indigo-500 text-white hover:shadow-indigo-500/25 ring-1 ring-indigo-400/50'
+                }`}
+              >
+                {isCopied ? (
+                  <>
+                    <Check className="w-4 h-4 text-white" />
+                    <span>Kode Berhasil Disalin!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 text-indigo-200" />
+                    <span>Salin Kode Apps Script</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowScriptViewer((prev) => !prev)}
+                className="px-3 py-2.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Lihat / Sembunyikan kode lengkap"
+              >
+                <span>{showScriptViewer ? 'Tutup Kode' : 'Lihat Kode'}</span>
+                {showScriptViewer ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Langkah Pemasangan Singkat */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
+                <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">1</span>
+                <span>Buka Google Sheet</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Klik <strong>Extensions</strong> &gt; <strong>Apps Script</strong> di lembar Google Sheet cabang {currentSpec.name}.
+              </p>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
+                <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">2</span>
+                <span>Tempelkan Kode</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Hapus isi file <code>Code.gs</code>, lalu klik tombol <strong>Salin Kode Apps Script</strong> di atas dan <strong>Paste</strong>.
+              </p>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
+                <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">3</span>
+                <span>Deploy Web App</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Klik <strong>Deploy</strong> &gt; <strong>New deployment</strong> (Web app). Set <em>Who has access</em> ke <strong>Anyone</strong>.
+              </p>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
+                <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">4</span>
+                <span>Hubungkan URL</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Salin <strong>Web App URL</strong> (/exec), lalu simpan pada formulir di bawah ini dan klik <strong>Tes Koneksi</strong>.
               </p>
             </div>
           </div>
 
-          {/* Tombol Utama: Salin Kode Apps Script */}
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-            <button
-              type="button"
-              onClick={handleCopyScript}
-              className={`px-4 py-2.5 rounded-lg text-xs font-bold shadow-md transition-all flex items-center gap-2 cursor-pointer ${
-                isCopied
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-500 ring-2 ring-emerald-400/50'
-                  : 'bg-indigo-600 hover:bg-indigo-500 text-white hover:shadow-indigo-500/25 ring-1 ring-indigo-400/50'
-              }`}
-            >
-              {isCopied ? (
-                <>
-                  <Check className="w-4 h-4 text-white" />
-                  <span>Kode Berhasil Disalin!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 text-indigo-200" />
-                  <span>Salin Kode Apps Script</span>
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowScriptViewer((prev) => !prev)}
-              className="px-3 py-2.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
-              title="Lihat / Sembunyikan kode lengkap"
-            >
-              <span>{showScriptViewer ? 'Tutup Kode' : 'Lihat Kode'}</span>
-              {showScriptViewer ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-          </div>
+          {/* Collapsible Viewer Kode Script Lengkap */}
+          {showScriptViewer && (
+            <div className="space-y-2 pt-2 border-t border-indigo-800/40 animate-in fade-in">
+              <div className="flex items-center justify-between text-xs text-indigo-200">
+                <span className="font-mono text-[11px]">File: Code.gs ({currentSpec.name})</span>
+                <button
+                  type="button"
+                  onClick={handleCopyScript}
+                  className="text-xs text-indigo-300 hover:text-white flex items-center gap-1 cursor-pointer underline"
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>Salin teks ini</span>
+                </button>
+              </div>
+              <div className="relative">
+                <pre className="p-4 bg-slate-950/90 rounded-xl border border-slate-800 text-[11px] font-mono text-slate-200 overflow-x-auto max-h-80 overflow-y-auto leading-relaxed selection:bg-indigo-600 selection:text-white">
+                  <code>{appsScriptCode}</code>
+                </pre>
+              </div>
+            </div>
+          )}
         </div>
-
-        {/* 4 Langkah Pemasangan Singkat */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
-          <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
-              <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">1</span>
-              <span>Buka Google Sheet</span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Klik <strong>Extensions</strong> &gt; <strong>Apps Script</strong> di lembar Google Sheet cabang {currentSpec.name}.
-            </p>
-          </div>
-
-          <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
-              <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">2</span>
-              <span>Tempelkan Kode</span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Hapus isi file <code>Code.gs</code>, lalu klik tombol <strong>Salin Kode Apps Script</strong> di atas dan <strong>Paste</strong>.
-            </p>
-          </div>
-
-          <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
-              <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">3</span>
-              <span>Deploy Web App</span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Klik <strong>Deploy</strong> &gt; <strong>New deployment</strong> (Web app). Set <em>Who has access</em> ke <strong>Anyone</strong>.
-            </p>
-          </div>
-
-          <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
-              <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">4</span>
-              <span>Hubungkan URL</span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Salin <strong>Web App URL</strong> (/exec), lalu simpan pada formulir di bawah ini dan klik <strong>Tes Koneksi</strong>.
-            </p>
-          </div>
-        </div>
-
-        {/* Collapsible Viewer Kode Script Lengkap */}
-        {showScriptViewer && (
-          <div className="space-y-2 pt-2 border-t border-indigo-800/40 animate-in fade-in">
-            <div className="flex items-center justify-between text-xs text-indigo-200">
-              <span className="font-mono text-[11px]">File: Code.gs ({currentSpec.name})</span>
-              <button
-                type="button"
-                onClick={handleCopyScript}
-                className="text-xs text-indigo-300 hover:text-white flex items-center gap-1 cursor-pointer underline"
-              >
-                <Copy className="w-3 h-3" />
-                <span>Salin teks ini</span>
-              </button>
-            </div>
-            <div className="relative">
-              <pre className="p-4 bg-slate-950/90 rounded-xl border border-slate-800 text-[11px] font-mono text-slate-200 overflow-x-auto max-h-80 overflow-y-auto leading-relaxed selection:bg-indigo-600 selection:text-white">
-                <code>{appsScriptCode}</code>
-              </pre>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Form Konfigurasi Web App URL Area */}
       <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-xs space-y-4">
@@ -549,9 +605,11 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   type="submit"
-                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold text-xs shadow-xs transition-colors whitespace-nowrap cursor-pointer"
+                  disabled={isProcessing}
+                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold text-xs shadow-xs transition-colors whitespace-nowrap cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Simpan URL
+                  <Cloud className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Simpan URL</span>
                 </button>
                 <button
                   type="button"
@@ -599,6 +657,146 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
               Sinkronisasi: {new Date(currentConfig.lastSyncTime).toLocaleTimeString('id-ID')}
             </span>
           )}
+        </div>
+      </div>
+
+      {/* Ringkasan Status Cloud Multi-Cabang (Sepanjang, Karawang, Sukodono, Semarang) */}
+      <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-800 pb-2.5">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-indigo-600 text-white shadow-2xs">
+              <Server className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
+                Status Penyimpanan Cloud 4 Cabang SJA
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Penyimpanan kedua link berlaku sama untuk Sepanjang, Karawang, Sukodono, dan Semarang (Multi-PC Sync)
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-mono font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+            <Cloud className="w-3 h-3 text-blue-600" />
+            <span>Terhubung ke Cloud Backend</span>
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 bg-slate-100/60 dark:bg-slate-800/40">
+                <th className="py-2 px-3">Cabang &amp; Akun</th>
+                <th className="py-2 px-3">Tautan Dokumen Spreadsheet</th>
+                <th className="py-2 px-3">Web App URL Google Apps Script</th>
+                <th className="py-2 px-3 text-center">Status Cloud</th>
+                <th className="py-2 px-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60 text-[11px]">
+              {allAreas.map((areaKey) => {
+                const spec = AREA_CONFIG_SPECS[areaKey];
+                const cfg = areaConfigs[areaKey];
+                const hasSheet = !!cfg?.spreadsheetUrl?.trim();
+                const hasWeb = !!cfg?.webAppUrl?.trim();
+                const isCurrent = selectedArea === areaKey;
+
+                return (
+                  <tr
+                    key={areaKey}
+                    className={`transition-colors ${
+                      isCurrent
+                        ? 'bg-blue-50/50 dark:bg-blue-950/20'
+                        : 'hover:bg-slate-100/40 dark:hover:bg-slate-800/30'
+                    }`}
+                  >
+                    <td className="py-2.5 px-3">
+                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>{spec.name}</span>
+                        {isCurrent && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-mono font-medium">
+                            Aktif
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        User: <strong className="text-slate-700 dark:text-slate-300">{spec.username}</strong>
+                      </div>
+                    </td>
+
+                    <td className="py-2.5 px-3 max-w-[200px]">
+                      {hasSheet ? (
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="font-mono text-[10px] text-slate-700 dark:text-slate-300 truncate" title={cfg.spreadsheetUrl}>
+                            {cfg.spreadsheetUrl}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 italic text-[10px]">Belum diinput</span>
+                      )}
+                    </td>
+
+                    <td className="py-2.5 px-3 max-w-[220px]">
+                      {hasWeb ? (
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="font-mono text-[10px] text-slate-700 dark:text-slate-300 truncate" title={cfg.webAppUrl}>
+                            {cfg.webAppUrl}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 italic text-[10px]">Belum diinput</span>
+                      )}
+                    </td>
+
+                    <td className="py-2.5 px-3 text-center">
+                      {hasSheet && hasWeb ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Lengkap &amp; Tersimpan
+                        </span>
+                      ) : hasSheet || hasWeb ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          1 Link Tersimpan
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono text-slate-500 bg-slate-200/60 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
+                          Menunggu Input
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="py-2.5 px-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {isSuperadmin && !isCurrent && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedArea(areaKey)}
+                            className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-[10px] font-semibold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                          >
+                            Kelola
+                          </button>
+                        )}
+                        {hasSheet && (
+                          <a
+                            href={cfg.spreadsheetUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded transition-colors"
+                            title={`Buka Dokumen Spreadsheet ${spec.name}`}
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

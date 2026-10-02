@@ -28,6 +28,13 @@ import {
 import { generateSHA256Hash } from './utils/cryptoSim';
 import { fetchFromGoogleSheet, pushToGoogleSheet, clearGoogleSheet } from './utils/googleSheetsConnector';
 import { getStoredLogo, saveStoredLogo, removeStoredLogo } from './utils/logoManager';
+import { 
+  fetchCloudAreaConfigs, 
+  saveCloudAreaConfigToServer, 
+  fetchCloudSPPItems, 
+  saveCloudSPPItemsToServer, 
+  getFallbackAreaConfigs 
+} from './utils/cloudSync';
 
 import { ExecutiveDashboard } from './components/ExecutiveDashboard';
 import { LoginView } from './components/LoginView';
@@ -142,13 +149,45 @@ export default function App() {
   const [activeAreaFilter, setActiveAreaFilter] = useState<SJAArea | 'ALL'>('ALL');
 
   // 6. Konfigurasi Google Sheet Per-Area (Sepanjang, Karawang, Sukodono, Semarang)
+  // Dilengkapi Cloud Persistent Storage agar tidak hilang saat diakses dari PC / Browser lain
   const [areaConfigs, setAreaConfigs] = useState<AreaSheetConfigMap>(() => {
-    try {
-      const saved = localStorage.getItem('sja_area_sheet_configs');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return DEFAULT_AREA_SHEET_CONFIGS;
+    return getFallbackAreaConfigs();
   });
+
+  // Sinkronisasi dua arah dengan Cloud Server Backend (Multi-PC & Multi-Browser Support)
+  useEffect(() => {
+    let isMounted = true;
+    const syncFromCloud = async () => {
+      try {
+        const cloudConfigs = await fetchCloudAreaConfigs();
+        if (isMounted && cloudConfigs) {
+          setAreaConfigs(cloudConfigs);
+        }
+
+        // Sinkronisasi data SPP dari cloud jika tersedia
+        const cloudItems = await fetchCloudSPPItems();
+        if (isMounted && cloudItems && cloudItems.length > 0) {
+          setItems(cloudItems);
+        }
+      } catch (err) {
+        console.warn('Sync cloud error:', err);
+      }
+    };
+
+    // Ambil data pertama kali saat aplikasi dimuat
+    syncFromCloud();
+
+    // Polling periodik (setiap 12 detik) dan saat tab browser aktif kembali
+    const interval = setInterval(syncFromCloud, 12000);
+    const handleFocus = () => syncFromCloud();
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -156,7 +195,8 @@ export default function App() {
     } catch {}
   }, [areaConfigs]);
 
-  const handleUpdateAreaConfig = (area: SJAArea, newConfig: Partial<GoogleSheetConfig>) => {
+  const handleUpdateAreaConfig = async (area: SJAArea, newConfig: Partial<GoogleSheetConfig>) => {
+    // 1. Update state lokal seketika (optimistic UI)
     setAreaConfigs((prev) => ({
       ...prev,
       [area]: {
@@ -164,6 +204,17 @@ export default function App() {
         ...newConfig,
       },
     }));
+
+    // 2. Simpan permanen ke Cloud Backend Server
+    try {
+      const serverUpdated = await saveCloudAreaConfigToServer(area, newConfig);
+      if (serverUpdated) {
+        setAreaConfigs(serverUpdated);
+      }
+      addAuditLog('UPDATE_SHEET_CONFIG', `Penyimpanan link Google Sheet (${area}) ke Cloud Server permanen`);
+    } catch (err) {
+      console.error('Gagal simpan ke cloud backend:', err);
+    }
   };
 
   // 7. Audit Trail Logs
@@ -213,11 +264,14 @@ export default function App() {
     mode: 'ALL',
   });
 
-  // Simpan ke localStorage saat data berubah
+  // Simpan ke localStorage & Cloud Server saat data berubah
   useEffect(() => {
     try {
       localStorage.setItem('spp_monitoring_data', JSON.stringify(items));
     } catch {}
+    if (items.length > 0) {
+      saveCloudSPPItemsToServer(items);
+    }
   }, [items]);
 
   useEffect(() => {

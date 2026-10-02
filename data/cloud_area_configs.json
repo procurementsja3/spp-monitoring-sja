@@ -1,0 +1,31 @@
+{
+  "SEPANJANG": {
+    "webAppUrl": "https://script.google.com/macros/s/AKfycbwfy4zNVl1Lj4dj_1s4mo0R8UQFPS4PB3VvcDABYNiYCuc3zBsPJj9yx_KLP4QJEOg/exec",
+    "spreadsheetUrl": "",
+    "sheetName": "SPP_Sepanjang",
+    "autoSync": true,
+    "syncStatus": "connected"
+  },
+  "KARAWANG": {
+    "webAppUrl": "https://script.google.com/macros/s/AKfycbzw9Op3_EW4Gdmgw9rvejLKTC1pRsRIIb43AgMeCE3qTZduqckClLWZ0_W3v5h2PRW4/exec",
+    "spreadsheetUrl": "",
+    "sheetName": "SPP_Karawang",
+    "autoSync": true,
+    "syncStatus": "connected"
+  },
+  "SUKODONO": {
+    "webAppUrl": "https://script.google.com/macros/s/AKfycbx2ZMN-kHDzoa5ZP3lODQTDF-sPt2vIMuXWb5NuodG7IrUmUQqHr6YDby0azMYHc5GE/exec",
+    "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM/edit?usp=sharing",
+    "sheetName": "SPP_Sukodono",
+    "autoSync": true,
+    "syncStatus": "connected",
+    "lastSyncTime": "2026-10-02T07:10:09.425Z"
+  },
+  "SEMARANG": {
+    "webAppUrl": "",
+    "spreadsheetUrl": "",
+    "sheetName": "SPP_Semarang",
+    "autoSync": true,
+    "syncStatus": "idle"
+  }
+}

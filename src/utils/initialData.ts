@@ -81,32 +81,32 @@ export const getPicListForArea = (area: SJAArea): string[] => {
 
 export const DEFAULT_AREA_SHEET_CONFIGS: AreaSheetConfigMap = {
   SEPANJANG: {
-    webAppUrl: '',
-    spreadsheetUrl: '',
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbwfy4zNVl1Lj4dj_1s4mo0R8UQFPS4PB3VvcDABYNiYCuc3zBsPJj9yx_KLP4QJEOg/exec',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1JvQux9Qf1Od5mn14AFocvdnwA1J4u-YMMxRQvU09baY/edit?usp=sharing',
     sheetName: 'SPP_Sepanjang',
-    autoSync: false,
-    syncStatus: 'idle',
+    autoSync: true,
+    syncStatus: 'connected',
   },
   KARAWANG: {
-    webAppUrl: '',
-    spreadsheetUrl: '',
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbzw9Op3_EW4Gdmgw9rvejLKTC1pRsRIIb43AgMeCE3qTZduqckClLWZ0_W3v5h2PRW4/exec',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1pWkSeC13WL3b_39jencQqik23KC8wOL766CgZZ6QdB4/edit?usp=sharing',
     sheetName: 'SPP_Karawang',
-    autoSync: false,
-    syncStatus: 'idle',
+    autoSync: true,
+    syncStatus: 'connected',
   },
   SUKODONO: {
-    webAppUrl: '',
-    spreadsheetUrl: '',
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbx2ZMN-kHDzoa5ZP3lODQTDF-sPt2vIMuXWb5NuodG7IrUmUQqHr6YDby0azMYHc5GE/exec',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM/edit?usp=sharing',
     sheetName: 'SPP_Sukodono',
-    autoSync: false,
-    syncStatus: 'idle',
+    autoSync: true,
+    syncStatus: 'connected',
   },
   SEMARANG: {
-    webAppUrl: '',
-    spreadsheetUrl: '',
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbzi8X67Wm629RVYGTjiliCO3LNAdCs6MliRuGZmC0tYIHdlWWVvvxHEr881GkDjdBgW/exec',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1biBuVUj9OVa9cvuDc-PuUpLUfd3ESQ90EIn8c0TfkwU/edit?usp=sharing',
     sheetName: 'SPP_Semarang',
-    autoSync: false,
-    syncStatus: 'idle',
+    autoSync: true,
+    syncStatus: 'connected',
   },
 };
 
