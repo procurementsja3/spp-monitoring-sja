@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { INITIAL_USERS } from '../utils/initialData';
-import { EMBEDDED_COFFEE_BG } from '../utils/coffeeBackground';
-import { Lock, User, ArrowRight, KeyRound, Eye, EyeOff, Sun, Moon, Shield } from 'lucide-react';
+import { EMBEDDED_COFFEE_BG, EMBEDDED_DARK_COFFEE_BG } from '../utils/coffeeBackground';
+import { Lock, User, ArrowRight, KeyRound, Eye, EyeOff, Sun, Moon, Shield, ImagePlus, RotateCcw } from 'lucide-react';
 
 interface LoginViewProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -21,6 +21,43 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Penyimpanan Background Kustom Mode Gelap (misal: Biji Kopi.jpg yang diunggah)
+  const [customDarkBg, setCustomDarkBg] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('spp_login_dark_bg_custom') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const handleCustomDarkBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          setCustomDarkBg(result);
+          try {
+            localStorage.setItem('spp_login_dark_bg_custom', result);
+          } catch (err) {
+            console.warn('Gagal menyimpan background kustom ke localStorage', err);
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleResetDarkBg = () => {
+    setCustomDarkBg(null);
+    try {
+      localStorage.removeItem('spp_login_dark_bg_custom');
+    } catch (err) {
+      console.warn('Gagal menghapus background kustom dari localStorage', err);
+    }
+  };
 
   const handleManualLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,25 +84,80 @@ export const LoginView: React.FC<LoginViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 selection:bg-amber-600 selection:text-white transition-colors duration-200 relative overflow-hidden bg-[#18110b]">
-      {/* Background Coffee Beans Photo with Subtle Soft Blur & Rich Roasted Tone */}
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 selection:bg-amber-600 selection:text-white transition-colors duration-500 relative overflow-hidden bg-[#241209]">
+      {/* Background Coffee Beans Layers with Smooth Theme Cross-Fade */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
-        <img
-          src={EMBEDDED_COFFEE_BG}
-          alt="Biji Kopi Kapal Api Background"
-          className="absolute inset-0 w-full h-full object-cover scale-105 filter blur-[1.5px] brightness-[0.88] dark:brightness-[0.72] contrast-[1.12] saturate-[1.2] transition-all duration-700"
-        />
-        {/* Soft Radial Vignette: Menjaga detail biji kopi tetap terlihat sangat jelas di sekeliling */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/55 pointer-events-none" />
-        <div className="absolute inset-0 bg-black/15 pointer-events-none" />
+        {/* Layer 1: Mode Terang (Light Mode) - Hamparan Biji Kopi Sangrai Hangat */}
+        <div 
+          className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+            theme === 'dark' ? 'opacity-0' : 'opacity-100'
+          }`}
+        >
+          <img
+            src={EMBEDDED_COFFEE_BG}
+            alt="Biji Kopi Sangrai Kapal Api"
+            className="absolute inset-0 w-full h-full object-cover scale-105 filter blur-[1.5px] brightness-[0.92] contrast-[1.1] saturate-[1.2]"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/45" />
+          <div className="absolute inset-0 bg-black/15" />
+        </div>
+
+        {/* Layer 2: Mode Gelap (Dark Mode) - Foto Biji Kopi.jpg Asli (Floating Roasted Coffee Beans) */}
+        <div 
+          className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+            theme === 'dark' ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <img
+            src={customDarkBg || EMBEDDED_DARK_COFFEE_BG}
+            alt="Biji Kopi Melayang Asli Biji Kopi.jpg"
+            className="absolute inset-0 w-full h-full object-cover scale-105 filter blur-[1.5px] brightness-[0.92] contrast-[1.05]"
+          />
+          {/* Samar-samar halus: kartu login di tengah tetap sangat jelas & tajam */}
+          <div className="absolute inset-0 bg-black/25 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/30 pointer-events-none" />
+        </div>
       </div>
 
-      {/* Floating Theme Toggle in Login */}
-      {onToggleTheme && (
-        <div className="absolute top-5 right-5 z-20">
+      {/* Floating Theme & Background Controls in Login */}
+      <div className="absolute top-5 right-5 z-20 flex items-center gap-2">
+        {/* Tombol Unggah Foto Biji Kopi.jpg Kustom (Khusus Mode Gelap) */}
+        {theme === 'dark' && (
+          <label
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/40 bg-amber-950/70 hover:bg-amber-900/90 text-amber-200 hover:text-amber-100 text-xs font-medium transition-all shadow-md backdrop-blur-md cursor-pointer"
+            title="Pilih dan pasang file Biji Kopi.jpg milik Anda sebagai background"
+          >
+            <ImagePlus className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-[11px] font-medium hidden sm:inline">
+              {customDarkBg ? 'Ganti Foto Biji Kopi' : 'Unggah Biji Kopi.jpg'}
+            </span>
+            <span className="text-[11px] font-medium sm:hidden">Foto</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleCustomDarkBgUpload}
+            />
+          </label>
+        )}
+
+        {/* Tombol Reset ke Default jika pengguna pernah mengunggah foto kustom */}
+        {theme === 'dark' && customDarkBg && (
+          <button
+            onClick={handleResetDarkBg}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-500/30 bg-red-950/60 hover:bg-red-900/80 text-red-300 text-xs font-medium transition-all shadow-md backdrop-blur-md cursor-pointer"
+            title="Reset ke background default"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span className="text-[11px]">Reset</span>
+          </button>
+        )}
+
+        {/* Toggle Mode Gelap / Terang */}
+        {onToggleTheme && (
           <button
             onClick={onToggleTheme}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 bg-slate-900/60 hover:bg-slate-900/80 text-white text-xs font-medium transition-all shadow-md backdrop-blur-md cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 bg-slate-900/70 hover:bg-slate-900/90 text-white text-xs font-medium transition-all shadow-md backdrop-blur-md cursor-pointer"
             title={theme === 'dark' ? 'Ganti ke Mode Terang' : 'Ganti ke Mode Gelap'}
           >
             {theme === 'dark' ? (
@@ -80,8 +172,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </>
             )}
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="max-w-md w-full relative z-10 space-y-6">
         {/* Brand Card Header */}
