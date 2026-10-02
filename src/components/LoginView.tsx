@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { INITIAL_USERS } from '../utils/initialData';
+import { EMBEDDED_COFFEE_BG } from '../utils/coffeeBackground';
 import { Lock, User, ArrowRight, KeyRound, Eye, EyeOff, Sun, Moon, Shield } from 'lucide-react';
 
 interface LoginViewProps {
@@ -46,16 +47,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 selection:bg-amber-600 selection:text-white transition-colors duration-200 relative overflow-hidden bg-slate-950">
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 selection:bg-amber-600 selection:text-white transition-colors duration-200 relative overflow-hidden bg-[#18110b]">
       {/* Background Coffee Beans Photo with Subtle Soft Blur & Rich Roasted Tone */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
-        <div 
-          className="absolute inset-0 bg-cover bg-center scale-105 filter blur-[2px] brightness-[0.85] dark:brightness-[0.65] contrast-[1.1] saturate-[1.15] transition-all duration-700"
-          style={{ backgroundImage: `url('${import.meta.env.BASE_URL}login-bg.jpg')` }}
+        <img
+          src={EMBEDDED_COFFEE_BG}
+          alt="Biji Kopi Kapal Api Background"
+          className="absolute inset-0 w-full h-full object-cover scale-105 filter blur-[1.5px] brightness-[0.88] dark:brightness-[0.72] contrast-[1.12] saturate-[1.2] transition-all duration-700"
         />
-        {/* Soft Radial Vignette: Menjaga detail biji kopi tetap terlihat jelas di sekeliling */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/60" />
-        <div className="absolute inset-0 bg-black/25" />
+        {/* Soft Radial Vignette: Menjaga detail biji kopi tetap terlihat sangat jelas di sekeliling */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/55 pointer-events-none" />
+        <div className="absolute inset-0 bg-black/15 pointer-events-none" />
       </div>
 
       {/* Floating Theme Toggle in Login */}
