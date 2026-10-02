@@ -22,10 +22,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Penyimpanan Background Kustom Mode Gelap (misal: Biji Kopi.jpg yang diunggah)
+  // Penyimpanan Background Kustom Mode Gelap
   const [customDarkBg, setCustomDarkBg] = useState<string | null>(() => {
     try {
-      return localStorage.getItem('spp_login_dark_bg_custom') || null;
+      return localStorage.getItem('spp_login_dark_bg_custom_v3') || null;
     } catch {
       return null;
     }
@@ -40,7 +40,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         if (result) {
           setCustomDarkBg(result);
           try {
-            localStorage.setItem('spp_login_dark_bg_custom', result);
+            localStorage.setItem('spp_login_dark_bg_custom_v3', result);
           } catch (err) {
             console.warn('Gagal menyimpan background kustom ke localStorage', err);
           }
@@ -53,6 +53,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const handleResetDarkBg = () => {
     setCustomDarkBg(null);
     try {
+      localStorage.removeItem('spp_login_dark_bg_custom_v3');
+      localStorage.removeItem('spp_login_dark_bg_custom_v2');
       localStorage.removeItem('spp_login_dark_bg_custom');
     } catch (err) {
       console.warn('Gagal menghapus background kustom dari localStorage', err);
@@ -102,7 +104,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
           <div className="absolute inset-0 bg-black/15" />
         </div>
 
-        {/* Layer 2: Mode Gelap (Dark Mode) - Foto Biji Kopi.jpg Asli (Floating Roasted Coffee Beans) */}
+        {/* Layer 2: Mode Gelap (Dark Mode) - Foto Kopi Campur Asli (Kopi Campur.jpg: Roasted Coffee Beans with Warm Fire/Steam Glow) */}
         <div 
           className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
             theme === 'dark' ? 'opacity-100' : 'opacity-0'
@@ -110,28 +112,28 @@ export const LoginView: React.FC<LoginViewProps> = ({
         >
           <img
             src={customDarkBg || EMBEDDED_DARK_COFFEE_BG}
-            alt="Biji Kopi Melayang Asli Biji Kopi.jpg"
-            className="absolute inset-0 w-full h-full object-cover scale-105 filter blur-[1.5px] brightness-[0.92] contrast-[1.05]"
+            alt="Biji Kopi Sangrai dengan Asap Hangat (Kopi Campur.jpg)"
+            className="absolute inset-0 w-full h-full object-cover scale-105 filter blur-[1px] brightness-[0.95] contrast-[1.05]"
           />
           {/* Samar-samar halus: kartu login di tengah tetap sangat jelas & tajam */}
-          <div className="absolute inset-0 bg-black/25 pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/30 pointer-events-none" />
+          <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/35 pointer-events-none" />
         </div>
       </div>
 
       {/* Floating Theme & Background Controls in Login */}
       <div className="absolute top-5 right-5 z-20 flex items-center gap-2">
-        {/* Tombol Unggah Foto Biji Kopi.jpg Kustom (Khusus Mode Gelap) */}
+        {/* Tombol Unggah Foto Background Kustom (Khusus Mode Gelap) */}
         {theme === 'dark' && (
           <label
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/40 bg-amber-950/70 hover:bg-amber-900/90 text-amber-200 hover:text-amber-100 text-xs font-medium transition-all shadow-md backdrop-blur-md cursor-pointer"
-            title="Pilih dan pasang file Biji Kopi.jpg milik Anda sebagai background"
+            title="Pilih dan pasang file foto background kustom milik Anda"
           >
             <ImagePlus className="w-3.5 h-3.5 text-amber-400" />
             <span className="text-[11px] font-medium hidden sm:inline">
-              {customDarkBg ? 'Ganti Foto Biji Kopi' : 'Unggah Biji Kopi.jpg'}
+              {customDarkBg ? 'Ganti Foto Background' : 'Unggah Foto Sendiri'}
             </span>
-            <span className="text-[11px] font-medium sm:hidden">Foto</span>
+            <span className="text-[11px] font-medium sm:hidden">Ganti Foto</span>
             <input
               type="file"
               accept="image/*"
