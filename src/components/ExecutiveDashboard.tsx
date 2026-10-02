@@ -57,7 +57,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const allAreas: SJAArea[] = ['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'];
   const userArea: SJAArea = (currentUser.area !== 'ALL' ? currentUser.area : 'SEPANJANG') as SJAArea;
   const relevantAreas: SJAArea[] = isSuperadmin ? allAreas : [userArea];
-  const [showFormulaExplanation, setShowFormulaExplanation] = useState(true);
+  const [showFormulaExplanation, setShowFormulaExplanation] = useState(false);
 
   // Filter Periode Bulanan untuk Rekapan PIC
   const [selectedPicMonth, setSelectedPicMonth] = useState<string>('ALL');
