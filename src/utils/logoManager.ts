@@ -12,6 +12,11 @@ export const getStoredLogo = (): string => {
   try {
     const stored = localStorage.getItem(LOGO_STORAGE_KEY);
     if (stored && stored.trim().length > 0) {
+      // Bersihkan cache lama jika masih menyimpan SVG logo generator terdahulu
+      if (stored.startsWith('data:image/svg')) {
+        localStorage.removeItem(LOGO_STORAGE_KEY);
+        return DEFAULT_SYSTEM_LOGO;
+      }
       return stored;
     }
   } catch {}
