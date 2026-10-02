@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { 
+  LayoutDashboard,
   ClipboardList, 
   BarChart3, 
   Calendar, 
@@ -21,7 +22,8 @@ import {
   Edit2,
   FileSpreadsheet,
   Globe,
-  Download
+  Download,
+  Copy
 } from 'lucide-react';
 import { UserProfile, SJAArea, AreaSheetConfigMap, GoogleSheetConfig } from '../types';
 import { AREA_METADATA } from '../utils/initialData';
@@ -145,6 +147,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const navItems = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard Realisasi SPP',
+      icon: LayoutDashboard,
+      description: 'Ringkasan KPI & Cabang SJA',
+    },
     {
       id: 'monitoring',
       label: 'Daftar SPP & Realisasi',
@@ -653,24 +661,64 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-2xs transition-colors cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
-                <span>Pilih Foto dari Komputer</span>
+                <span>Pilih Foto Baru dari Komputer</span>
               </button>
 
               {customLogo && (
-                <button
-                  type="button"
-                  onClick={handleResetLogo}
-                  className="w-full py-2 px-3 border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl font-medium text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Kembalikan ke Logo Bawaan SJA</span>
-                </button>
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = customLogo;
+                        link.download = 'logo.png';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        showToast('File logo.png berhasil diunduh!');
+                      }}
+                      className="py-2 px-2.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      title="Unduh file logo.png untuk dimasukkan ke folder public/ agar otomatis muncul bagi semua pengguna"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Unduh logo.png</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(customLogo);
+                        showToast('Kode logo disalin ke clipboard!');
+                      }}
+                      className="py-2 px-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      title="Salin kode Base64 untuk dikirim ke chat"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Salin Kode</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleResetLogo}
+                    className="w-full py-2 px-3 border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl font-medium text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Kembalikan ke Logo Default Sistem</span>
+                  </button>
+                </>
               )}
             </div>
 
-            <p className="text-[10px] text-center text-slate-400 font-mono">
-              Mendukung file PNG, JPG, WebP, dan SVG (disimpan otomatis).
-            </p>
+            <div className="p-2.5 rounded-xl bg-blue-50/70 dark:bg-slate-950/60 border border-blue-200/60 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
+              <span className="font-semibold text-blue-900 dark:text-blue-300 block">
+                💡 Agar Tampil Otomatis Bagi Semua User Lain:
+              </span>
+              <p className="text-[10px] leading-relaxed">
+                Unduh file <strong>logo.png</strong> di atas, lalu masukkan ke dalam folder <strong>public/</strong> di laptop Anda dan lakukan Push ke GitHub. Semua user di link live akan otomatis melihat logo ini sejak halaman login awal!
+              </p>
+            </div>
           </div>
         </div>
       )}

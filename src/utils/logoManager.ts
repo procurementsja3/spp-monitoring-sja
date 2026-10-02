@@ -2,14 +2,20 @@
  * Utility for managing custom company logo with automatic LocalStorage persistence
  */
 
+import { DEFAULT_SYSTEM_LOGO } from './defaultLogo';
+
 const LOGO_STORAGE_KEY = 'sja_custom_logo';
 
-export const getStoredLogo = (): string | null => {
+export { DEFAULT_SYSTEM_LOGO };
+
+export const getStoredLogo = (): string => {
   try {
-    return localStorage.getItem(LOGO_STORAGE_KEY);
-  } catch {
-    return null;
-  }
+    const stored = localStorage.getItem(LOGO_STORAGE_KEY);
+    if (stored && stored.trim().length > 0) {
+      return stored;
+    }
+  } catch {}
+  return DEFAULT_SYSTEM_LOGO;
 };
 
 export const saveStoredLogo = (dataUrl: string): void => {

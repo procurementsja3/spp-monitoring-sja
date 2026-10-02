@@ -26,10 +26,10 @@ import {
   calculateWorkingDays 
 } from './utils/holidayCalendar';
 import { generateSHA256Hash } from './utils/cryptoSim';
-import { fetchFromGoogleSheet, pushToGoogleSheet } from './utils/googleSheetsConnector';
+import { fetchFromGoogleSheet, pushToGoogleSheet, clearGoogleSheet } from './utils/googleSheetsConnector';
 import { getStoredLogo, saveStoredLogo, removeStoredLogo } from './utils/logoManager';
 
-// Components
+import { ExecutiveDashboard } from './components/ExecutiveDashboard';
 import { LoginView } from './components/LoginView';
 import { TopHeader } from './components/TopHeader';
 import { Sidebar } from './components/Sidebar';
@@ -136,7 +136,7 @@ export default function App() {
   });
 
   // 4. Tab Navigasi Aktif
-  const [activeTab, setActiveTab] = useState<string>('monitoring');
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   // 5. Filter Area (Superadmin dapat memilih ALL atau area tertentu)
   const [activeAreaFilter, setActiveAreaFilter] = useState<SJAArea | 'ALL'>('ALL');
@@ -325,14 +325,16 @@ export default function App() {
 
     if (editItem) {
       const formData = itemsData[0];
+      const isUrgent = !!formData.isUrgentAdvance;
       const calc = calculateWorkingDays(formData.budgetReceivedDate!, formData.poDate, holidays);
-      const processDays = calc.workingDays;
       const hasPo = formData.poNumber && formData.poNumber.trim() !== '';
       const statusPO = hasPo ? 'CLOSE' : 'OPEN';
       const slaLimit = formData.slaLimit || 10;
-      const statusOntime = processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT';
-      const isHPlus3Overdue = statusPO === 'OPEN' && processDays >= 3;
-      const isSignificantDelay = processDays > slaLimit;
+      // Jika dispensasi darurat & PO terbit: respon cepat = 0 hari kerja, selalu ONTIME
+      const processDays = isUrgent && hasPo ? 0 : calc.workingDays;
+      const statusOntime = isUrgent ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
+      const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
+      const isSignificantDelay = !isUrgent && processDays > slaLimit;
 
       const updatedList = items.map((i) => {
         if (i.id === editItem.id) {
@@ -345,6 +347,10 @@ export default function App() {
             statusOntime,
             isHPlus3Overdue,
             isSignificantDelay,
+            isUrgentAdvance: isUrgent,
+            urgentReason: formData.urgentReason || i.urgentReason,
+            urgentApprovedBy: formData.urgentApprovedBy || i.urgentApprovedBy,
+            budgetStatus: formData.budgetStatus || i.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
             updatedAt: new Date().toISOString(),
           } as SPPItem;
         }
@@ -354,14 +360,15 @@ export default function App() {
       await addAuditLog('UPDATE_SPP', `Memperbarui dokumen SPP ${formData.sppNumber} (Area: ${formData.area || editItem.area})`, editItem.id);
     } else {
       const newCreatedItems: SPPItem[] = itemsData.map((formData, index) => {
+        const isUrgent = !!formData.isUrgentAdvance;
         const calc = calculateWorkingDays(formData.budgetReceivedDate!, formData.poDate, holidays);
-        const processDays = calc.workingDays;
         const hasPo = formData.poNumber && formData.poNumber.trim() !== '';
         const statusPO = hasPo ? 'CLOSE' : 'OPEN';
         const slaLimit = formData.slaLimit || 10;
-        const statusOntime = processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT';
-        const isHPlus3Overdue = statusPO === 'OPEN' && processDays >= 3;
-        const isSignificantDelay = processDays > slaLimit;
+        const processDays = isUrgent && hasPo ? 0 : calc.workingDays;
+        const statusOntime = isUrgent ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
+        const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
+        const isSignificantDelay = !isUrgent && processDays > slaLimit;
 
         const assignedArea: SJAArea = formData.area || (currentUser.role === 'SUPERADMIN' ? (activeAreaFilter !== 'ALL' ? activeAreaFilter : 'SEPANJANG') : (currentUser.area as SJAArea));
 
@@ -380,6 +387,10 @@ export default function App() {
           isHPlus3Overdue,
           isSignificantDelay,
           notes: formData.notes,
+          isUrgentAdvance: isUrgent,
+          urgentReason: formData.urgentReason,
+          urgentApprovedBy: formData.urgentApprovedBy,
+          budgetStatus: formData.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -441,12 +452,56 @@ export default function App() {
     await addAuditLog('DELETE_SPP_BATCH', `Menghapus ${count} dokumen SPP sekaligus`);
   };
 
-  // Kosongkan Seluruh Data SPP
-  const handleClearAllSPP = async () => {
-    const count = items.length;
-    setItems([]);
-    localStorage.removeItem('spp_monitoring_data');
-    await addAuditLog('CLEAR_ALL_SPP', `Mengosongkan seluruh data SPP (${count} data dibersihkan)`);
+  // Kosongkan Seluruh Data SPP (dengan opsi sinkronisasi ke Google Sheet yang terhubung)
+  const handleClearAllSPP = async (syncWithGoogleSheet: boolean = true) => {
+    if (!currentUser) return;
+    const isSuperadminAll = currentUser.role === 'SUPERADMIN' && activeAreaFilter === 'ALL';
+    const targetArea = currentUser.role === 'SUPERADMIN' ? activeAreaFilter : currentUser.area;
+    
+    let updated: SPPItem[];
+    let countCleared = 0;
+    if (isSuperadminAll) {
+      countCleared = items.length;
+      updated = [];
+    } else {
+      const itemsToClear = items.filter((i) => i.area === targetArea);
+      countCleared = itemsToClear.length;
+      updated = items.filter((i) => i.area !== targetArea);
+    }
+
+    setItems(updated);
+    try {
+      localStorage.setItem('spp_monitoring_data', JSON.stringify(updated));
+    } catch {}
+
+    // Sinkronkan pengosongan ke Google Sheet jika opsi dicentang
+    const clearedSheetNames: string[] = [];
+    if (syncWithGoogleSheet) {
+      const areasToSync: SJAArea[] = isSuperadminAll
+        ? (['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'] as SJAArea[])
+        : ([targetArea as SJAArea]);
+
+      for (const a of areasToSync) {
+        const cfg = areaConfigs[a];
+        if (cfg?.webAppUrl && cfg.webAppUrl.trim().startsWith('http')) {
+          try {
+            await clearGoogleSheet(cfg.webAppUrl);
+            clearedSheetNames.push(AREA_METADATA[a]?.name || a);
+          } catch (err) {
+            console.error(`Gagal mengosongkan Google Sheet ${a}:`, err);
+          }
+        }
+      }
+    }
+
+    const sheetLog = clearedSheetNames.length > 0
+      ? ` serta membersihkan baris data Google Sheet (${clearedSheetNames.join(', ')})`
+      : '';
+
+    await addAuditLog(
+      'CLEAR_ALL_SPP',
+      `Mengosongkan ${countCleared} dokumen SPP${sheetLog}`
+    );
   };
 
   // Muat Contoh Data Demo
@@ -580,6 +635,15 @@ export default function App() {
     SEMARANG: items.filter((i) => i.area === 'SEMARANG').length,
   };
 
+  const currentAreaForSheet = currentUser.role === 'SUPERADMIN' ? activeAreaFilter : currentUser.area;
+  const isCurrentAreaSheetConnected = currentAreaForSheet === 'ALL'
+    ? Object.values(areaConfigs).some((cfg) => cfg.webAppUrl && cfg.webAppUrl.trim().startsWith('http'))
+    : !!(areaConfigs[currentAreaForSheet as SJAArea]?.webAppUrl && areaConfigs[currentAreaForSheet as SJAArea].webAppUrl.trim().startsWith('http'));
+
+  const connectedSheetLabel = currentAreaForSheet === 'ALL'
+    ? 'Seluruh Cabang Terhubung'
+    : (AREA_METADATA[currentAreaForSheet as SJAArea]?.name || currentAreaForSheet);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans selection:bg-blue-600 selection:text-white transition-colors duration-200">
       {/* Sidebar System (Navigasi, + Input SPP, Filter Area & Logout) */}
@@ -634,6 +698,26 @@ export default function App() {
 
         {/* Main Content Viewport */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+          {/* Tab 0: Dashboard Realisasi SPP */}
+          {activeTab === 'dashboard' && (
+            <ExecutiveDashboard
+              items={areaScopedItems}
+              currentUser={currentUser}
+              activeAreaFilter={activeAreaFilter}
+              holidays={holidays}
+              onSelectAreaFilter={setActiveAreaFilter}
+              onNavigateToMonitoring={() => setActiveTab('monitoring')}
+              onOpenNewSPP={() => {
+                setEditItem(null);
+                setIsFormOpen(true);
+              }}
+              onEditItem={(item) => {
+                setEditItem(item);
+                setIsFormOpen(true);
+              }}
+            />
+          )}
+
           {/* KPI Cards (Selalu terlihat di tab Monitoring) */}
           {activeTab === 'monitoring' && (
             <KPISummary
@@ -660,6 +744,8 @@ export default function App() {
               onDelete={handleDeleteSPP}
               onDeleteBatch={handleDeleteBatchSPP}
               onClearAll={handleClearAllSPP}
+              isGoogleSheetConnected={isCurrentAreaSheetConnected}
+              connectedSheetName={connectedSheetLabel}
               onLoadSampleData={handleLoadSampleData}
               onOpenNewSPP={() => {
                 setEditItem(null);

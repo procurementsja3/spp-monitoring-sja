@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { GoogleSheetConfig, AreaSheetConfigMap, SJAArea, UserProfile } from '../types';
 import { 
   testGoogleSheetConnection,
-  AREA_CONFIG_SPECS 
+  AREA_CONFIG_SPECS,
+  generateGoogleAppsScriptCode
 } from '../utils/googleSheetsConnector';
 import { 
   Database, 
@@ -16,7 +17,13 @@ import {
   CheckCircle2,
   Zap,
   FileSpreadsheet,
-  ExternalLink
+  ExternalLink,
+  Copy,
+  Check,
+  FileCode2,
+  ChevronDown,
+  ChevronUp,
+  Sparkles
 } from 'lucide-react';
 
 interface GoogleSheetModalProps {
@@ -59,15 +66,47 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isTestingPing, setIsTestingPing] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
+  const [showScriptViewer, setShowScriptViewer] = useState(false);
 
   // Update input text when active area changes
   useEffect(() => {
     setUrlInput(areaConfigs[selectedArea]?.webAppUrl || '');
     setSpreadsheetUrlInput(areaConfigs[selectedArea]?.spreadsheetUrl || '');
     setFeedbackMsg(null);
+    setIsCopied(false);
   }, [selectedArea, areaConfigs]);
 
   const currentSpec = AREA_CONFIG_SPECS[selectedArea];
+  const appsScriptCode = generateGoogleAppsScriptCode(selectedArea);
+
+  const handleCopyScript = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(appsScriptCode);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = appsScriptCode;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setIsCopied(true);
+      setFeedbackMsg({
+        type: 'success',
+        text: `Kode Google Apps Script untuk cabang ${currentSpec.name} berhasil disalin ke clipboard!`,
+      });
+      setTimeout(() => setIsCopied(false), 3000);
+    } catch {
+      setFeedbackMsg({
+        type: 'error',
+        text: 'Gagal menyalin otomatis. Silakan buka kotak kode dan salin teks secara manual.',
+      });
+    }
+  };
 
   const handleSaveUrl = (e: React.FormEvent) => {
     e.preventDefault();
@@ -342,6 +381,130 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Card Panduan & Tombol Salin Kode Apps Script */}
+      <div className="p-5 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-xl border border-indigo-800/60 shadow-lg text-white space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-800/50 pb-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 shrink-0">
+              <FileCode2 className="w-5 h-5 text-indigo-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
+                  <span>Kode Google Apps Script (Code.gs)</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                    {currentSpec.name} ({currentSpec.code})
+                  </span>
+                </h3>
+              </div>
+              <p className="text-xs text-indigo-200/80 mt-0.5">
+                Salin kode ini dan tempelkan ke menu <strong>Extensions &gt; Apps Script</strong> pada spreadsheet Google Sheet cabang Anda.
+              </p>
+            </div>
+          </div>
+
+          {/* Tombol Utama: Salin Kode Apps Script */}
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={handleCopyScript}
+              className={`px-4 py-2.5 rounded-lg text-xs font-bold shadow-md transition-all flex items-center gap-2 cursor-pointer ${
+                isCopied
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-500 ring-2 ring-emerald-400/50'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white hover:shadow-indigo-500/25 ring-1 ring-indigo-400/50'
+              }`}
+            >
+              {isCopied ? (
+                <>
+                  <Check className="w-4 h-4 text-white" />
+                  <span>Kode Berhasil Disalin!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 text-indigo-200" />
+                  <span>Salin Kode Apps Script</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowScriptViewer((prev) => !prev)}
+              className="px-3 py-2.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Lihat / Sembunyikan kode lengkap"
+            >
+              <span>{showScriptViewer ? 'Tutup Kode' : 'Lihat Kode'}</span>
+              {showScriptViewer ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Langkah Pemasangan Singkat */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+          <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
+              <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">1</span>
+              <span>Buka Google Sheet</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Klik <strong>Extensions</strong> &gt; <strong>Apps Script</strong> di lembar Google Sheet cabang {currentSpec.name}.
+            </p>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
+              <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">2</span>
+              <span>Tempelkan Kode</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Hapus isi file <code>Code.gs</code>, lalu klik tombol <strong>Salin Kode Apps Script</strong> di atas dan <strong>Paste</strong>.
+            </p>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
+              <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">3</span>
+              <span>Deploy Web App</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Klik <strong>Deploy</strong> &gt; <strong>New deployment</strong> (Web app). Set <em>Who has access</em> ke <strong>Anyone</strong>.
+            </p>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
+              <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">4</span>
+              <span>Hubungkan URL</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Salin <strong>Web App URL</strong> (/exec), lalu simpan pada formulir di bawah ini dan klik <strong>Tes Koneksi</strong>.
+            </p>
+          </div>
+        </div>
+
+        {/* Collapsible Viewer Kode Script Lengkap */}
+        {showScriptViewer && (
+          <div className="space-y-2 pt-2 border-t border-indigo-800/40 animate-in fade-in">
+            <div className="flex items-center justify-between text-xs text-indigo-200">
+              <span className="font-mono text-[11px]">File: Code.gs ({currentSpec.name})</span>
+              <button
+                type="button"
+                onClick={handleCopyScript}
+                className="text-xs text-indigo-300 hover:text-white flex items-center gap-1 cursor-pointer underline"
+              >
+                <Copy className="w-3 h-3" />
+                <span>Salin teks ini</span>
+              </button>
+            </div>
+            <div className="relative">
+              <pre className="p-4 bg-slate-950/90 rounded-xl border border-slate-800 text-[11px] font-mono text-slate-200 overflow-x-auto max-h-80 overflow-y-auto leading-relaxed selection:bg-indigo-600 selection:text-white">
+                <code>{appsScriptCode}</code>
+              </pre>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Form Konfigurasi Web App URL Area */}

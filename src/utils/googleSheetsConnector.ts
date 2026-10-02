@@ -210,6 +210,13 @@ function doPost(e) {
         upsertRow(sheet, item);
       });
       count = body.items.length;
+    } else if (action === 'CLEAR_ALL') {
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        // Kosongkan seluruh baris isi data (baris 2 ke bawah), baris 1 header tetap aman!
+        sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+        count = lastRow - 1;
+      }
     }
 
     return ContentService.createTextOutput(JSON.stringify({
@@ -218,7 +225,9 @@ function doPost(e) {
       branch: BRANCH_NAME,
       username: TARGET_USERNAME,
       count: count,
-      message: 'Berhasil menyinkronkan ' + count + ' data SPP ke Google Sheet ' + BRANCH_NAME,
+      message: action === 'CLEAR_ALL'
+        ? 'Berhasil mengosongkan seluruh baris data di Google Sheet ' + BRANCH_NAME + ' (Header tetap aman).'
+        : 'Berhasil menyinkronkan ' + count + ' data SPP ke Google Sheet ' + BRANCH_NAME,
       timestamp: new Date().toISOString()
     })).setMimeType(ContentService.MimeType.JSON);
 
@@ -372,6 +381,28 @@ export async function pushToGoogleSheet(webAppUrl: string, items: SPPItem[]): Pr
     body: JSON.stringify({
       action: 'UPSERT_BATCH',
       items: items,
+    }),
+  });
+
+  return true;
+}
+
+/**
+ * Kosongkan seluruh baris data di Google Sheet (Header baris 1 dipertahankan aman)
+ */
+export async function clearGoogleSheet(webAppUrl: string): Promise<boolean> {
+  if (!webAppUrl || !webAppUrl.startsWith('http')) {
+    throw new Error('URL Google Apps Script tidak valid.');
+  }
+
+  await fetch(webAppUrl, {
+    method: 'POST',
+    mode: 'no-cors', // Apps script redirect mode
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      action: 'CLEAR_ALL',
     }),
   });
 

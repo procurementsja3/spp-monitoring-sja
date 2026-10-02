@@ -110,8 +110,7 @@ export const DEFAULT_AREA_SHEET_CONFIGS: AreaSheetConfigMap = {
   },
 };
 
-// Data dummy dibersihkan (kosong) sesuai permintaan "hapus data sesuai foto"
-const RAW_ITEMS: Array<{
+export interface RawSPPItem {
   id: string;
   budgetReceivedDate: string;
   sppNumber: string;
@@ -120,19 +119,18 @@ const RAW_ITEMS: Array<{
   poDate: string;
   poNumber: string;
   slaLimit: number;
-}> = [];
+  isUrgentAdvance?: boolean;
+  urgentReason?: string;
+  urgentApprovedBy?: string;
+  budgetStatus?: 'APPROVED' | 'PENDING_ACC' | 'REJECTED';
+  notes?: string;
+}
+
+// Data dummy dibersihkan (kosong) sesuai permintaan "hapus data sesuai foto"
+const RAW_ITEMS: RawSPPItem[] = [];
 
 // Contoh data demo yang dapat dimuat opsional jika pengguna ingin menguji data
-export const SAMPLE_DEMO_ITEMS: Array<{
-  id: string;
-  budgetReceivedDate: string;
-  sppNumber: string;
-  pic: string;
-  area: SJAArea;
-  poDate: string;
-  poNumber: string;
-  slaLimit: number;
-}> = [
+export const SAMPLE_DEMO_ITEMS: RawSPPItem[] = [
   // SEPANJANG
   {
     id: 'SPP-SPJ-001',
@@ -217,17 +215,36 @@ export const SAMPLE_DEMO_ITEMS: Array<{
     poNumber: '',
     slaLimit: 10,
   },
+  // KASUS KHUSUS DISPENSASI DARURAT: PO Terbit Mendahului ACC Budget (Plant Breakdown)
+  {
+    id: 'SPP-SPJ-URGENT',
+    budgetReceivedDate: '2026-03-25',
+    sppNumber: 'SPP/SPJ/2026/03/URG-01',
+    pic: 'Felita',
+    area: 'SEPANJANG',
+    poDate: '2026-03-23', // PO terbit mendahului budget!
+    poNumber: 'PO/SPJ/2026/03/EMG-088',
+    slaLimit: 10,
+    isUrgentAdvance: true,
+    urgentReason: 'Breakdown Mesin Pabrik Line 2 (Spare Part Kritis)',
+    urgentApprovedBy: 'Kepala Cabang / Plant Manager',
+    budgetStatus: 'PENDING_ACC',
+    notes: 'Dispensasi Urgent: PO diterbitkan segera atas persetujuan Kepala Cabang/Plant Manager agar produksi tidak mogok. Menunggu verifikasi nomor SPP resmi dari Tim Budget.',
+  },
 ];
 
-export function buildProcessedSPP(rawList = RAW_ITEMS): SPPItem[] {
+export function buildProcessedSPP(rawList: RawSPPItem[] = RAW_ITEMS): SPPItem[] {
   return rawList.map((item) => {
+    const isUrgent = !!item.isUrgentAdvance;
     const calc = calculateWorkingDays(item.budgetReceivedDate, item.poDate || undefined);
-    const processDays = calc.workingDays;
-    const statusPO = item.poNumber && item.poNumber.trim() !== '' ? 'CLOSE' : 'OPEN';
+    const hasPo = item.poNumber && item.poNumber.trim() !== '';
+    const statusPO = hasPo ? 'CLOSE' : 'OPEN';
     const slaLimit = item.slaLimit || 10;
-    const statusOntime = processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT';
-    const isHPlus3Overdue = statusPO === 'OPEN' && processDays >= 3;
-    const isSignificantDelay = processDays > slaLimit;
+    // Jika darurat dan PO sudah terbit: hari proses dihitung 0 / respon cepat ontime!
+    const processDays = isUrgent && hasPo ? 0 : calc.workingDays;
+    const statusOntime = isUrgent ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
+    const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
+    const isSignificantDelay = !isUrgent && processDays > slaLimit;
 
     return {
       ...item,
@@ -238,6 +255,10 @@ export function buildProcessedSPP(rawList = RAW_ITEMS): SPPItem[] {
       isHPlus3Overdue,
       isSignificantDelay,
       slaLimit,
+      isUrgentAdvance: isUrgent,
+      urgentReason: item.urgentReason,
+      urgentApprovedBy: item.urgentApprovedBy,
+      budgetStatus: item.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
       createdAt: item.budgetReceivedDate + 'T08:30:00Z',
       updatedAt: new Date().toISOString(),
     };

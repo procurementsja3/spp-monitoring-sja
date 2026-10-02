@@ -16,7 +16,8 @@ import {
   Check, 
   Plus, 
   RotateCcw, 
-  Inbox 
+  Inbox,
+  Zap
 } from 'lucide-react';
 
 interface SPPTableProps {
@@ -27,7 +28,9 @@ interface SPPTableProps {
   onEdit: (item: SPPItem) => void;
   onDelete: (id: string) => void;
   onDeleteBatch?: (ids: string[]) => void;
-  onClearAll?: () => void;
+  onClearAll?: (syncWithGoogleSheet?: boolean) => void;
+  isGoogleSheetConnected?: boolean;
+  connectedSheetName?: string;
   onLoadSampleData?: () => void;
   onOpenNewSPP?: () => void;
   onQuickUpdatePO: (id: string, poNumber: string, poDate: string) => void;
@@ -44,6 +47,8 @@ export const SPPTable: React.FC<SPPTableProps> = ({
   onDelete,
   onDeleteBatch,
   onClearAll,
+  isGoogleSheetConnected = false,
+  connectedSheetName = '',
   onLoadSampleData,
   onOpenNewSPP,
   onQuickUpdatePO,
@@ -51,10 +56,12 @@ export const SPPTable: React.FC<SPPTableProps> = ({
   onOpenExportModal,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [syncGoogleSheetOnClear, setSyncGoogleSheetOnClear] = useState(true);
   const [filterPO, setFilterPO] = useState<'ALL' | 'OPEN' | 'CLOSE'>('ALL');
   const [filterSLA, setFilterSLA] = useState<'ALL' | 'ONTIME' | 'TERLAMBAT'>('ALL');
   const [filterAlert, setFilterAlert] = useState<'ALL' | 'H3' | 'SIGNIFICANT'>('ALL');
   const [selectedPic, setSelectedPic] = useState('ALL');
+  const [filterUrgentOnly, setFilterUrgentOnly] = useState(false);
 
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -94,7 +101,9 @@ export const SPPTable: React.FC<SPPTableProps> = ({
     if (filterAlert === 'H3') matchAlert = item.isHPlus3Overdue;
     if (filterAlert === 'SIGNIFICANT') matchAlert = item.isSignificantDelay;
 
-    return matchSearch && matchPO && matchSLA && matchPic && matchAlert;
+    const matchUrgent = !filterUrgentOnly || !!item.isUrgentAdvance;
+
+    return matchSearch && matchPO && matchSLA && matchPic && matchAlert && matchUrgent;
   });
 
   // Handle select all / deselect all
@@ -169,7 +178,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
       onDeleteBatch(selectedIds);
       setSelectedIds([]);
     } else if (deleteConfirmModal.type === 'all' && onClearAll) {
-      onClearAll();
+      onClearAll(syncGoogleSheetOnClear);
       setSelectedIds([]);
     }
     setDeleteConfirmModal({ isOpen: false, type: 'single' });
@@ -322,6 +331,22 @@ export const SPPTable: React.FC<SPPTableProps> = ({
               Alert H+3
             </button>
           </div>
+
+          {/* Filter Khusus PO Darurat / Advance PO */}
+          {items.some((i) => i.isUrgentAdvance) && (
+            <button
+              onClick={() => setFilterUrgentOnly((prev) => !prev)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                filterUrgentOnly
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                  : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 border-amber-200 dark:border-amber-900/50'
+              }`}
+              title="Filter hanya dokumen dispensasi urgent / advance PO"
+            >
+              <Zap className="w-3 h-3 fill-current" />
+              <span>PO Darurat ({items.filter((i) => i.isUrgentAdvance).length})</span>
+            </button>
+          )}
 
           {/* Filter PIC */}
           <select
@@ -494,9 +519,23 @@ export const SPPTable: React.FC<SPPTableProps> = ({
 
                     {/* 2. Nomor SPP */}
                     <td className="px-4 py-3 font-mono font-semibold text-slate-900 dark:text-white whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span>{item.sppNumber}</span>
-                        {item.isHPlus3Overdue && (
+                        {item.isUrgentAdvance && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-800 rounded shadow-2xs"
+                            title={`Dispensasi Urgent / PO Darurat: ${item.urgentReason || 'Kondisi Urgent'} (Disetujui: ${item.urgentApprovedBy || 'Manajer'})`}
+                          >
+                            <Zap className="w-2.5 h-2.5 text-amber-600 fill-amber-500" />
+                            <span>PO DARURAT</span>
+                          </span>
+                        )}
+                        {item.isUrgentAdvance && item.budgetStatus === 'PENDING_ACC' && (
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 rounded border border-rose-200 dark:border-rose-900">
+                            PENDING BUDGET ACC
+                          </span>
+                        )}
+                        {item.isHPlus3Overdue && !item.isUrgentAdvance && (
                           <span
                             className="inline-flex items-center px-1.5 py-0.2 text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-950/60 rounded"
                             title="Peringatan: Belum dibuatkan PO setelah H+3 hari kerja dari tim budget"
@@ -505,6 +544,11 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                           </span>
                         )}
                       </div>
+                      {item.isUrgentAdvance && item.urgentReason && (
+                        <div className="text-[10px] text-amber-700 dark:text-amber-400 font-normal truncate max-w-[220px]" title={item.urgentReason}>
+                          ⚠️ {item.urgentReason}
+                        </div>
+                      )}
                     </td>
 
                     {/* Area Cabang */}
@@ -581,7 +625,12 @@ export const SPPTable: React.FC<SPPTableProps> = ({
 
                     {/* 8. Status SLA */}
                     <td className="px-4 py-3 text-center whitespace-nowrap">
-                      {isOverdue ? (
+                      {item.isUrgentAdvance ? (
+                        <span className="text-amber-700 dark:text-amber-400 font-bold text-xs inline-flex items-center gap-1 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-800" title="Kondisi darurat: respon cepat (Fast-Track SLA)">
+                          <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                          <span>Fast-Track</span>
+                        </span>
+                      ) : isOverdue ? (
                         <span className="text-rose-700 dark:text-rose-400 font-semibold text-xs inline-flex items-center gap-1">
                           <AlertCircle className="w-3.5 h-3.5" />
                           <span>Tidak Ontime</span>
@@ -646,7 +695,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                     ? `Hapus ${deleteConfirmModal.targetCount} Dokumen SPP?`
                     : 'Kosongkan Seluruh Data SPP?'}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                <div className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   {deleteConfirmModal.type === 'single' && (
                     <>
                       Apakah Anda yakin ingin menghapus SPP{' '}
@@ -662,11 +711,32 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                     </>
                   )}
                   {deleteConfirmModal.type === 'all' && (
-                    <>
-                      Apakah Anda yakin ingin mengosongkan seluruh data SPP ({deleteConfirmModal.targetCount} dokumen)? Seluruh rekaman lokal saat ini akan dibersihkan.
-                    </>
+                    <div className="space-y-3">
+                      <p>
+                        Apakah Anda yakin ingin mengosongkan seluruh data SPP (<strong>{deleteConfirmModal.targetCount} dokumen</strong>)? Seluruh rekaman data pada aplikasi saat ini akan dibersihkan.
+                      </p>
+
+                      {isGoogleSheetConnected && (
+                        <label className="flex items-start gap-2.5 p-2.5 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={syncGoogleSheetOnClear}
+                            onChange={(e) => setSyncGoogleSheetOnClear(e.target.checked)}
+                            className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                          />
+                          <div className="text-xs">
+                            <span className="font-semibold text-emerald-900 dark:text-emerald-200 block">
+                              Juga bersihkan data di Google Sheet ({connectedSheetName})
+                            </span>
+                            <span className="text-[11px] text-emerald-700/90 dark:text-emerald-400 block mt-0.5 leading-normal">
+                              Seluruh baris isi data SPP di Google Sheet akan ikut dikosongkan. Baris 1 judul kolom (Header) tetap aman dan tidak akan terhapus.
+                            </span>
+                          </div>
+                        </label>
+                      )}
+                    </div>
                   )}
-                </p>
+                </div>
               </div>
             </div>
 

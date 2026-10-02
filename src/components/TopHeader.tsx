@@ -66,6 +66,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   }
 
   const tabLabels: Record<string, string> = {
+    dashboard: 'Dashboard Realisasi SPP',
     monitoring: 'Daftar SPP & Realisasi',
     analytics: 'Analitik Kinerja PIC',
     holidays: 'Kalender Hari Libur (SKB 3 Menteri)',

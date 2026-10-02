@@ -17,6 +17,7 @@ export interface UserProfile {
 
 export type POStatus = 'OPEN' | 'CLOSE';
 export type SLAStatus = 'ONTIME' | 'TERLAMBAT';
+export type BudgetStatus = 'APPROVED' | 'PENDING_ACC' | 'REJECTED';
 
 export interface SPPItem {
   id: string;
@@ -35,6 +36,12 @@ export interface SPPItem {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+
+  // Fitur Dispensasi Urgent / Advance PO (PO Mendahului ACC Budget)
+  isUrgentAdvance?: boolean;     // Apakah ini PO Darurat / Advance PO
+  urgentReason?: string;         // Alasan darurat (Breakdown Mesin, Stok Habis, dll)
+  urgentApprovedBy?: string;     // Otorisator / Pejabat yang menyetujui dispensasi
+  budgetStatus?: BudgetStatus;   // Status persetujuan budget (APPROVED, PENDING_ACC, REJECTED)
 }
 
 export interface IndonesianHoliday {

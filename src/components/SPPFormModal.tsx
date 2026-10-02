@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SPPItem, IndonesianHoliday, SJAArea, UserProfile } from '../types';
 import { calculateWorkingDays } from '../utils/holidayCalendar';
 import { AREA_METADATA, AREA_PIC_LIST } from '../utils/initialData';
-import { Plus, Trash2, Clock, Calendar, User, Tag, Layers, Check, Building, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Clock, Calendar, User, Tag, Layers, Check, Building, Edit2, Zap, AlertTriangle } from 'lucide-react';
 
 interface DraftRow {
   tempId: string;
@@ -13,6 +13,11 @@ interface DraftRow {
   poDate: string;
   poNumber: string;
   slaLimit: number;
+  isUrgentAdvance: boolean;
+  urgentReason: string;
+  urgentApprovedBy: string;
+  budgetStatus: 'APPROVED' | 'PENDING_ACC' | 'REJECTED';
+  notes: string;
 }
 
 interface SPPFormModalProps {
@@ -55,6 +60,11 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
       poDate: '',
       poNumber: '',
       slaLimit: 10,
+      isUrgentAdvance: false,
+      urgentReason: 'Breakdown Mesin Pabrik / Line Stop (Kritis)',
+      urgentApprovedBy: 'Kepala Cabang / Plant Manager',
+      budgetStatus: 'APPROVED',
+      notes: '',
     };
   };
 
@@ -76,6 +86,11 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
           poDate: editItem.poDate || '',
           poNumber: editItem.poNumber || '',
           slaLimit: editItem.slaLimit || 10,
+          isUrgentAdvance: editItem.isUrgentAdvance || false,
+          urgentReason: editItem.urgentReason || 'Breakdown Mesin Pabrik / Line Stop (Kritis)',
+          urgentApprovedBy: editItem.urgentApprovedBy || 'Kepala Cabang / Plant Manager',
+          budgetStatus: editItem.budgetStatus || (editItem.isUrgentAdvance ? 'PENDING_ACC' : 'APPROVED'),
+          notes: editItem.notes || '',
         },
       ]);
     } else {
@@ -192,14 +207,15 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
 
   rows.forEach((r) => {
     const calc = calculateWorkingDays(r.budgetReceivedDate, r.poDate || undefined, holidays);
-    totalProcessDays += calc.workingDays;
+    const processDays = r.isUrgentAdvance && r.poNumber ? 0 : calc.workingDays;
+    totalProcessDays += processDays;
     totalWeekendSkipped += calc.weekendDaysSkipped;
     totalHolidaySkipped += calc.holidayDaysSkipped;
 
     const isClose = r.poNumber && r.poNumber.trim() !== '';
     if (isClose) closedCount++;
 
-    const isOntime = calc.workingDays <= (r.slaLimit || 10);
+    const isOntime = r.isUrgentAdvance || processDays <= (r.slaLimit || 10);
     if (isOntime) ontimeCount++;
   });
 
@@ -213,12 +229,17 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
 
     const payload: Partial<SPPItem>[] = rows.map((r) => ({
       budgetReceivedDate: r.budgetReceivedDate,
-      sppNumber: r.sppNumber.trim(),
+      sppNumber: r.sppNumber.trim() || (r.isUrgentAdvance ? `SPP-PENDING-ACC-${Date.now().toString().slice(-4)}` : ''),
       pic: r.pic.trim() || AREA_PIC_LIST[r.area]?.[0] || 'Felita',
       area: r.area,
       poDate: r.poDate || undefined,
       poNumber: r.poNumber.trim() || undefined,
       slaLimit: Number(r.slaLimit || 10),
+      isUrgentAdvance: r.isUrgentAdvance,
+      urgentReason: r.isUrgentAdvance ? r.urgentReason : undefined,
+      urgentApprovedBy: r.isUrgentAdvance ? r.urgentApprovedBy : undefined,
+      budgetStatus: r.isUrgentAdvance ? r.budgetStatus : 'APPROVED',
+      notes: r.notes || (r.isUrgentAdvance ? `Dispensasi Urgent: ${r.urgentReason} (Disetujui: ${r.urgentApprovedBy})` : undefined),
     }));
 
     onSave(payload);
@@ -610,6 +631,107 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                         placeholder="PO/2026/03/XXXX"
                         className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs"
                       />
+                    </div>
+
+                    {/* Fitur Khusus: Toggle Mode Dispensasi Urgent / Advance PO */}
+                    <div className="col-span-full pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40">
+                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={row.isUrgentAdvance}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              handleUpdateRow(row.tempId, 'isUrgentAdvance', checked);
+                              if (checked) {
+                                handleUpdateRow(row.tempId, 'budgetStatus', 'PENDING_ACC');
+                                if (!row.poDate) {
+                                  handleUpdateRow(row.tempId, 'poDate', new Date().toISOString().split('T')[0]);
+                                }
+                                if (!row.sppNumber) {
+                                  handleUpdateRow(row.tempId, 'sppNumber', `SPP-PENDING-ACC-${Date.now().toString().slice(-4)}`);
+                                }
+                              } else {
+                                handleUpdateRow(row.tempId, 'budgetStatus', 'APPROVED');
+                              }
+                            }}
+                            className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 cursor-pointer w-4 h-4"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                              <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                              <span>Dispensasi Urgent / Advance PO (PO Terbit Mendahului ACC Budget)</span>
+                            </span>
+                            <span className="text-[10px] text-amber-700 dark:text-amber-400 block">
+                              Aktifkan jika kondisi darurat (mesin pabrik mogok/stok kritis) sehingga nomor PO wajib dikerjakan lebih dulu sebelum SPP di-ACC.
+                            </span>
+                          </div>
+                        </label>
+
+                        {row.isUrgentAdvance && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-200/90 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 whitespace-nowrap">
+                            STATUS: PENDING BUDGET ACC
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Detail Dispensasi Urgent saat aktif */}
+                      {row.isUrgentAdvance && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 p-3 rounded-lg bg-amber-50/40 dark:bg-amber-950/10 border border-amber-200/60 dark:border-amber-900/30 animate-in fade-in duration-150">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-900 dark:text-amber-300 mb-1">
+                              Alasan Kondisi Darurat:
+                            </label>
+                            <select
+                              value={row.urgentReason}
+                              onChange={(e) => handleUpdateRow(row.tempId, 'urgentReason', e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-md text-xs text-slate-800 dark:text-slate-200 font-medium"
+                            >
+                              <option value="Breakdown Mesin Pabrik / Line Stop (Kritis)">🚨 Breakdown Mesin Pabrik / Line Stop (Kritis)</option>
+                              <option value="Stok Bahan Baku / Spare Part Kritis (Stock-Out)">📦 Stok Bahan Baku / Spare Part Kritis (Stock-Out)</option>
+                              <option value="Batas Waktu Penawaran Khusus Vendor (Validity Price)">⏳ Batas Waktu Penawaran Khusus Vendor (Validity Price)</option>
+                              <option value="Kebutuhan K3 & Operasional Darurat">🦺 Kebutuhan K3 & Operasional Darurat</option>
+                              <option value="Instruksi Khusus Manajemen">📋 Instruksi Khusus Manajemen</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-900 dark:text-amber-300 mb-1">
+                              Otorisator / Disetujui Oleh:
+                            </label>
+                            <select
+                              value={['Kepala Cabang / Plant Manager', 'Asst. Manager Procurement', 'Manager Procurement SJA', 'Direksi / General Manager', 'Superadmin SJA'].includes(row.urgentApprovedBy) ? row.urgentApprovedBy : '__CUSTOM__'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '__CUSTOM__') {
+                                  handleUpdateRow(row.tempId, 'urgentApprovedBy', '');
+                                } else {
+                                  handleUpdateRow(row.tempId, 'urgentApprovedBy', val);
+                                }
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded-md text-xs text-slate-800 dark:text-slate-200 font-medium"
+                            >
+                              <option value="Kepala Cabang / Plant Manager">Kepala Cabang / Plant Manager</option>
+                              <option value="Asst. Manager Procurement">Asst. Manager Procurement</option>
+                              <option value="Manager Procurement SJA">Manager Procurement SJA</option>
+                              <option value="Direksi / General Manager">Direksi / General Manager</option>
+                              <option value="Superadmin SJA">Superadmin SJA</option>
+                              <option value="__CUSTOM__">✍️ Lainnya (Ketik Manual)...</option>
+                            </select>
+
+                            {!['Kepala Cabang / Plant Manager', 'Asst. Manager Procurement', 'Manager Procurement SJA', 'Direksi / General Manager', 'Superadmin SJA'].includes(row.urgentApprovedBy) && (
+                              <input
+                                type="text"
+                                value={row.urgentApprovedBy}
+                                onChange={(e) => handleUpdateRow(row.tempId, 'urgentApprovedBy', e.target.value)}
+                                placeholder="Ketik nama / jabatan otorisator..."
+                                className="w-full mt-1.5 px-2.5 py-1 bg-white dark:bg-slate-900 border border-amber-500 rounded-md text-xs text-slate-900 dark:text-white font-medium focus:outline-none"
+                                autoFocus
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
