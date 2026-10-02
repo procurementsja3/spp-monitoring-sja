@@ -239,10 +239,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <img
                     src={customLogo}
                     alt="Logo Perusahaan"
-                    className="w-9 h-9 rounded-lg object-contain bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 shadow-md shrink-0 p-0.5"
+                    className="w-10 h-10 rounded-xl object-contain bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 shadow-md shrink-0 p-1"
                   />
                 ) : (
-                  <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm tracking-tight shadow-md shrink-0 ring-1 ring-white/10">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm tracking-tight shadow-md shrink-0 ring-1 ring-white/10">
                     SJA
                   </div>
                 )}
