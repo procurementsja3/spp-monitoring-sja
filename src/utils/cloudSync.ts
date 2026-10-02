@@ -4,17 +4,43 @@ import { DEFAULT_AREA_SHEET_CONFIGS } from './initialData';
 const STORAGE_KEY = 'sja_area_sheet_configs';
 const ITEMS_STORAGE_KEY = 'spp_monitoring_data';
 
-// Default initial Sukodono URLs as specified in the system specification
-export const PHOTO_SUKODONO_CONFIG: GoogleSheetConfig = {
-  spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM/edit?usp=sharing',
-  webAppUrl: 'https://script.google.com/macros/s/AKfycbx2ZMN-kHDzoa5ZP3lODQTDF-sPt2vIMuXWb5NuodG7IrUmUQqHr6YDby0azMYHc5GE/exec',
-  sheetName: 'SPP_Sukodono',
-  autoSync: true,
-  syncStatus: 'connected',
+// Default initial configurations for all 4 SJA branches (Multi-PC & Static GitHub Hosting Ready)
+export const OFFICIAL_4_PLANTS_CONFIGS: AreaSheetConfigMap = {
+  SEPANJANG: {
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbwfy4zNVl1Lj4dj_1s4mo0R8UQFPS4PB3VvcDABYNiYCuc3zBsPJj9yx_KLP4QJEOg/exec',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1JvQux9Qf1Od5mn14AFocvdnwA1J4u-YMMxRQvU09baY/edit?usp=sharing',
+    sheetName: 'SPP_Sepanjang',
+    autoSync: true,
+    syncStatus: 'connected',
+  },
+  KARAWANG: {
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbzw9Op3_EW4Gdmgw9rvejLKTC1pRsRIIb43AgMeCE3qTZduqckClLWZ0_W3v5h2PRW4/exec',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1pWkSeC13WL3b_39jencQqik23KC8wOL766CgZZ6QdB4/edit?usp=sharing',
+    sheetName: 'SPP_Karawang',
+    autoSync: true,
+    syncStatus: 'connected',
+  },
+  SUKODONO: {
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbx2ZMN-kHDzoa5ZP3lODQTDF-sPt2vIMuXWb5NuodG7IrUmUQqHr6YDby0azMYHc5GE/exec',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM/edit?usp=sharing',
+    sheetName: 'SPP_Sukodono',
+    autoSync: true,
+    syncStatus: 'connected',
+  },
+  SEMARANG: {
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbzi8X67Wm629RVYGTjiliCO3LNAdCs6MliRuGZmC0tYIHdlWWVvvxHEr881GkDjdBgW/exec',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1biBuVUj9OVa9cvuDc-PuUpLUfd3ESQ90EIn8c0TfkwU/edit?usp=sharing',
+    sheetName: 'SPP_Semarang',
+    autoSync: true,
+    syncStatus: 'connected',
+  },
 };
+
+export const PHOTO_SUKODONO_CONFIG: GoogleSheetConfig = OFFICIAL_4_PLANTS_CONFIGS.SUKODONO;
 
 /**
  * Mendapatkan konfigurasi default dengan fallback lokal
+ * Menjamin ke-4 cabang langsung terisi lengkap saat dibuka di PC lain & hosting GitHub
  */
 export function getFallbackAreaConfigs(): AreaSheetConfigMap {
   try {
@@ -22,24 +48,40 @@ export function getFallbackAreaConfigs(): AreaSheetConfigMap {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed && typeof parsed === 'object') {
-        // Pastikan Sukodono terisi jika masih kosong
-        if (!parsed.SUKODONO?.webAppUrl && !parsed.SUKODONO?.spreadsheetUrl) {
-          parsed.SUKODONO = { ...parsed.SUKODONO, ...PHOTO_SUKODONO_CONFIG };
-        }
-        return parsed;
+        const merged: AreaSheetConfigMap = {
+          SEPANJANG: {
+            ...OFFICIAL_4_PLANTS_CONFIGS.SEPANJANG,
+            ...parsed.SEPANJANG,
+            webAppUrl: parsed.SEPANJANG?.webAppUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SEPANJANG.webAppUrl,
+            spreadsheetUrl: parsed.SEPANJANG?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SEPANJANG.spreadsheetUrl,
+          },
+          KARAWANG: {
+            ...OFFICIAL_4_PLANTS_CONFIGS.KARAWANG,
+            ...parsed.KARAWANG,
+            webAppUrl: parsed.KARAWANG?.webAppUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.KARAWANG.webAppUrl,
+            spreadsheetUrl: parsed.KARAWANG?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.KARAWANG.spreadsheetUrl,
+          },
+          SUKODONO: {
+            ...OFFICIAL_4_PLANTS_CONFIGS.SUKODONO,
+            ...parsed.SUKODONO,
+            webAppUrl: parsed.SUKODONO?.webAppUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SUKODONO.webAppUrl,
+            spreadsheetUrl: parsed.SUKODONO?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SUKODONO.spreadsheetUrl,
+          },
+          SEMARANG: {
+            ...OFFICIAL_4_PLANTS_CONFIGS.SEMARANG,
+            ...parsed.SEMARANG,
+            webAppUrl: parsed.SEMARANG?.webAppUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SEMARANG.webAppUrl,
+            spreadsheetUrl: parsed.SEMARANG?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SEMARANG.spreadsheetUrl,
+          },
+        };
+        return merged;
       }
     }
   } catch (e) {
     console.warn('Gagal membaca area config dari localStorage:', e);
   }
 
-  return {
-    ...DEFAULT_AREA_SHEET_CONFIGS,
-    SUKODONO: {
-      ...DEFAULT_AREA_SHEET_CONFIGS.SUKODONO,
-      ...PHOTO_SUKODONO_CONFIG,
-    },
-  };
+  return OFFICIAL_4_PLANTS_CONFIGS;
 }
 
 /**
