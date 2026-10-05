@@ -95,12 +95,15 @@ export default function App() {
   };
 
   // 1. User & Authentication (5 Akun: 1 Superadmin + 4 Area Cabang)
+  // Keamanan Sesi: Menggunakan sessionStorage (bukan localStorage permanen).
+  // Jika tab/browser ditutup tanpa klik Logout, sesi otomatis musnah dan sistem kembali ke halaman Login saat dibuka lagi!
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
-      const saved = localStorage.getItem('sja_active_user');
-      if (saved) return JSON.parse(saved);
+      localStorage.removeItem('sja_active_user'); // Bersihkan penyimpanan permanen lama
+      const savedSession = sessionStorage.getItem('sja_active_user');
+      if (savedSession) return JSON.parse(savedSession);
     } catch {}
-    return null; // Menampilkan halaman login terlebih dahulu saat pertama kali aplikasi dibuka
+    return null; // Selalu kembali ke tampilan Login saat browser baru dibuka
   });
 
   // 2. Data SPP Utama dengan LocalStorage Persistence (Memuat 10 data resmi Sukodono terlampir)
@@ -306,11 +309,13 @@ export default function App() {
     } catch {}
   }, [holidays]);
 
-  // Handler Login & Logout
+  // Handler Login & Logout (Sesi Aman: Otomatis Logout saat Tab/Browser Ditutup)
   const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
     try {
-      localStorage.setItem('sja_active_user', JSON.stringify(user));
+      // Simpan di sessionStorage agar langsung musnah saat tab / browser ditutup
+      sessionStorage.setItem('sja_active_user', JSON.stringify(user));
+      localStorage.removeItem('sja_active_user'); // Pastikan tidak tersimpan permanen di localStorage
     } catch {}
     if (user.role !== 'SUPERADMIN' && user.area !== 'ALL') {
       const userArea = user.area as SJAArea;
@@ -335,6 +340,7 @@ export default function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     try {
+      sessionStorage.removeItem('sja_active_user');
       localStorage.removeItem('sja_active_user');
     } catch {}
   };
