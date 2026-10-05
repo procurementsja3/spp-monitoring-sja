@@ -14,9 +14,10 @@ export function exportToExcel(items: SPPItem[], filename = 'Laporan_Realisasi_SP
         <Cell><Data ss:Type="String">${escapeXml(item.pic)}</Data></Cell>
         <Cell><Data ss:Type="String">${item.poDate || '-'}</Data></Cell>
         <Cell><Data ss:Type="String">${item.poNumber || '-'}</Data></Cell>
+        <Cell><Data ss:Type="String">${escapeXml(item.specialCondition || '-')}</Data></Cell>
         <Cell><Data ss:Type="Number">${item.processDays}</Data></Cell>
         <Cell><Data ss:Type="String">${item.statusPO}</Data></Cell>
-        <Cell><Data ss:Type="String">${item.statusOntime}</Data></Cell>
+        <Cell><Data ss:Type="String">${item.isSpecialConditionHold ? 'HOLD (KONDISI KHUSUS)' : item.statusOntime}</Data></Cell>
         <Cell><Data ss:Type="String">${item.isHPlus3Overdue ? 'H+3 OVERDUE' : '-'}</Data></Cell>
       </Row>`;
     })
@@ -44,6 +45,7 @@ export function exportToExcel(items: SPPItem[], filename = 'Laporan_Realisasi_SP
     <Cell><Data ss:Type="String">PIC Pengadaan</Data></Cell>
     <Cell><Data ss:Type="String">Tanggal PO</Data></Cell>
     <Cell><Data ss:Type="String">Nomor PO</Data></Cell>
+    <Cell><Data ss:Type="String">Kondisi Khusus</Data></Cell>
     <Cell><Data ss:Type="String">Jumlah Hari Kerja Proses</Data></Cell>
     <Cell><Data ss:Type="String">Status PO</Data></Cell>
     <Cell><Data ss:Type="String">Status SLA</Data></Cell>
@@ -69,6 +71,7 @@ export function exportToCSV(items: SPPItem[], filename = 'Laporan_SPP.csv'): voi
     'PIC',
     'Tanggal PO',
     'Nomor PO',
+    'Kondisi Khusus',
     'Jumlah Hari Proses (Hari Kerja)',
     'Status PO',
     'Status SLA',
@@ -82,9 +85,10 @@ export function exportToCSV(items: SPPItem[], filename = 'Laporan_SPP.csv'): voi
     `"${item.pic}"`,
     `"${item.poDate || '-'}"`,
     `"${item.poNumber || '-'}"`,
+    `"${item.specialCondition || '-'}"`,
     item.processDays,
     `"${item.statusPO}"`,
-    `"${item.statusOntime}"`,
+    `"${item.isSpecialConditionHold ? 'HOLD (KONDISI KHUSUS)' : item.statusOntime}"`,
     `"${item.isHPlus3Overdue ? 'ALERT H+3' : 'NORMAL'}"`,
   ]);
 
@@ -123,6 +127,7 @@ export function triggerPrintPDF(
       <td style="padding: 8px 10px;">${escapeXml(item.pic)}</td>
       <td style="padding: 8px 10px; font-family: monospace;">${item.poDate || '-'}</td>
       <td style="padding: 8px 10px; font-weight: 600; font-family: monospace;">${item.poNumber || '<span style="color:#e11d48">BELUM TERBIT</span>'}</td>
+      <td style="padding: 8px 10px; font-size: 10px;">${escapeXml(item.specialCondition || '-')}</td>
       <td style="padding: 8px 10px; text-align: center; font-weight: 700; font-family: monospace;">${item.processDays} hr kerja</td>
       <td style="padding: 8px 10px; text-align: center;">
         <span style="font-size: 10px; font-weight: 700; color: ${item.statusPO === 'CLOSE' ? '#166534' : '#991b1b'};">
@@ -130,8 +135,8 @@ export function triggerPrintPDF(
         </span>
       </td>
       <td style="padding: 8px 10px; text-align: center;">
-        <span style="font-size: 10px; font-weight: 700; color: ${item.statusOntime === 'ONTIME' ? '#15803d' : '#b91c1c'};">
-          ${item.statusOntime}
+        <span style="font-size: 10px; font-weight: 700; color: ${item.isSpecialConditionHold ? '#d97706' : item.statusOntime === 'ONTIME' ? '#15803d' : '#b91c1c'};">
+          ${item.isSpecialConditionHold ? 'HOLD KHUSUS' : item.statusOntime}
         </span>
       </td>
     </tr>
@@ -209,6 +214,7 @@ export function triggerPrintPDF(
         <th>PIC</th>
         <th>Tanggal PO</th>
         <th>Nomor PO</th>
+        <th>Kondisi Khusus</th>
         <th style="text-align: center;">Jumlah Hari Proses</th>
         <th style="text-align: center;">Status PO</th>
         <th style="text-align: center;">Status SLA</th>

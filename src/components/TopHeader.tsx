@@ -68,7 +68,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const tabLabels: Record<string, string> = {
     dashboard: 'Dashboard Realisasi SPP',
     monitoring: 'Daftar SPP & Realisasi',
-    analytics: 'Analitik Kinerja PIC',
+    analytics: 'Analisa Kinerja PIC',
     holidays: 'Kalender Hari Libur (SKB 3 Menteri)',
     googlesheet: 'Integrasi Google Sheet',
   };
@@ -171,21 +171,37 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             )}
           </button>
 
-          {/* Security & Role button */}
-          <button
-            onClick={onOpenSecurity}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium transition-colors shadow-2xs"
-            title="Kelola Role & Keamanan 2FA"
-          >
-            <ShieldCheck
-              className={`w-4 h-4 ${
-                currentUser.twoFactorEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'
-              }`}
-            />
-            <span className="hidden sm:inline font-mono font-semibold">
-              {currentUser.name.split(' ')[0]}
-            </span>
-          </button>
+          {/* Tombol Keamanan 2FA & Hak Akses (Khusus Mode Superadmin) */}
+          {isSuperadmin ? (
+            <button
+              onClick={onOpenSecurity}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-blue-200 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+              title="Pusat Keamanan 2FA & Hak Akses (Superadmin)"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+              <span className="hidden sm:inline font-semibold text-[11px]">Keamanan 2FA</span>
+              <span className="hidden md:inline-flex text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-200/80 dark:bg-blue-800 text-blue-800 dark:text-blue-100">
+                Superadmin
+              </span>
+            </button>
+          ) : (
+            /* Badge Akun Cabang (Bersih, Sederhana & Ramah Staf Operasional) */
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 text-xs font-medium"
+              title={`Akun Aktif: ${currentUser.name} (${currentUser.area})`}
+            >
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="hidden sm:inline font-semibold text-[11px]">
+                {currentUser.name}
+              </span>
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                Online
+              </span>
+            </div>
+          )}
 
           {/* Notification Alert Bell */}
           <button

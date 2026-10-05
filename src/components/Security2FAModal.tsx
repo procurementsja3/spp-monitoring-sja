@@ -44,16 +44,16 @@ export const Security2FAModal: React.FC<Security2FAModalProps> = ({
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-600" />
-              <span>Pusat Keamanan, Manajemen Role (RBAC) &amp; Audit Trail</span>
+              <ShieldCheck className="w-5 h-5 text-blue-600" />
+              <span>Pusat Keamanan &amp; Hak Akses (Superadmin)</span>
             </h2>
             <p className="text-xs text-slate-500">
-              Otentikasi Dua Faktor (2FA), hak akses berbasis peran, dan log audit tamper-evident.
+              Kelola verifikasi 2FA Superadmin, daftar hak akses pengguna, dan riwayat aktivitas sistem.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 font-bold text-sm"
+            className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -63,36 +63,36 @@ export const Security2FAModal: React.FC<Security2FAModalProps> = ({
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md text-xs">
           <button
             onClick={() => setActiveTab('RBAC')}
-            className={`flex-1 py-1.5 rounded font-medium flex items-center justify-center gap-1.5 transition-colors ${
+            className={`flex-1 py-1.5 rounded font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
               activeTab === 'RBAC'
                 ? 'bg-white text-slate-900 shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Manajemen Akses Role (RBAC)</span>
+            <span>Daftar Pengguna &amp; Role</span>
           </button>
           <button
             onClick={() => setActiveTab('2FA')}
-            className={`flex-1 py-1.5 rounded font-medium flex items-center justify-center gap-1.5 transition-colors ${
+            className={`flex-1 py-1.5 rounded font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
               activeTab === '2FA'
                 ? 'bg-white text-slate-900 shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Key className="w-3.5 h-3.5" />
-            <span>Otentikasi Dua Faktor (2FA)</span>
+            <span>Otentikasi 2FA Superadmin</span>
           </button>
           <button
             onClick={() => setActiveTab('AUDIT')}
-            className={`flex-1 py-1.5 rounded font-medium flex items-center justify-center gap-1.5 transition-colors ${
+            className={`flex-1 py-1.5 rounded font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
               activeTab === 'AUDIT'
                 ? 'bg-white text-slate-900 shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            <span>Audit Trail Log ({auditLogs.length})</span>
+            <span>Riwayat Aktivitas ({auditLogs.length})</span>
           </button>
         </div>
 
@@ -167,7 +167,7 @@ export const Security2FAModal: React.FC<Security2FAModalProps> = ({
               <div className="space-y-2 flex-1">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-slate-900 text-sm">
-                    Time-based One-Time Password (TOTP 2FA)
+                    Otentikasi Dua Faktor (2FA Khusus Superadmin)
                   </h3>
                   <span
                     className={`font-semibold ${
@@ -178,11 +178,11 @@ export const Security2FAModal: React.FC<Security2FAModalProps> = ({
                   </span>
                 </div>
                 <p className="text-slate-600 text-[11px] leading-relaxed">
-                  Pindai QR Code di atas menggunakan aplikasi Google Authenticator, Microsoft Authenticator, atau masukkan Secret Key manual di bawah ini.
+                  Fitur 2FA ini memproteksi akun <strong>Superadmin</strong>. Anda dapat memindai QR Code di samping menggunakan aplikasi Google Authenticator atau memasukkan Secret Key ke aplikasi authenticator Anda.
                 </p>
                 <div className="p-2 bg-white border border-slate-200 rounded font-mono text-[11px] text-slate-800 flex items-center justify-between">
-                  <span>Secret Key: <strong>{currentUser.twoFactorSecret || 'SJA-PROC-TOTP-9921'}</strong></span>
-                  <span className="text-[10px] text-slate-400">SHA-1 / 30s</span>
+                  <span>Secret Key: <strong>{currentUser.twoFactorSecret || 'SUPER-ADMIN-2FA-2026'}</strong></span>
+                  <span className="text-[10px] text-slate-400">Time-based / 30s</span>
                 </div>
               </div>
             </div>
@@ -203,7 +203,7 @@ export const Security2FAModal: React.FC<Security2FAModalProps> = ({
                   maxLength={6}
                   value={inputTotp}
                   onChange={(e) => setInputTotp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Contoh: 123456"
+                  placeholder="••••••"
                   className="w-40 px-3 py-2 bg-slate-50 border border-slate-200 rounded font-mono text-center tracking-widest text-base font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
                 />
                 <button
@@ -233,7 +233,7 @@ export const Security2FAModal: React.FC<Security2FAModalProps> = ({
         {activeTab === 'AUDIT' && (
           <div className="space-y-3 text-xs">
             <div className="flex items-center justify-between text-slate-500">
-              <span>Log aktivitas tersimpan dengan checksum kriptografis untuk audit forensik.</span>
+              <span>Riwayat pencatatan aktivitas dan perubahan data penting dalam sistem.</span>
               <span className="font-mono text-[11px]">{auditLogs.length} Entri Tercatat</span>
             </div>
 
@@ -245,7 +245,7 @@ export const Security2FAModal: React.FC<Security2FAModalProps> = ({
                     <th className="px-3 py-2">Pengguna</th>
                     <th className="px-3 py-2">Aksi</th>
                     <th className="px-3 py-2">Rincian Aktivitas</th>
-                    <th className="px-3 py-2 text-right">Checksum Integrity</th>
+                    <th className="px-3 py-2 text-right">Kode Verifikasi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-sans">

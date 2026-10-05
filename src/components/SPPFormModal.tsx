@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { SPPItem, IndonesianHoliday, SJAArea, UserProfile } from '../types';
+import { SPPItem, IndonesianHoliday, SJAArea, UserProfile, STANDARD_SPECIAL_CONDITIONS } from '../types';
 import { calculateWorkingDays } from '../utils/holidayCalendar';
 import { AREA_METADATA, AREA_PIC_LIST } from '../utils/initialData';
-import { Plus, Trash2, Clock, Calendar, User, Tag, Layers, Check, Building, Edit2, Zap, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Clock, Calendar, User, Tag, Layers, Check, Building, Edit2, Zap, AlertTriangle, HelpCircle } from 'lucide-react';
 
 interface DraftRow {
   tempId: string;
@@ -12,6 +12,8 @@ interface DraftRow {
   area: SJAArea;
   poDate: string;
   poNumber: string;
+  specialCondition: string;
+  specialConditionReason: string;
   slaLimit: number;
   isUrgentAdvance: boolean;
   urgentReason: string;
@@ -59,6 +61,8 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
       area: rowArea,
       poDate: '',
       poNumber: '',
+      specialCondition: '',
+      specialConditionReason: '',
       slaLimit: 10,
       isUrgentAdvance: false,
       urgentReason: 'Breakdown Mesin Pabrik / Line Stop (Kritis)',
@@ -85,6 +89,8 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
           area: editItem.area || initialArea,
           poDate: editItem.poDate || '',
           poNumber: editItem.poNumber || '',
+          specialCondition: editItem.specialCondition || '',
+          specialConditionReason: editItem.specialConditionReason || editItem.specialCondition || '',
           slaLimit: editItem.slaLimit || 10,
           isUrgentAdvance: editItem.isUrgentAdvance || false,
           urgentReason: editItem.urgentReason || 'Breakdown Mesin Pabrik / Line Stop (Kritis)',
@@ -215,7 +221,8 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     const isClose = r.poNumber && r.poNumber.trim() !== '';
     if (isClose) closedCount++;
 
-    const isOntime = r.isUrgentAdvance || processDays <= (r.slaLimit || 10);
+    const isSpecialHold = !isClose && !!(r.specialCondition && r.specialCondition.trim() !== '');
+    const isOntime = r.isUrgentAdvance || isSpecialHold || processDays <= (r.slaLimit || 10);
     if (isOntime) ontimeCount++;
   });
 
@@ -227,20 +234,27 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     e.preventDefault();
     if (rows.length === 0) return;
 
-    const payload: Partial<SPPItem>[] = rows.map((r) => ({
-      budgetReceivedDate: r.budgetReceivedDate,
-      sppNumber: r.sppNumber.trim() || (r.isUrgentAdvance ? `SPP-PENDING-ACC-${Date.now().toString().slice(-4)}` : ''),
-      pic: r.pic.trim() || AREA_PIC_LIST[r.area]?.[0] || 'Felita',
-      area: r.area,
-      poDate: r.poDate || undefined,
-      poNumber: r.poNumber.trim() || undefined,
-      slaLimit: Number(r.slaLimit || 10),
-      isUrgentAdvance: r.isUrgentAdvance,
-      urgentReason: r.isUrgentAdvance ? r.urgentReason : undefined,
-      urgentApprovedBy: r.isUrgentAdvance ? r.urgentApprovedBy : undefined,
-      budgetStatus: r.isUrgentAdvance ? r.budgetStatus : 'APPROVED',
-      notes: r.notes || (r.isUrgentAdvance ? `Dispensasi Urgent: ${r.urgentReason} (Disetujui: ${r.urgentApprovedBy})` : undefined),
-    }));
+    const payload: Partial<SPPItem>[] = rows.map((r) => {
+      const hasPo = r.poNumber && r.poNumber.trim() !== '';
+      const isHold = !hasPo && !!(r.specialCondition && r.specialCondition.trim() !== '');
+      return {
+        budgetReceivedDate: r.budgetReceivedDate,
+        sppNumber: r.sppNumber.trim() || (r.isUrgentAdvance ? `SPP-PENDING-ACC-${Date.now().toString().slice(-4)}` : ''),
+        pic: r.pic.trim() || AREA_PIC_LIST[r.area]?.[0] || 'Felita',
+        area: r.area,
+        poDate: r.poDate || undefined,
+        poNumber: r.poNumber.trim() || undefined,
+        slaLimit: Number(r.slaLimit || 10),
+        isUrgentAdvance: r.isUrgentAdvance,
+        urgentReason: r.isUrgentAdvance ? r.urgentReason : undefined,
+        urgentApprovedBy: r.isUrgentAdvance ? r.urgentApprovedBy : undefined,
+        budgetStatus: r.isUrgentAdvance ? r.budgetStatus : 'APPROVED',
+        specialCondition: r.specialCondition ? r.specialCondition.trim() : undefined,
+        specialConditionReason: r.specialConditionReason ? r.specialConditionReason.trim() : undefined,
+        isSpecialConditionHold: isHold,
+        notes: r.notes || (r.isUrgentAdvance ? `Dispensasi Urgent: ${r.urgentReason} (Disetujui: ${r.urgentApprovedBy})` : (r.specialCondition ? `Kondisi Khusus: ${r.specialCondition}` : undefined)),
+      };
+    });
 
     onSave(payload);
     onClose();
@@ -250,7 +264,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xl max-w-5xl w-full my-6 flex flex-col max-h-[92vh] transition-colors">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xl max-w-6xl w-full my-6 flex flex-col max-h-[92vh] transition-colors">
         {/* Header Modal */}
         <div className="p-4 sm:p-5 border-b border-slate-200/90 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950 rounded-t-2xl shrink-0">
           <div>
@@ -447,12 +461,30 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
 
         {/* List Baris Input */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-3.5">
+          {/* Banner Penjelasan Sistem & Analogi Kondisi Khusus */}
+          <div className="p-3 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/90 dark:border-amber-900/50 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5 shadow-2xs">
+            <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <span>Sistem &amp; Analogi Kolom Kondisi Khusus (Hold / Penundaan PO Terjustifikasi)</span>
+              </div>
+              <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                Kolom <strong>Kondisi Khusus</strong> di sebelah Nomor PO disediakan untuk kasus di mana pembuatan PO tidak memungkinkan dilakukan cepat karena harus menunggu (misal: <em>revisi spesifikasi teknis pemohon/user, negosiasi bidding vendor, uji coba sample lab QC, vendor indent pabrikan, atau memo direksi</em>).
+              </p>
+              <div className="text-[10px] text-amber-700 dark:text-amber-400 font-mono pt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+                <span>• <strong>Analogi SLA:</strong> Dokumen berstatus <em>HOLD</em> (durasi terjustifikasi, skor performa PIC tidak dipenalti).</span>
+                <span>• <strong>Analogi Notifikasi:</strong> Alarm dialihkan menjadi <em>Monitoring &amp; Pengingat Follow-Up Berkala</em>.</span>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-3">
             {rows.map((row, idx) => {
               const calc = calculateWorkingDays(row.budgetReceivedDate, row.poDate || undefined, holidays);
               const processDays = calc.workingDays;
               const isClose = row.poNumber && row.poNumber.trim() !== '';
-              const isOntime = processDays <= (row.slaLimit || 10);
+              const isSpecialHold = !isClose && !!(row.specialCondition && row.specialCondition.trim() !== '');
+              const isOntime = row.isUrgentAdvance || isSpecialHold || processDays <= (row.slaLimit || 10);
               const areaInfo = AREA_METADATA[row.area] || { name: row.area, code: 'SJA' };
 
               const branchPics = AREA_PIC_LIST[row.area] || [];
@@ -461,11 +493,15 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
               return (
                 <div
                   key={row.tempId}
-                  className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 space-y-3 relative hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-2xs"
+                  className={`p-3.5 bg-white dark:bg-slate-900 rounded-xl border space-y-3 relative hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-2xs ${
+                    isSpecialHold
+                      ? 'border-amber-300/80 dark:border-amber-900/60 bg-amber-50/10'
+                      : 'border-slate-200/90 dark:border-slate-800'
+                  }`}
                 >
                   {/* Row Header */}
                   <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-bold font-mono flex items-center justify-center">
                         {idx + 1}
                       </span>
@@ -485,11 +521,37 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                       >
                         {areaInfo.name}
                       </span>
+                      {isSpecialHold && (
+                        <span
+                          className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1"
+                          title={row.specialCondition}
+                        >
+                          <Clock className="w-3 h-3 text-amber-600" />
+                          <span>
+                            HOLD:{' '}
+                            {row.specialCondition.length > 30
+                              ? row.specialCondition.slice(0, 30) + '...'
+                              : row.specialCondition}
+                          </span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                        Durasi: <strong className={isOntime ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>{processDays} hr</strong> (SLA {row.slaLimit} hr)
+                        Durasi:{' '}
+                        <strong
+                          className={
+                            isSpecialHold
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : isOntime
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-rose-600 dark:text-rose-400'
+                          }
+                        >
+                          {processDays} hr
+                        </strong>{' '}
+                        (SLA {row.slaLimit} hr{isSpecialHold ? ' · Toleransi Khusus' : ''})
                       </span>
 
                       {rows.length > 1 && !editItem && (
@@ -506,7 +568,11 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                   </div>
 
                   {/* Form Input Columns */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
+                  <div
+                    className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${
+                      isSuperadmin ? 'xl:grid-cols-7' : 'xl:grid-cols-6'
+                    } gap-3`}
+                  >
                     {/* Area Selector (Superadmin only) */}
                     {isSuperadmin && (
                       <div>
@@ -544,7 +610,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                     </div>
 
                     {/* 2. Nomor SPP (Kosong secara default, user ketik sendiri) */}
-                    <div className={isSuperadmin ? '' : 'md:col-span-2'}>
+                    <div>
                       <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
                         <Tag className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                         <span>Nomor SPP *</span>
@@ -631,6 +697,76 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                         placeholder="PO/2026/03/XXXX"
                         className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs"
                       />
+                    </div>
+
+                    {/* 6. Kolom Kondisi Khusus (Opsional) - Tepat di sebelah Nomor PO sesuai foto */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          <span>Kondisi Khusus (Opsional)</span>
+                        </span>
+                        {isSpecialHold && (
+                          <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 font-mono bg-amber-100/90 dark:bg-amber-950 px-1 py-0.2 rounded">
+                            HOLD PO
+                          </span>
+                        )}
+                      </label>
+                      <select
+                        value={
+                          !row.specialCondition
+                            ? ''
+                            : (STANDARD_SPECIAL_CONDITIONS as readonly string[]).includes(row.specialCondition)
+                            ? row.specialCondition
+                            : '__CUSTOM__'
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__CUSTOM__') {
+                            handleUpdateRow(row.tempId, 'specialCondition', 'Lainnya');
+                            handleUpdateRow(row.tempId, 'specialConditionReason', '');
+                          } else {
+                            handleUpdateRow(row.tempId, 'specialCondition', val);
+                            handleUpdateRow(row.tempId, 'specialConditionReason', val);
+                          }
+                        }}
+                        className={`w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border rounded-lg text-xs font-medium transition-colors focus:outline-none focus:bg-white dark:focus:bg-slate-900 ${
+                          row.specialCondition
+                            ? 'border-amber-400 dark:border-amber-600 text-amber-900 dark:text-amber-200 bg-amber-50/60 dark:bg-amber-950/40 font-semibold'
+                            : 'border-slate-200/90 dark:border-slate-800 text-slate-900 dark:text-white'
+                        }`}
+                      >
+                        <option value="">— Normal (Tidak Ada) —</option>
+                        {STANDARD_SPECIAL_CONDITIONS.map((cond) => (
+                          <option key={cond} value={cond}>
+                            {cond}
+                          </option>
+                        ))}
+                        <option value="__CUSTOM__">✍️ Ketik Alasan Khusus Sendiri...</option>
+                      </select>
+
+                      {/* Kotak Input Alasan Khusus Tambahan jika memilih Custom atau nama di luar standar */}
+                      {row.specialCondition && !(STANDARD_SPECIAL_CONDITIONS as readonly string[]).includes(row.specialCondition) && (
+                        <div className="mt-1.5 animate-in fade-in">
+                          <input
+                            type="text"
+                            value={row.specialConditionReason}
+                            onChange={(e) => {
+                              handleUpdateRow(row.tempId, 'specialCondition', e.target.value || 'Lainnya');
+                              handleUpdateRow(row.tempId, 'specialConditionReason', e.target.value);
+                            }}
+                            placeholder="Tulis alasan khusus penundaan PO..."
+                            className="w-full px-2.5 py-1 bg-white dark:bg-slate-900 border border-amber-500 rounded-lg text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500 placeholder:text-slate-400"
+                            autoFocus
+                          />
+                        </div>
+                      )}
+
+                      {isSpecialHold && (
+                        <div className="mt-1 text-[10px] text-amber-700 dark:text-amber-400 font-mono leading-tight">
+                          ⏳ PO Menunggu: Status Hold &amp; Monitoring Aktif
+                        </div>
+                      )}
                     </div>
 
                     {/* Fitur Khusus: Toggle Mode Dispensasi Urgent / Advance PO */}

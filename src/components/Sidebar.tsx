@@ -23,11 +23,14 @@ import {
   FileSpreadsheet,
   Globe,
   Download,
-  Copy
+  Copy,
+  Search,
+  AlertCircle,
 } from 'lucide-react';
 import { UserProfile, SJAArea, AreaSheetConfigMap, GoogleSheetConfig } from '../types';
-import { AREA_METADATA } from '../utils/initialData';
+import { AREA_METADATA, AREA_PIC_LIST } from '../utils/initialData';
 import { processImageFile } from '../utils/logoManager';
+import { OFFICIAL_4_PLANTS_CONFIGS } from '../utils/cloudSync';
 
 interface SidebarProps {
   activeTab: string;
@@ -48,6 +51,10 @@ interface SidebarProps {
   onUpdateLogo: (newLogo: string | null) => void;
   areaConfigs?: AreaSheetConfigMap;
   onUpdateAreaConfig?: (area: SJAArea, newConfig: Partial<GoogleSheetConfig>) => void;
+  selectedPicFilter?: string;
+  onSelectPicFilter?: (pic: string) => void;
+  searchPicQuery?: string;
+  onSearchPicQuery?: (q: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -68,6 +75,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onUpdateLogo,
   areaConfigs,
   onUpdateAreaConfig,
+  selectedPicFilter,
+  onSelectPicFilter,
+  searchPicQuery,
+  onSearchPicQuery,
 }) => {
   const isSuperadmin = currentUser.role === 'SUPERADMIN';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -76,6 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Modal Setting / Buka Tautan Google Sheet Cabang
   const [selectedSheetArea, setSelectedSheetArea] = useState<SJAArea | null>(null);
+  const [selectedSidebarSheetArea, setSelectedSidebarSheetArea] = useState<SJAArea>('SEPANJANG');
   const [isSheetLinkModalOpen, setIsSheetLinkModalOpen] = useState(false);
   const [sheetUrlInput, setSheetUrlInput] = useState('');
 
@@ -113,14 +125,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Handler Buka Google Sheet Cabang (Superadmin)
   const handleOpenAreaSheet = (area: SJAArea) => {
     const config = areaConfigs?.[area];
-    const savedSpreadsheetUrl = config?.spreadsheetUrl;
-    if (savedSpreadsheetUrl && savedSpreadsheetUrl.trim().startsWith('http')) {
-      window.open(savedSpreadsheetUrl.trim(), '_blank');
+    const savedSpreadsheetUrl = config?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS[area]?.spreadsheetUrl;
+
+    if (savedSpreadsheetUrl && savedSpreadsheetUrl.startsWith('http')) {
+      window.open(savedSpreadsheetUrl, '_blank');
       showToast(`Membuka Google Sheet ${AREA_METADATA[area].name}...`);
     } else {
       // Jika belum disetel tautan spreadsheet langsung, buka dialog konfigurasi
       setSelectedSheetArea(area);
-      setSheetUrlInput(config?.spreadsheetUrl || '');
+      setSheetUrlInput(config?.spreadsheetUrl || OFFICIAL_4_PLANTS_CONFIGS[area]?.spreadsheetUrl || '');
       setIsSheetLinkModalOpen(true);
     }
   };
@@ -128,7 +141,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleEditAreaSheetLink = (e: React.MouseEvent, area: SJAArea) => {
     e.stopPropagation();
     setSelectedSheetArea(area);
-    setSheetUrlInput(areaConfigs?.[area]?.spreadsheetUrl || '');
+    setSheetUrlInput(areaConfigs?.[area]?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS[area]?.spreadsheetUrl || '');
     setIsSheetLinkModalOpen(true);
   };
 
@@ -161,9 +174,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'analytics',
-      label: 'Analitik Kinerja PIC',
+      label: 'Analisa Kinerja PIC',
       icon: BarChart3,
-      description: 'Evaluasi efisiensi pengadaan',
+      description: 'Dashboard 3D Bar Code & Efisiensi',
     },
     {
       id: 'holidays',
@@ -217,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         {/* Sidebar Header: Brand Crest, Interactive Logo & Collapse Button */}
-        <div className="h-16 px-4 flex items-center justify-between border-b border-slate-200/90 dark:border-slate-800/90 shrink-0">
+        <div className="h-[4.25rem] px-3.5 flex items-center justify-between border-b border-slate-200/90 dark:border-slate-800/90 shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
             {/* Interactive Logo Wrapper with Auto-Save */}
             <div className="relative group/logo shrink-0">
@@ -232,15 +245,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsLogoModalOpen(true)}
-                className="relative block rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 transition-transform active:scale-95"
+                className="relative block rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 transition-transform active:scale-95"
                 title="Klik untuk mengubah & menyimpan logo baru otomatis"
               >
                 {customLogo ? (
-                  <img
-                    src={customLogo}
-                    alt="Logo Perusahaan"
-                    className="w-10 h-10 rounded-xl object-contain bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 shadow-md shrink-0 p-1"
-                  />
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 shadow-md shrink-0 p-0.5 flex items-center justify-center">
+                    <div className="w-full h-full rounded-lg overflow-hidden bg-white flex items-center justify-center p-0.5">
+                      <img
+                        src={customLogo}
+                        alt="Logo Perusahaan"
+                        className="w-full h-full object-contain rounded-md"
+                      />
+                    </div>
+                  </div>
                 ) : (
                   <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm tracking-tight shadow-md shrink-0 ring-1 ring-white/10">
                     SJA
@@ -248,20 +265,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
 
                 {/* Camera Hover Badge */}
-                <div className="absolute inset-0 bg-slate-900/70 rounded-lg flex items-center justify-center text-white opacity-0 group-hover/logo:opacity-100 transition-opacity backdrop-blur-2xs">
+                <div className="absolute inset-0 bg-slate-900/70 rounded-xl flex items-center justify-center text-white opacity-0 group-hover/logo:opacity-100 transition-opacity backdrop-blur-2xs">
                   <Camera className="w-4 h-4 text-white" />
                 </div>
               </button>
+
+              {/* Status Online saat Sidebar dalam keadaan Ciut / Collapsed */}
+              {isCollapsed && !isMobileOpen && (
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5"
+                  title={`Status: Online (${isSuperadmin ? 'Superadmin' : `Area ${currentUser.area}`})`}
+                >
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-white dark:border-slate-950"></span>
+                </span>
+              )}
             </div>
 
             {(!isCollapsed || isMobileOpen) && (
-              <div className="min-w-0 transition-opacity duration-200">
-                <span className="block font-semibold text-sm tracking-tight text-slate-900 dark:text-white truncate">
+              <div className="min-w-0 transition-opacity duration-200 flex flex-col justify-center">
+                <span className="block font-bold text-sm tracking-tight text-slate-900 dark:text-white truncate leading-tight">
                   Realisasi SPP
                 </span>
-                <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">
-                  {isSuperadmin ? 'Superadmin Portal' : `Area ${currentUser.area}`}
+                <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate font-medium">
+                  {isSuperadmin ? 'Superadmin Portal' : `Area  ${currentUser.area}`}
                 </span>
+
+                {/* Status Online dengan Bulatan Hijau Kedip-Kedip (Aktif untuk semua user login) */}
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tracking-wide font-sans leading-none">
+                    Online
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -288,57 +327,182 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Action Button: "+ Input SPP" */}
-        <div className="p-3 border-b border-slate-200/90 dark:border-slate-800/80 shrink-0 space-y-2">
-          <button
-            onClick={() => {
-              onOpenNewSPP();
-              if (isMobileOpen) onCloseMobile();
-            }}
-            className={`w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium text-xs py-2.5 rounded-lg shadow-sm hover:shadow transition-all ${
-              isCollapsed && !isMobileOpen ? 'px-0' : 'px-4'
-            }`}
-            title={isCollapsed && !isMobileOpen ? 'Tambah SPP Baru' : undefined}
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            {(!isCollapsed || isMobileOpen) && (
-              <span className="truncate">Tambah SPP Baru</span>
-            )}
-          </button>
-        </div>
+        {/* Action Button: "+ Input SPP" (Hanya untuk User Cabang, Tidak untuk Superadmin) */}
+        {!isSuperadmin && (
+          <div className="p-3 border-b border-slate-200/90 dark:border-slate-800/80 shrink-0 space-y-2">
+            <button
+              onClick={() => {
+                onOpenNewSPP();
+                if (isMobileOpen) onCloseMobile();
+              }}
+              className={`w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium text-xs py-2.5 rounded-lg shadow-sm hover:shadow transition-all ${
+                isCollapsed && !isMobileOpen ? 'px-0' : 'px-4'
+              }`}
+              title={isCollapsed && !isMobileOpen ? 'Tambah SPP Baru' : undefined}
+            >
+              <Plus className="w-4 h-4 shrink-0" />
+              {(!isCollapsed || isMobileOpen) && (
+                <span className="truncate">Tambah SPP Baru</span>
+              )}
+            </button>
+          </div>
+        )}
 
-        {/* Filter Area Dropdown/Selector (Khusus Superadmin) */}
-        {isSuperadmin && (!isCollapsed || isMobileOpen) && (
-          <div className="px-3 pt-3 pb-1 shrink-0">
-            <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1">
-              <Building className="w-3 h-3 text-blue-600 dark:text-blue-400" /> Filter Area Cabang:
-            </label>
-            <div className="grid grid-cols-2 gap-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-lg border border-slate-200/80 dark:border-slate-800 text-[11px]">
-              <button
-                onClick={() => onSelectAreaFilter('ALL')}
-                className={`py-1 px-1.5 rounded text-center truncate transition-all ${
-                  activeAreaFilter === 'ALL'
-                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-semibold shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Semua Area
-              </button>
-              {allAreas.map((areaKey) => (
-                <button
-                  key={areaKey}
-                  onClick={() => onSelectAreaFilter(areaKey)}
-                  className={`py-1 px-1.5 rounded text-center truncate transition-all ${
-                    activeAreaFilter === areaKey
-                      ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-semibold shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                  title={AREA_METADATA[areaKey]?.name}
+        {/* Panel Filter Area & PIC Ringkas (Sistem Drop Down List Hemat Ruang agar Menu Utama Terlihat) */}
+        {(!isCollapsed || isMobileOpen) && (
+          <div className="px-3 pt-2 pb-2.5 shrink-0 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40 space-y-2">
+            {/* 1. Dropdown List Filter Area Cabang (Khusus Superadmin) */}
+            {isSuperadmin ? (
+              <div>
+                <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold mb-1">
+                  <span className="flex items-center gap-1">
+                    <Building className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                    <span>Filter Area Cabang:</span>
+                  </span>
+                  {activeAreaFilter !== 'ALL' && (
+                    <button
+                      type="button"
+                      onClick={() => onSelectAreaFilter('ALL')}
+                      className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-sans font-semibold"
+                    >
+                      Semua Area
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={activeAreaFilter}
+                  onChange={(e) => onSelectAreaFilter(e.target.value as SJAArea | 'ALL')}
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
                 >
-                  {AREA_METADATA[areaKey]?.name.split(' ')[1]}
-                </button>
-              ))}
+                  <option value="ALL">🌐 Semua Area Cabang (4 Area)</option>
+                  <option value="SEPANJANG">🏢 SJA Sepanjang (Lampiran 1)</option>
+                  <option value="KARAWANG">🏢 SJA Karawang (Lampiran 2)</option>
+                  <option value="SUKODONO">🏢 SJA Sukodono (Lampiran 3)</option>
+                  <option value="SEMARANG">🏢 SJA Semarang (Lampiran 4)</option>
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between px-2.5 py-1.5 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-900/50 rounded-lg text-xs">
+                <span className="text-[11px] font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+                  <Building className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>{AREA_METADATA[currentUser.area as SJAArea]?.name || currentUser.area}</span>
+                </span>
+                <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-blue-200/70 dark:bg-blue-900 text-blue-800 dark:text-blue-200 font-bold">
+                  Cabang Login
+                </span>
+              </div>
+            )}
+
+            {/* 2. Dropdown List Pencarian & Filter PIC */}
+            <div>
+              <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold mb-1">
+                <span className="flex items-center gap-1">
+                  <Search className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                  <span>Pencarian PIC:</span>
+                </span>
+                {selectedPicFilter && selectedPicFilter !== 'ALL' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelectPicFilter?.('ALL');
+                      onSearchPicQuery?.('');
+                    }}
+                    className="text-[9px] text-rose-600 dark:text-rose-400 hover:underline cursor-pointer font-sans font-semibold"
+                  >
+                    Reset PIC
+                  </button>
+                )}
+              </div>
+
+              <select
+                value={selectedPicFilter || 'ALL'}
+                onChange={(e) => {
+                  onSelectPicFilter?.(e.target.value);
+                  onSearchPicQuery?.('');
+                }}
+                className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
+              >
+                {isSuperadmin ? (
+                  <>
+                    <option value="ALL">👤 Semua PIC (Seluruh 4 Cabang)</option>
+                    <optgroup label="🏢 SJA Sepanjang (Lampiran 1)">
+                      {AREA_PIC_LIST.SEPANJANG.map((p) => (
+                        <option key={`sb-sep-${p}`} value={p}>
+                          PIC: {p} (Sepanjang)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="🏢 SJA Karawang (Lampiran 2)">
+                      {AREA_PIC_LIST.KARAWANG.map((p) => (
+                        <option key={`sb-krw-${p}`} value={p}>
+                          PIC: {p} (Karawang)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="🏢 SJA Sukodono (Lampiran 3)">
+                      {AREA_PIC_LIST.SUKODONO.map((p) => (
+                        <option key={`sb-skd-${p}`} value={p}>
+                          PIC: {p} (Sukodono)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="🏢 SJA Semarang (Lampiran 4)">
+                      {AREA_PIC_LIST.SEMARANG.map((p) => (
+                        <option key={`sb-smg-${p}`} value={p}>
+                          PIC: {p} (Semarang)
+                        </option>
+                      ))}
+                    </optgroup>
+                  </>
+                ) : (
+                  <>
+                    <option value="ALL">
+                      👤 Semua PIC {AREA_METADATA[currentUser.area as SJAArea]?.name || ''}
+                    </option>
+                    {(AREA_PIC_LIST[currentUser.area as SJAArea] || []).map((p) => (
+                      <option key={`sb-usr-${p}`} value={p}>
+                        PIC: {p}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
             </div>
+
+            {/* Quick Links saat PIC Terpilih */}
+            {selectedPicFilter && selectedPicFilter !== 'ALL' && (
+              <div className="flex items-center justify-between text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-1 rounded-md border border-blue-200/60 dark:border-blue-900/40">
+                <span className="font-semibold truncate max-w-[85px]">PIC: {selectedPicFilter}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('dashboard')}
+                    className={`px-1 rounded ${activeTab === 'dashboard' ? 'bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-white font-bold' : 'hover:underline'}`}
+                    title="Buka Dashboard untuk PIC ini"
+                  >
+                    Dashboard
+                  </button>
+                  <span>·</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('monitoring')}
+                    className={`px-1 rounded ${activeTab === 'monitoring' ? 'bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-white font-bold' : 'hover:underline'}`}
+                    title="Buka Daftar SPP untuk PIC ini"
+                  >
+                    Daftar SPP
+                  </button>
+                  <span>·</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('analytics')}
+                    className={`px-1 rounded ${activeTab === 'analytics' ? 'bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-white font-bold' : 'hover:underline'}`}
+                    title="Buka Analisa Realisasi untuk PIC ini"
+                  >
+                    Realisasi
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -390,67 +554,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   )}
                 </button>
 
-                {/* Submenu Khusus Superadmin: Tombol Cepat "Buka G Sheet" untuk Sepanjang, Karawang, Sukodono, Semarang */}
+                {/* Submenu Khusus Superadmin: Sistem Dropdown List Ringkas untuk Buka & Atur Google Sheet Cabang */}
                 {item.id === 'googlesheet' && isSuperadmin && (!isCollapsed || isMobileOpen) && (
-                  <div className="mt-1 ml-4 pl-3 border-l-2 border-emerald-500/40 dark:border-emerald-500/30 space-y-1 py-1 animate-in fade-in duration-200">
-                    <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 dark:text-slate-500 font-semibold mb-1.5 flex items-center gap-1.5">
-                      <FileSpreadsheet className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                      <span>Buka G Sheet Cabang:</span>
+                  <div className="mt-1 ml-3 pl-2.5 border-l-2 border-emerald-500/40 dark:border-emerald-500/30 space-y-1.5 py-1 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+                      <span className="flex items-center gap-1">
+                        <FileSpreadsheet className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        <span>Pilih Cabang G-Sheet:</span>
+                      </span>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-1">
-                      {allAreas.map((areaKey) => {
-                        const areaInfo = AREA_METADATA[areaKey];
-                        const attachmentTag = 
-                          areaKey === 'SEPANJANG' ? 'Lampiran 1' :
-                          areaKey === 'KARAWANG' ? 'Lampiran 2' :
-                          areaKey === 'SUKODONO' ? 'Lampiran 3' : 'Lampiran 4';
-                        const hasUrl = Boolean(areaConfigs?.[areaKey]?.spreadsheetUrl?.trim());
+                    <div className="space-y-1">
+                      {/* Dropdown List Pemilihan Cabang */}
+                      <select
+                        value={selectedSidebarSheetArea}
+                        onChange={(e) => setSelectedSidebarSheetArea(e.target.value as SJAArea)}
+                        className="w-full px-2 py-1.5 bg-white dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-2xs"
+                      >
+                        <option value="SEPANJANG">🏢 SJA Sepanjang (Lampiran 1)</option>
+                        <option value="KARAWANG">🏢 SJA Karawang (Lampiran 2)</option>
+                        <option value="SUKODONO">🏢 SJA Sukodono (Lampiran 3)</option>
+                        <option value="SEMARANG">🏢 SJA Semarang (Lampiran 4)</option>
+                      </select>
 
-                        return (
-                          <div
-                            key={areaKey}
-                            className="group/sheet flex items-center justify-between rounded-lg px-2 py-1.5 bg-slate-50/70 dark:bg-slate-900/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-200/70 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800 transition-all text-xs"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => handleOpenAreaSheet(areaKey)}
-                              className="flex-1 flex items-center gap-2 text-left text-slate-700 dark:text-slate-300 group-hover/sheet:text-emerald-700 dark:group-hover/sheet:text-emerald-300 font-medium overflow-hidden"
-                              title={`Buka Google Sheet ${areaInfo.name} (${attachmentTag}) di tab baru`}
-                            >
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                              <div className="min-w-0">
-                                <span className="block truncate text-[11px] font-semibold">
-                                  {areaInfo.name.split(' ')[1]}
-                                </span>
-                                <span className="block text-[9px] text-emerald-600 dark:text-emerald-400 font-mono font-medium">
-                                  {attachmentTag}
-                                </span>
-                              </div>
-                            </button>
-
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={(e) => handleEditAreaSheetLink(e, areaKey)}
-                                className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                                title={`Atur tautan Google Sheet ${areaInfo.name} (${attachmentTag})`}
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenAreaSheet(areaKey)}
-                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 group-hover/sheet:bg-emerald-600 group-hover/sheet:text-white text-emerald-700 dark:text-emerald-400 text-[10px] font-bold border border-slate-200 dark:border-slate-700 group-hover/sheet:border-emerald-600 transition-colors shadow-2xs cursor-pointer"
-                                title={`Buka Spreadsheet ${attachmentTag} di Tab Baru`}
-                              >
-                                <span>Buka</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {/* Tombol Aksi Buka dan Atur URL Cabang Terpilih */}
+                      <div className="flex items-center gap-1 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAreaSheet(selectedSidebarSheetArea)}
+                          className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-2xs transition-colors cursor-pointer"
+                          title={`Buka Google Sheet ${AREA_METADATA[selectedSidebarSheetArea]?.name} di Tab Baru`}
+                        >
+                          <span>Buka Spreadsheet</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleEditAreaSheetLink(e, selectedSidebarSheetArea)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer flex items-center gap-1"
+                          title={`Atur tautan URL Google Sheet ${AREA_METADATA[selectedSidebarSheetArea]?.name}`}
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Atur</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -484,12 +631,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               {(!isCollapsed || isMobileOpen) && (
                 <div className="min-w-0">
-                  <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                  <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200 truncate leading-tight">
                     {currentUser.name}
                   </span>
-                  <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">
-                    {currentUser.role}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate leading-none">
+                      {currentUser.role}
+                    </span>
+                    <span className="text-slate-300 dark:text-slate-700 leading-none">·</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 leading-none">
+                      <span className="relative flex h-1.5 w-1.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                      </span>
+                      <span>Online</span>
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -572,6 +729,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             <form onSubmit={handleSaveAndOpenSheet} className="space-y-3.5">
+              {selectedSheetArea === 'SUKODONO' && (!sheetUrlInput || sheetUrlInput.includes('1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM')) && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-[11px]">Tautan Bawaan Sukodono Tidak Ditemukan di Google Drive (404)</p>
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                      File spreadsheet bawaan Sukodono telah dipindahkan atau dihapus di Google Drive. Silakan buka Google Sheet Sukodono Anda, salin URL-nya dari kolom alamat browser, lalu tempelkan di kotak bawah ini.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   URL / Link Dokumen Google Spreadsheet ({selectedSheetArea === 'SEPANJANG' ? 'Lampiran 1' : selectedSheetArea === 'KARAWANG' ? 'Lampiran 2' : selectedSheetArea === 'SUKODONO' ? 'Lampiran 3' : 'Lampiran 4'}):
@@ -635,21 +804,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Preview Logo Saat Ini */}
             <div className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2">
-              <div className="w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-1">
-                {customLogo ? (
-                  <img
-                    src={customLogo}
-                    alt="Pratinjau Logo"
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl rounded-lg">
-                    SJA
-                  </div>
-                )}
+              <div className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm p-1">
+                <div className="w-full h-full rounded-xl overflow-hidden bg-white flex items-center justify-center p-0.5">
+                  {customLogo ? (
+                    <img
+                      src={customLogo}
+                      alt="Pratinjau Logo"
+                      className="w-full h-full object-contain rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl rounded-lg">
+                      SJA
+                    </div>
+                  )}
+                </div>
               </div>
               <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                {customLogo ? 'Logo Kustom Aktif' : 'Logo Bawaan Standar (SJA)'}
+                {customLogo ? 'Logo Kustom Aktif (Mengikuti Shape Dinamis)' : 'Logo Bawaan Standar (SJA)'}
               </span>
             </div>
 

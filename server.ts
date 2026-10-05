@@ -56,17 +56,34 @@ const DEFAULT_AREA_CONFIGS = {
   },
 };
 
+// Helper menggabungkan konfigurasi dengan default resmi agar tidak pernah berubah kosong
+function mergeWithDefaults(parsed: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, def] of Object.entries(DEFAULT_AREA_CONFIGS)) {
+    const p = parsed?.[key] || {};
+    result[key] = {
+      ...def,
+      ...p,
+      // Jika URL kosong atau blank, selalu gunakan default resmi terlampir agar tidak pernah kosong
+      webAppUrl: (typeof p.webAppUrl === 'string' && p.webAppUrl.trim() !== '') ? p.webAppUrl.trim() : def.webAppUrl,
+      spreadsheetUrl: (typeof p.spreadsheetUrl === 'string' && p.spreadsheetUrl.trim() !== '') ? p.spreadsheetUrl.trim() : def.spreadsheetUrl,
+      sheetName: (typeof p.sheetName === 'string' && p.sheetName.trim() !== '') ? p.sheetName.trim() : def.sheetName,
+      syncStatus: (p.syncStatus && p.syncStatus !== 'idle') ? p.syncStatus : 'connected',
+      autoSync: true,
+      lastSyncTime: p.lastSyncTime || new Date().toISOString(),
+    };
+  }
+  return result;
+}
+
 // Helper membaca konfigurasi dari storage disk server
 function readAreaConfigs(): Record<string, any> {
   try {
     if (fs.existsSync(CONFIGS_FILE)) {
       const content = fs.readFileSync(CONFIGS_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      // Pastikan semua 4 cabang ada
-      return {
-        ...DEFAULT_AREA_CONFIGS,
-        ...parsed,
-      };
+      const merged = mergeWithDefaults(parsed);
+      return merged;
     }
   } catch (err) {
     console.error('[Cloud Storage] Gagal membaca cloud_area_configs.json:', err);
@@ -162,12 +179,21 @@ async function bootstrapServer() {
     let updated = { ...current };
 
     if (configs && typeof configs === 'object') {
-      updated = { ...updated, ...configs };
+      updated = mergeWithDefaults({ ...updated, ...configs });
     } else if (area && config && typeof config === 'object') {
-      updated[area] = {
+      const mergedArea = {
         ...(updated[area] || {}),
         ...config,
       };
+      // Jika spreadsheetUrl atau webAppUrl kosong/terhapus, kembalikan ke default resmi
+      if (!mergedArea.spreadsheetUrl || mergedArea.spreadsheetUrl.trim() === '') {
+        mergedArea.spreadsheetUrl = DEFAULT_AREA_CONFIGS[area as keyof typeof DEFAULT_AREA_CONFIGS]?.spreadsheetUrl || '';
+      }
+      if (!mergedArea.webAppUrl || mergedArea.webAppUrl.trim() === '') {
+        mergedArea.webAppUrl = DEFAULT_AREA_CONFIGS[area as keyof typeof DEFAULT_AREA_CONFIGS]?.webAppUrl || '';
+      }
+      updated[area] = mergedArea;
+      updated = mergeWithDefaults(updated);
     } else {
       res.status(400).json({ error: 'Payload tidak valid. Butuh { area, config } atau { configs }' });
       return;

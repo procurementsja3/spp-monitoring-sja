@@ -97,11 +97,37 @@ export async function fetchCloudAreaConfigs(): Promise<AreaSheetConfigMap> {
     if (res.ok) {
       const data = await res.json();
       if (data && data.configs) {
+        const merged: AreaSheetConfigMap = {
+          SEPANJANG: {
+            ...OFFICIAL_4_PLANTS_CONFIGS.SEPANJANG,
+            ...data.configs.SEPANJANG,
+            webAppUrl: data.configs.SEPANJANG?.webAppUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SEPANJANG.webAppUrl,
+            spreadsheetUrl: data.configs.SEPANJANG?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SEPANJANG.spreadsheetUrl,
+          },
+          KARAWANG: {
+            ...OFFICIAL_4_PLANTS_CONFIGS.KARAWANG,
+            ...data.configs.KARAWANG,
+            webAppUrl: data.configs.KARAWANG?.webAppUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.KARAWANG.webAppUrl,
+            spreadsheetUrl: data.configs.KARAWANG?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.KARAWANG.spreadsheetUrl,
+          },
+          SUKODONO: {
+            ...OFFICIAL_4_PLANTS_CONFIGS.SUKODONO,
+            ...data.configs.SUKODONO,
+            webAppUrl: data.configs.SUKODONO?.webAppUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SUKODONO.webAppUrl,
+            spreadsheetUrl: data.configs.SUKODONO?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SUKODONO.spreadsheetUrl,
+          },
+          SEMARANG: {
+            ...OFFICIAL_4_PLANTS_CONFIGS.SEMARANG,
+            ...data.configs.SEMARANG,
+            webAppUrl: data.configs.SEMARANG?.webAppUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SEMARANG.webAppUrl,
+            spreadsheetUrl: data.configs.SEMARANG?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SEMARANG.spreadsheetUrl,
+          },
+        };
         // Simpan juga salinan lokal sebagai cache offline cepat
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data.configs));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
         } catch {}
-        return data.configs as AreaSheetConfigMap;
+        return merged;
       }
     }
   } catch (err) {

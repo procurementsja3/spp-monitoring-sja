@@ -42,7 +42,22 @@ export interface SPPItem {
   urgentReason?: string;         // Alasan darurat (Breakdown Mesin, Stok Habis, dll)
   urgentApprovedBy?: string;     // Otorisator / Pejabat yang menyetujui dispensasi
   budgetStatus?: BudgetStatus;   // Status persetujuan budget (APPROVED, PENDING_ACC, REJECTED)
+
+  // Fitur Kondisi Khusus (Hold / Penundaan PO yang Dibenarkan)
+  specialCondition?: string;            // Nama/kategori kondisi khusus (misal: Menunggu Revisi Spek User, Bidding Vendor, Uji Lab, dll)
+  specialConditionReason?: string;      // Rincian keterangan/alasan spesifik kondisi khusus
+  isSpecialConditionHold?: boolean;     // Apakah statusnya aktif tertahan kondisi khusus
 }
+
+export const STANDARD_SPECIAL_CONDITIONS = [
+  'Menunggu Revisi / Spek Teknis Pemohon (User)',
+  'Proses Negosiasi Harga & Bidding Vendor (3 Vendor)',
+  'Uji Sample / Trial QC & Laboratorium',
+  'Vendor Indent / Lead Time Pabrikan / Kuota Impor',
+  'Verifikasi Rekening & Legalitas Rekanan Baru',
+  'Menunggu Memo / Otorisasi Direksi (Capex Besar)',
+  'Penundaan Jadwal Pengiriman atas Permintaan Pabrik',
+] as const;
 
 export interface IndonesianHoliday {
   date: string; // YYYY-MM-DD
@@ -81,7 +96,7 @@ export interface SystemNotification {
   sppNumber?: string;
   timestamp: string;
   read: boolean;
-  type: 'H_PLUS_3' | 'SIGNIFICANT_DELAY' | 'SLA_BREACH' | 'ERP_SYNC' | 'SECURITY';
+  type: 'H_PLUS_3' | 'SIGNIFICANT_DELAY' | 'SLA_BREACH' | 'ERP_SYNC' | 'SECURITY' | 'SPECIAL_CONDITION_HOLD';
   picTarget?: string;
 }
 

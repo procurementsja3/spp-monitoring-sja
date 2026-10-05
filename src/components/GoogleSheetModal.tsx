@@ -5,6 +5,7 @@ import {
   AREA_CONFIG_SPECS,
   generateGoogleAppsScriptCode
 } from '../utils/googleSheetsConnector';
+import { OFFICIAL_4_PLANTS_CONFIGS } from '../utils/cloudSync';
 import { 
   Database, 
   UploadCloud, 
@@ -56,11 +57,16 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
     }
   }, [currentUser, isSuperadmin]);
 
-  const currentConfig = areaConfigs[selectedArea] || {
-    webAppUrl: '',
-    sheetName: `SPP_${selectedArea}`,
+  const defaultAreaConfig = OFFICIAL_4_PLANTS_CONFIGS[selectedArea];
+  const userAreaConfig = areaConfigs[selectedArea];
+  const currentConfig: GoogleSheetConfig = {
+    ...defaultAreaConfig,
+    ...userAreaConfig,
+    webAppUrl: userAreaConfig?.webAppUrl?.trim() || defaultAreaConfig?.webAppUrl || '',
+    spreadsheetUrl: userAreaConfig?.spreadsheetUrl?.trim() || defaultAreaConfig?.spreadsheetUrl || '',
+    sheetName: userAreaConfig?.sheetName?.trim() || defaultAreaConfig?.sheetName || `SPP_${selectedArea}`,
     autoSync: true,
-    syncStatus: 'idle',
+    syncStatus: userAreaConfig?.syncStatus || 'connected',
   };
 
   const [urlInput, setUrlInput] = useState(currentConfig.webAppUrl || '');
@@ -73,8 +79,10 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
 
   // Update input text when active area changes
   useEffect(() => {
-    setUrlInput(areaConfigs[selectedArea]?.webAppUrl || '');
-    setSpreadsheetUrlInput(areaConfigs[selectedArea]?.spreadsheetUrl || '');
+    const def = OFFICIAL_4_PLANTS_CONFIGS[selectedArea];
+    const usr = areaConfigs[selectedArea];
+    setUrlInput(usr?.webAppUrl?.trim() || def?.webAppUrl || '');
+    setSpreadsheetUrlInput(usr?.spreadsheetUrl?.trim() || def?.spreadsheetUrl || '');
     setFeedbackMsg(null);
     setIsCopied(false);
   }, [selectedArea, areaConfigs]);
@@ -291,66 +299,70 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
         </div>
       </div>
 
-      {/* Area Selector Tabs */}
-      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1.5">
-            <Building className="w-3.5 h-3.5 text-slate-500" />
-            <span>{isSuperadmin ? 'Pilih Cabang untuk Dikonfigurasi (Superadmin Mode):' : 'Cabang Anda Saat Ini:'}</span>
-          </span>
+      {/* Area Selector Dropdown List (Khusus Superadmin) */}
+      <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+          <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider font-mono flex items-center gap-1.5">
+            <Building className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>
+              {isSuperadmin
+                ? 'Pilih Cabang untuk Dikonfigurasi (Dropdown List Superadmin):'
+                : 'Cabang Anda Saat Ini:'}
+            </span>
+          </label>
           <span className="text-[10px] text-slate-500 font-mono">
-            {isSuperadmin ? 'Superadmin dapat mengakses semua cabang' : `Login sebagai: ${currentUser.name}`}
+            {isSuperadmin ? 'Superadmin Mode · Bebas Beralih 4 Cabang' : `Login: ${currentUser.name}`}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {allAreas.map((areaKey) => {
-            const spec = AREA_CONFIG_SPECS[areaKey];
-            const isSelected = selectedArea === areaKey;
-            const areaConfig = areaConfigs[areaKey];
-            const hasWebApp = !!areaConfig?.webAppUrl?.trim();
-            const hasSpreadsheet = !!areaConfig?.spreadsheetUrl?.trim();
-            const count = (hasWebApp ? 1 : 0) + (hasSpreadsheet ? 1 : 0);
-            const isDisabled = !isSuperadmin && currentUser.area !== areaKey;
+        {isSuperadmin ? (
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <select
+              value={selectedArea}
+              onChange={(e) => setSelectedArea(e.target.value as SJAArea)}
+              className="w-full sm:flex-1 px-3 py-2 bg-white dark:bg-slate-950 border border-emerald-400 dark:border-emerald-600 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-xs"
+            >
+              {allAreas.map((areaKey) => {
+                const spec = AREA_CONFIG_SPECS[areaKey];
+                const areaConfig = areaConfigs[areaKey];
+                const hasWebApp = !!areaConfig?.webAppUrl?.trim();
+                const hasSpreadsheet = !!areaConfig?.spreadsheetUrl?.trim();
+                const count = (hasWebApp ? 1 : 0) + (hasSpreadsheet ? 1 : 0);
+                const tag =
+                  areaKey === 'SEPANJANG' ? 'Lampiran 1' :
+                  areaKey === 'KARAWANG' ? 'Lampiran 2' :
+                  areaKey === 'SUKODONO' ? 'Lampiran 3' : 'Lampiran 4';
+                const statusText = count === 2 ? '✅ 2 Link Tersimpan' : count === 1 ? '⚠️ 1 Link' : 'Belum Ada Link';
 
-            return (
-              <button
-                key={areaKey}
-                type="button"
-                disabled={isDisabled}
-                onClick={() => setSelectedArea(areaKey)}
-                className={`p-2.5 rounded-lg border text-left transition-all relative ${
-                  isSelected
-                    ? 'bg-white border-blue-600 shadow-sm ring-1 ring-blue-600'
-                    : isDisabled
-                    ? 'bg-slate-100/70 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed'
-                    : 'bg-white/80 hover:bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-slate-900 truncate">{spec.name}</span>
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      count === 2 ? 'bg-emerald-500' : count === 1 ? 'bg-amber-500' : 'bg-slate-300'
-                    }`}
-                    title={count === 2 ? '2 Link Tersimpan di Cloud' : count === 1 ? '1 Link Tersimpan di Cloud' : 'Belum Ada Link'}
-                  />
-                </div>
-                <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
-                  {areaKey === 'SEPANJANG' ? 'Lampiran 1' :
-                   areaKey === 'KARAWANG' ? 'Lampiran 2' :
-                   areaKey === 'SUKODONO' ? 'Lampiran 3' : 'Lampiran 4'}
-                </div>
-                <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                  <span>User: <strong className="text-slate-700">{spec.username}</strong></span>
-                  <span className={count === 2 ? 'text-emerald-600 font-bold' : count === 1 ? 'text-amber-600 font-medium' : 'text-slate-400'}>
-                    {count === 2 ? '2 Link Cloud' : count === 1 ? '1 Link Cloud' : 'Belum Ada'}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                return (
+                  <option key={areaKey} value={areaKey}>
+                    🏢 {spec.name} ({tag}) — User: {spec.username} [{statusText}]
+                  </option>
+                );
+              })}
+            </select>
+
+            <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0 justify-between sm:justify-start">
+              <span className="text-xs font-bold px-3 py-2 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-mono">
+                {selectedArea === 'SEPANJANG' ? 'Lampiran 1' :
+                 selectedArea === 'KARAWANG' ? 'Lampiran 2' :
+                 selectedArea === 'SUKODONO' ? 'Lampiran 3' : 'Lampiran 4'}
+              </span>
+              <span className="text-[11px] text-slate-500 font-mono">
+                User: <strong className="text-slate-700 dark:text-slate-300">{AREA_CONFIG_SPECS[selectedArea]?.username}</strong>
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between p-2.5 bg-blue-50 dark:bg-blue-950/40 rounded-lg border border-blue-200 dark:border-blue-900 text-xs">
+            <span className="font-bold text-blue-900 dark:text-blue-300">
+              🏢 {currentSpec.name} ({selectedArea === 'SEPANJANG' ? 'Lampiran 1' : selectedArea === 'KARAWANG' ? 'Lampiran 2' : selectedArea === 'SUKODONO' ? 'Lampiran 3' : 'Lampiran 4'})
+            </span>
+            <span className="text-blue-700 dark:text-blue-400 font-mono font-semibold">
+              Username: {currentSpec.username}
+            </span>
+          </div>
+        )}
       </div>
 
       {feedbackMsg && (
@@ -493,6 +505,17 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                 <span>{showScriptViewer ? 'Tutup Kode' : 'Lihat Kode'}</span>
                 {showScriptViewer ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               </button>
+            </div>
+          </div>
+
+          {/* Notifikasi Pembaruan Kolom Kondisi Khusus */}
+          <div className="p-3 bg-indigo-900/50 border border-indigo-700/60 rounded-xl text-xs text-indigo-200 flex items-start gap-2.5">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-bold text-white block">Pembaruan Kode Apps Script (Kolom Kondisi Khusus)</span>
+              <p className="text-[11px] text-indigo-200/90 leading-relaxed">
+                Kode <code>Code.gs</code> di bawah telah otomatis diperbarui untuk membaca dan menyimpan kolom <strong>Kondisi Khusus</strong>. Jika sebelumnya Anda sudah men-deploy Apps Script, cukup salin kode ini, tempelkan ke <code>Code.gs</code>, lalu klik <strong>Deploy &gt; Manage deployments &gt; Edit (Pensil) &gt; Versi Baru (New version) &gt; Deploy</strong>. URL Web App Anda tetap sama dan tidak berubah.
+              </p>
             </div>
           </div>
 
@@ -696,9 +719,16 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
             <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60 text-[11px]">
               {allAreas.map((areaKey) => {
                 const spec = AREA_CONFIG_SPECS[areaKey];
-                const cfg = areaConfigs[areaKey];
-                const hasSheet = !!cfg?.spreadsheetUrl?.trim();
-                const hasWeb = !!cfg?.webAppUrl?.trim();
+                const def = OFFICIAL_4_PLANTS_CONFIGS[areaKey];
+                const usr = areaConfigs[areaKey];
+                const cfg: GoogleSheetConfig = {
+                  ...def,
+                  ...usr,
+                  webAppUrl: usr?.webAppUrl?.trim() || def?.webAppUrl || '',
+                  spreadsheetUrl: usr?.spreadsheetUrl?.trim() || def?.spreadsheetUrl || '',
+                };
+                const hasSheet = !!cfg.spreadsheetUrl?.trim();
+                const hasWeb = !!cfg.webAppUrl?.trim();
                 const isCurrent = selectedArea === areaKey;
 
                 return (

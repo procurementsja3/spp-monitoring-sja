@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SPPItem, SJAArea, UserProfile, IndonesianHoliday } from '../types';
-import { AREA_METADATA } from '../utils/initialData';
+import { AREA_METADATA, AREA_PIC_LIST } from '../utils/initialData';
 import { calculateWorkingDays, DEFAULT_INDONESIAN_HOLIDAYS } from '../utils/holidayCalendar';
 import {
   LayoutDashboard,
@@ -30,6 +30,8 @@ import {
   X,
   ExternalLink,
   CalendarDays,
+  Sparkles,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 interface ExecutiveDashboardProps {
@@ -41,6 +43,11 @@ interface ExecutiveDashboardProps {
   onNavigateToMonitoring: () => void;
   onOpenNewSPP: () => void;
   onEditItem: (item: SPPItem) => void;
+  onFilterSpeed?: (speedMode: 'SPEED_LE_3' | 'SPEED_4_7' | 'SPEED_8_10' | 'SPEED_GT_10', label: string) => void;
+  selectedPicFilter?: string;
+  onSelectPicFilter?: (pic: string) => void;
+  searchPicQuery?: string;
+  onSearchPicQuery?: (q: string) => void;
 }
 
 export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
@@ -52,12 +59,57 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   onNavigateToMonitoring,
   onOpenNewSPP,
   onEditItem,
+  onFilterSpeed,
+  selectedPicFilter: propSelectedPicFilter,
+  onSelectPicFilter,
+  searchPicQuery: propSearchPicQuery,
+  onSearchPicQuery,
 }) => {
   const isSuperadmin = currentUser.role === 'SUPERADMIN';
   const allAreas: SJAArea[] = ['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'];
   const userArea: SJAArea = (currentUser.area !== 'ALL' ? currentUser.area : 'SEPANJANG') as SJAArea;
   const relevantAreas: SJAArea[] = isSuperadmin ? allAreas : [userArea];
   const [showFormulaExplanation, setShowFormulaExplanation] = useState(false);
+
+  // Mode Tampilan Dashboard: 'SIMPLIFIED' (Ringkas/Sederhana) vs 'DETAILED' (Lengkap/Rinci)
+  const [isSimplifiedMode, setIsSimplifiedMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('sja_dashboard_simple_mode');
+      if (saved !== null) return saved === 'true';
+    } catch {}
+    return true; // Default aktifkan Mode Sederhana/Ringkas
+  });
+
+  const [showLeadTimeDetail, setShowLeadTimeDetail] = useState<boolean>(false);
+
+  // Filter Kecepatan Realisasi PO langsung di halaman Dashboard (Memunculkan data di bawah 4 kotak)
+  const [selectedSpeedFilter, setSelectedSpeedFilter] = useState<'ALL' | 'SPEED_LE_3' | 'SPEED_4_7' | 'SPEED_8_10' | 'SPEED_GT_10'>('ALL');
+
+  const handleSelectSpeedBox = (speedMode: 'SPEED_LE_3' | 'SPEED_4_7' | 'SPEED_8_10' | 'SPEED_GT_10') => {
+    setSelectedSpeedFilter((prev) => (prev === speedMode ? 'ALL' : speedMode));
+  };
+
+  const getSpeedFilterLabel = () => {
+    switch (selectedSpeedFilter) {
+      case 'SPEED_LE_3':
+        return 'Sangat Cepat (≤ 3 Hari Kerja)';
+      case 'SPEED_4_7':
+        return 'Standar (4 - 7 Hari Kerja)';
+      case 'SPEED_8_10':
+        return 'Mendekati SLA (8 - 10 Hari Kerja)';
+      case 'SPEED_GT_10':
+        return 'Melebihi SLA (> 10 Hari Kerja)';
+      default:
+        return 'Semua Dokumen PO Terbit';
+    }
+  };
+
+  const toggleDashboardMode = (simple: boolean) => {
+    setIsSimplifiedMode(simple);
+    try {
+      localStorage.setItem('sja_dashboard_simple_mode', String(simple));
+    } catch {}
+  };
 
   // Filter Periode Bulanan untuk Rekapan PIC
   const [selectedPicMonth, setSelectedPicMonth] = useState<string>('ALL');
@@ -138,6 +190,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const speedMedium = closedLeadTimes.filter((c) => c.netWorkingDays > 3 && c.netWorkingDays <= 7).length;
   const speedNearSla = closedLeadTimes.filter((c) => c.netWorkingDays > 7 && c.netWorkingDays <= 10).length;
   const speedOverdue = closedLeadTimes.filter((c) => c.netWorkingDays > 10).length;
+
+  const filteredSpeedRecords = closedLeadTimes.filter((record) => {
+    if (selectedSpeedFilter === 'SPEED_LE_3') return record.netWorkingDays <= 3;
+    if (selectedSpeedFilter === 'SPEED_4_7') return record.netWorkingDays > 3 && record.netWorkingDays <= 7;
+    if (selectedSpeedFilter === 'SPEED_8_10') return record.netWorkingDays > 7 && record.netWorkingDays <= 10;
+    if (selectedSpeedFilter === 'SPEED_GT_10') return record.netWorkingDays > 10;
+    return true;
+  });
 
   // Analisis per Area Cabang SJA
   const areaBreakdown = relevantAreas.map((areaKey) => {
@@ -252,9 +312,31 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     }))
     .sort((a, b) => b.total - a.total);
 
-  const displayedPicRankings = picSearch.trim() === ''
-    ? picRankings
-    : picRankings.filter((p) => p.name.toLowerCase().includes(picSearch.toLowerCase()));
+  const effectivePicQuery = (propSearchPicQuery !== undefined && propSearchPicQuery !== '' ? propSearchPicQuery : picSearch).toLowerCase().trim();
+
+  const displayedPicRankings = picRankings.filter((p) => {
+    // 1. Jika bukan Superadmin, hanya tampilkan PIC milik cabang login
+    if (!isSuperadmin && currentUser.area && currentUser.area !== 'ALL') {
+      const branchPics = AREA_PIC_LIST[currentUser.area as SJAArea] || [];
+      if (!branchPics.some((b) => b.toLowerCase() === p.name.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // 2. Filter PIC spesifik jika disetel dari Sidebar / Dropdown
+    if (propSelectedPicFilter && propSelectedPicFilter !== 'ALL') {
+      if (p.name.toLowerCase() !== propSelectedPicFilter.toLowerCase()) {
+        return false;
+      }
+    }
+
+    // 3. Pencarian Teks
+    if (!effectivePicQuery) return true;
+    return (
+      p.name.toLowerCase().includes(effectivePicQuery) ||
+      p.areas.some((a) => a.toLowerCase().includes(effectivePicQuery))
+    );
+  });
 
   // Matriks Bulanan Per PIC (Untuk Tampilan Tabel Rekap Bulanan)
   const picMonthlyMatrix: {
@@ -337,14 +419,335 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
   picMonthlyMatrix.sort((a, b) => b.monthKey.localeCompare(a.monthKey) || b.total - a.total);
 
+  // Komponen Interaktif 4 Kotak Distribusi Kecepatan Penerbitan PO
+  const renderSpeedDistributionBoxes = () => (
+    <div className="space-y-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+        <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+          <span>Distribusi Kecepatan Penerbitan PO ({closedPOs} Dokumen Selesai):</span>
+          <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+            (Klik kotak untuk memunculkan data langsung di bawahnya)
+          </span>
+        </span>
+        <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+          Dihitung murni hari kerja efektif
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+        {/* 1. Sangat Cepat (≤ 3 Hari) */}
+        <div
+          onClick={() => handleSelectSpeedBox('SPEED_LE_3')}
+          className={`p-3 rounded-xl transition-all cursor-pointer group relative overflow-hidden ${
+            selectedSpeedFilter === 'SPEED_LE_3'
+              ? 'ring-2 ring-emerald-500 bg-emerald-100/90 dark:bg-emerald-950/80 border-emerald-500 shadow-md scale-[1.02]'
+              : 'bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-900 dark:text-emerald-200 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-md hover:scale-[1.02]'
+          }`}
+          title="Klik untuk langsung memunculkan dokumen ≤ 3 hari di bawah"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block tracking-tight">
+              Sangat Cepat (≤ 3 Hari)
+            </span>
+            <ArrowRight className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 transition-all ${
+              selectedSpeedFilter === 'SPEED_LE_3' ? 'rotate-90 text-emerald-700 font-bold' : 'opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5'
+            }`} />
+          </div>
+          <div className="text-2xl font-bold font-mono my-1 text-emerald-700 dark:text-emerald-300">
+            {speedFast}
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-emerald-700/80">
+            <span>{closedPOs > 0 ? Math.round((speedFast / closedPOs) * 100) : 0}% dari PO terbit</span>
+            <span className={`font-semibold underline underline-offset-2 ${
+              selectedSpeedFilter === 'SPEED_LE_3' ? 'text-emerald-900 dark:text-white font-bold' : 'text-emerald-800 dark:text-emerald-300'
+            }`}>
+              {selectedSpeedFilter === 'SPEED_LE_3' ? '✓ Tampil di Bawah' : 'Tampilkan Data ↓'}
+            </span>
+          </div>
+        </div>
+
+        {/* 2. Standar (4 - 7 Hari) */}
+        <div
+          onClick={() => handleSelectSpeedBox('SPEED_4_7')}
+          className={`p-3 rounded-xl transition-all cursor-pointer group relative overflow-hidden ${
+            selectedSpeedFilter === 'SPEED_4_7'
+              ? 'ring-2 ring-blue-500 bg-blue-100/90 dark:bg-blue-950/80 border-blue-500 shadow-md scale-[1.02]'
+              : 'bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-blue-900 dark:text-blue-200 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-md hover:scale-[1.02]'
+          }`}
+          title="Klik untuk langsung memunculkan dokumen 4 - 7 hari di bawah"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-400 block tracking-tight">
+              Standar (4 - 7 Hari)
+            </span>
+            <ArrowRight className={`w-3.5 h-3.5 text-blue-600 dark:text-blue-400 transition-all ${
+              selectedSpeedFilter === 'SPEED_4_7' ? 'rotate-90 text-blue-700 font-bold' : 'opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5'
+            }`} />
+          </div>
+          <div className="text-2xl font-bold font-mono my-1 text-blue-700 dark:text-blue-300">
+            {speedMedium}
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-blue-700/80">
+            <span>{closedPOs > 0 ? Math.round((speedMedium / closedPOs) * 100) : 0}% dari PO terbit</span>
+            <span className={`font-semibold underline underline-offset-2 ${
+              selectedSpeedFilter === 'SPEED_4_7' ? 'text-blue-900 dark:text-white font-bold' : 'text-blue-800 dark:text-blue-300'
+            }`}>
+              {selectedSpeedFilter === 'SPEED_4_7' ? '✓ Tampil di Bawah' : 'Tampilkan Data ↓'}
+            </span>
+          </div>
+        </div>
+
+        {/* 3. Mendekati SLA (8 - 10 Hari) */}
+        <div
+          onClick={() => handleSelectSpeedBox('SPEED_8_10')}
+          className={`p-3 rounded-xl transition-all cursor-pointer group relative overflow-hidden ${
+            selectedSpeedFilter === 'SPEED_8_10'
+              ? 'ring-2 ring-amber-500 bg-amber-100/90 dark:bg-amber-950/80 border-amber-500 shadow-md scale-[1.02]'
+              : 'bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-900 dark:text-amber-200 hover:border-amber-500 dark:hover:border-amber-400 hover:shadow-md hover:scale-[1.02]'
+          }`}
+          title="Klik untuk langsung memunculkan dokumen 8 - 10 hari di bawah"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400 block tracking-tight">
+              Mendekati SLA (8 - 10 Hari)
+            </span>
+            <ArrowRight className={`w-3.5 h-3.5 text-amber-600 dark:text-amber-400 transition-all ${
+              selectedSpeedFilter === 'SPEED_8_10' ? 'rotate-90 text-amber-700 font-bold' : 'opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5'
+            }`} />
+          </div>
+          <div className="text-2xl font-bold font-mono my-1 text-amber-700 dark:text-amber-300">
+            {speedNearSla}
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-amber-700/80">
+            <span>{closedPOs > 0 ? Math.round((speedNearSla / closedPOs) * 100) : 0}% dari PO terbit</span>
+            <span className={`font-semibold underline underline-offset-2 ${
+              selectedSpeedFilter === 'SPEED_8_10' ? 'text-amber-900 dark:text-white font-bold' : 'text-amber-800 dark:text-amber-300'
+            }`}>
+              {selectedSpeedFilter === 'SPEED_8_10' ? '✓ Tampil di Bawah' : 'Tampilkan Data ↓'}
+            </span>
+          </div>
+        </div>
+
+        {/* 4. Melebihi SLA (> 10 Hari) */}
+        <div
+          onClick={() => handleSelectSpeedBox('SPEED_GT_10')}
+          className={`p-3 rounded-xl transition-all cursor-pointer group relative overflow-hidden ${
+            selectedSpeedFilter === 'SPEED_GT_10'
+              ? 'ring-2 ring-rose-500 bg-rose-100/90 dark:bg-rose-950/80 border-rose-500 shadow-md scale-[1.02]'
+              : 'bg-rose-50/90 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-900 dark:text-rose-200 hover:border-rose-500 dark:hover:border-rose-400 hover:shadow-md hover:scale-[1.02]'
+          }`}
+          title="Klik untuk langsung memunculkan dokumen > 10 hari di bawah"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-rose-700 dark:text-rose-400 block tracking-tight">
+              Melebihi SLA (&gt; 10 Hari)
+            </span>
+            <ArrowRight className={`w-3.5 h-3.5 text-rose-600 dark:text-rose-400 transition-all ${
+              selectedSpeedFilter === 'SPEED_GT_10' ? 'rotate-90 text-rose-700 font-bold' : 'opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5'
+            }`} />
+          </div>
+          <div className="text-2xl font-bold font-mono my-1 text-rose-700 dark:text-rose-300">
+            {speedOverdue}
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-rose-700/80">
+            <span>{closedPOs > 0 ? Math.round((speedOverdue / closedPOs) * 100) : 0}% dari PO terbit</span>
+            <span className={`font-semibold underline underline-offset-2 ${
+              selectedSpeedFilter === 'SPEED_GT_10' ? 'text-rose-900 dark:text-white font-bold' : 'text-rose-800 dark:text-rose-300'
+            }`}>
+              {selectedSpeedFilter === 'SPEED_GT_10' ? '✓ Tampil di Bawah' : 'Tampilkan Data ↓'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Tabel Dinamis yang Menampilkan Data Sesuai Kriteria 4 Kotak di Atasnya
+  const renderSpeedDataTable = () => {
+    const isFiltered = selectedSpeedFilter !== 'ALL';
+    const displayRecords = isFiltered ? filteredSpeedRecords : closedLeadTimes;
+
+    return (
+      <div className="space-y-3 pt-1 animate-in fade-in duration-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs bg-slate-50/80 dark:bg-slate-950/50 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              {isFiltered ? (
+                <span className="flex items-center gap-1.5 flex-wrap">
+                  <span>Data Dokumen Realisasi PO:</span>
+                  <span className={`px-2.5 py-0.5 rounded-full font-bold text-xs ${
+                    selectedSpeedFilter === 'SPEED_LE_3'
+                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                      : selectedSpeedFilter === 'SPEED_4_7'
+                      ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
+                      : selectedSpeedFilter === 'SPEED_8_10'
+                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                      : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                  }`}>
+                    {getSpeedFilterLabel()} ({filteredSpeedRecords.length} Dokumen)
+                  </span>
+                </span>
+              ) : (
+                <span>Daftar Dokumen Realisasi PO ({closedLeadTimes.length} PO Terbit):</span>
+              )}
+            </span>
+
+            {isFiltered && (
+              <button
+                onClick={() => setSelectedSpeedFilter('ALL')}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline font-semibold cursor-pointer px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-900 transition-colors"
+                title="Tampilkan semua dokumen realisasi PO tanpa filter kecepatan"
+              >
+                ✕ Tampilkan Semua Dokumen
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (isFiltered) {
+                  onFilterSpeed?.(selectedSpeedFilter, getSpeedFilterLabel());
+                } else {
+                  onNavigateToMonitoring();
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0"
+              title="Filter dan kelola dokumen ini di Tabel Data SPP Monitoring"
+            >
+              <span>Buka di Tabel SPP Utama</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {displayRecords.length === 0 ? (
+          <div className="p-8 text-center rounded-xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 space-y-2">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Tidak ada dokumen PO yang masuk dalam kriteria <strong>{getSpeedFilterLabel()}</strong>
+            </p>
+            <p className="text-[11px] text-slate-500">
+              Klik kotak kriteria lainnya di atas atau klik tombol &quot;Tampilkan Semua Dokumen&quot;.
+            </p>
+            <button
+              onClick={() => setSelectedSpeedFilter('ALL')}
+              className="mt-2 px-3 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
+            >
+              Kembali ke Semua Dokumen
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200/90 dark:border-slate-800 max-h-[380px] overflow-y-auto shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100/90 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-10 backdrop-blur-xs">
+                <tr>
+                  <th className="px-3.5 py-2.5">No. SPP &amp; Cabang</th>
+                  <th className="px-3.5 py-2.5">Tgl Terima Budget</th>
+                  <th className="px-3.5 py-2.5">Tgl &amp; No. PO</th>
+                  <th className="px-3.5 py-2.5 text-center">Hari Kalender</th>
+                  <th className="px-3.5 py-2.5 text-center">Hari Libur Dipotong</th>
+                  <th className="px-3.5 py-2.5 text-center">Durasi Bersih</th>
+                  <th className="px-3.5 py-2.5 text-center">Status SLA</th>
+                  <th className="px-3 py-2.5 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-mono">
+                {displayRecords.map(({ item, calc, netWorkingDays, isUrgent }) => {
+                  const isOntime = isUrgent || netWorkingDays <= item.slaLimit;
+                  return (
+                    <tr
+                      key={item.id}
+                      onClick={() => onEditItem(item)}
+                      className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                      title="Klik baris untuk melihat / mengedit detail SPP"
+                    >
+                      <td className="px-3.5 py-2.5 whitespace-nowrap">
+                        <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>{item.sppNumber}</span>
+                          {isUrgent && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                              ⚡ DARURAT
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-sans">
+                          {AREA_METADATA[item.area]?.name || item.area} · PIC: {item.pic}
+                        </div>
+                      </td>
+
+                      <td className="px-3.5 py-2.5 whitespace-nowrap text-slate-600 dark:text-slate-400">
+                        {item.budgetReceivedDate}
+                      </td>
+
+                      <td className="px-3.5 py-2.5 whitespace-nowrap">
+                        <div className="font-semibold text-slate-900 dark:text-white">
+                          {item.poNumber || '-'}
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          {item.poDate || '-'}
+                        </div>
+                      </td>
+
+                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap text-slate-500 dark:text-slate-400">
+                        {calc.totalCalendarDays} hari
+                      </td>
+
+                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50 text-[11px]">
+                          <span>-{calc.weekendDaysSkipped + calc.holidayDaysSkipped} hari</span>
+                        </div>
+                        <div className="text-[9px] text-slate-400 font-sans mt-0.5">
+                          ({calc.weekendDaysSkipped} wkd, {calc.holidayDaysSkipped} skb)
+                        </div>
+                      </td>
+
+                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                        <span className={`font-bold text-xs ${isOntime ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {netWorkingDays} hari kerja
+                        </span>
+                      </td>
+
+                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                        {isUrgent ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                            FAST-TRACK
+                          </span>
+                        ) : isOntime ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                            ONTIME
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
+                            TERLAMBAT
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                        <span className="text-[11px] font-sans font-medium text-blue-600 dark:text-blue-400 group-hover:underline">
+                          Detail →
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Header Banner Eksekutif */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 rounded-2xl p-6 sm:p-7 text-white shadow-xl border border-blue-600/30">
+      {/* Header Banner Eksekutif dengan Tombol Sederhanakan Tampilan */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 rounded-2xl p-5 sm:p-6 text-white shadow-xl border border-blue-600/30">
         <div className="absolute right-0 top-0 -mt-10 -mr-10 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-1.5">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/25 border border-blue-400/30 text-blue-200">
                 Dashboard Operasional & SLA
               </span>
@@ -359,23 +762,55 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </span>
             </h1>
             <p className="text-xs sm:text-sm text-blue-100/80 mt-1 max-w-2xl">
-              Ringkasan data pengajuan SPP dari Tim Budget, realisasi penerbitan PO vendor, kepatuhan batas waktu SLA 10 hari kerja, dan resume durasi kerja bersih (bebas hari libur).
+              {isSimplifiedMode
+                ? 'Ringkasan ringkas data pengajuan SPP, realisasi penerbitan PO vendor, dan kepatuhan SLA 10 hari kerja.'
+                : 'Ringkasan data pengajuan SPP dari Tim Budget, realisasi penerbitan PO vendor, kepatuhan batas waktu SLA 10 hari kerja, dan resume durasi kerja bersih (bebas hari libur).'}
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              onClick={onOpenNewSPP}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-blue-50 text-blue-800 font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 text-blue-600" />
-              <span>+ Input SPP Baru</span>
-            </button>
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Tombol Pengubah Mode Tampilan (Sederhana vs Lengkap) */}
+            <div className="flex items-center bg-blue-950/80 p-1 rounded-xl border border-blue-400/30 text-xs shadow-inner">
+              <button
+                onClick={() => toggleDashboardMode(true)}
+                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isSimplifiedMode
+                    ? 'bg-white text-blue-900 shadow-sm'
+                    : 'text-blue-200 hover:text-white'
+                }`}
+                title="Tampilkan ringkasan data yang bersih dan sederhana"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                <span>Tampilan Ringkas</span>
+              </button>
+              <button
+                onClick={() => toggleDashboardMode(false)}
+                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  !isSimplifiedMode
+                    ? 'bg-white text-blue-900 shadow-sm'
+                    : 'text-blue-200 hover:text-white'
+                }`}
+                title="Tampilkan seluruh detail grafik, tabel & formula teknis"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                <span>Tampilan Rinci</span>
+              </button>
+            </div>
+
+            {!isSuperadmin && (
+              <button
+                onClick={onOpenNewSPP}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-blue-50 text-blue-800 font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                <Plus className="w-4 h-4 text-blue-600" />
+                <span>Input SPP</span>
+              </button>
+            )}
             <button
               onClick={onNavigateToMonitoring}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-blue-600/60 hover:bg-blue-600 text-white font-semibold text-xs rounded-xl border border-blue-400/40 shadow-xs transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600/60 hover:bg-blue-600 text-white font-semibold text-xs rounded-xl border border-blue-400/40 shadow-xs transition-colors cursor-pointer"
             >
-              <span>Buka Tabel Data</span>
+              <span>Tabel SPP</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -421,143 +856,300 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         )}
       </div>
 
-      {/* 6 Executive Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3.5">
-        {/* Metric 1: Total SPP Masuk */}
-        <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Total SPP</span>
-            <FileText className="w-3.5 h-3.5 text-blue-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
-            {totalSPP}
-          </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
-            Dari Tim Budget
-          </div>
-        </div>
+      {/* KPI Cards: Mode Sederhana (4 Kartu Inti + Strip Status) vs Mode Lengkap (6 Kartu) */}
+      {isSimplifiedMode ? (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {/* Card 1: Total SPP Masuk */}
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition-shadow">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                <span className="font-semibold uppercase tracking-wider text-[10px]">Total SPP Masuk</span>
+                <FileText className="w-4 h-4 text-blue-500" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 dark:text-white">
+                {totalSPP}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+                <span>Pengajuan dari Tim Budget</span>
+              </div>
+            </div>
 
-        {/* Metric 2: Realisasi PO Selesai */}
-        <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">PO Selesai (Close)</span>
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
-            {closedPOs}
-          </div>
-          <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-            <div
-              className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-              style={{ width: `${completionRate}%` }}
-            />
-          </div>
-          <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex justify-between">
-            <span>Rasio Selesai</span>
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">{completionRate}%</span>
-          </div>
-        </div>
+            {/* Card 2: Realisasi PO Selesai (Close) */}
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition-shadow">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                <span className="font-semibold uppercase tracking-wider text-[10px]">PO Selesai (Close)</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                  {closedPOs}
+                </span>
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
+                  ({completionRate}%)
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                <div
+                  className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${completionRate}%` }}
+                />
+              </div>
+            </div>
 
-        {/* Metric 3: PO Pending (Open) */}
-        <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Antrean PO (Open)</span>
-            <Clock className="w-3.5 h-3.5 text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
-            {openPOs}
-          </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
-            {openPOs > 0 ? `${openPOs} menunggu No. PO` : 'Antrean nihil'}
-          </div>
-        </div>
+            {/* Card 3: Menunggu No. PO (Open) */}
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition-shadow">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                <span className="font-semibold uppercase tracking-wider text-[10px]">Menunggu PO (Open)</span>
+                <Clock className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold font-mono text-amber-600 dark:text-amber-400">
+                {openPOs}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
+                {openPOs > 0 ? `${openPOs} proses penerbitan PO` : 'Semua PO telah terbit'}
+              </div>
+            </div>
 
-        {/* Metric 4: Kepatuhan SLA On-Time */}
-        <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Kepatuhan SLA</span>
-            <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+            {/* Card 4: Kepatuhan SLA On-Time */}
+            <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition-shadow">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                <span className="font-semibold uppercase tracking-wider text-[10px]">Kepatuhan SLA (≤ 10 Hari)</span>
+                <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-bold font-mono text-slate-900 dark:text-white">
+                  {ontimeRate}%
+                </span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
+                  {ontimeCount} Ontime
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
+                {lateCount > 0 ? `${lateCount} SPP melebihi batas SLA` : '100% tepat batas SLA'}
+              </div>
+            </div>
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
-            {ontimeRate}%
-          </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
-            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{ontimeCount} ontime</span>
-            <span>·</span>
-            <span className="text-rose-600 dark:text-rose-400 font-medium">{lateCount} lewat</span>
-          </div>
-        </div>
 
-        {/* Metric 5: PO Darurat (Advance PO) */}
-        <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-amber-200/80 dark:border-amber-900/60 shadow-2xs bg-amber-50/20 dark:bg-amber-950/10">
-          <div className="flex items-center justify-between text-xs text-amber-800 dark:text-amber-400 mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">PO Darurat</span>
-            <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
-            {urgentCount}
-          </div>
-          <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 truncate">
-            {urgentPendingBudgetCount > 0 ? (
-              <span className="font-medium text-rose-600 dark:text-rose-400">{urgentPendingBudgetCount} pending budget ACC</span>
-            ) : (
-              'Fast-Track terselesaikan'
-            )}
-          </div>
-        </div>
+          {/* Quick Status Strip (Informasi ringkas durasi & status darurat) */}
+          <div className="p-2.5 px-4 bg-slate-100/90 dark:bg-slate-950/60 rounded-xl border border-slate-200/80 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <div className="flex flex-wrap items-center gap-3 text-slate-700 dark:text-slate-300">
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <CalendarRange className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Rata-rata Lead Time:</span>
+                <strong className="text-blue-600 dark:text-blue-400 font-mono font-bold">{avgClosedWorkingDays} hari kerja</strong>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">(otomatis memotong libur SKB)</span>
+              </span>
 
-        {/* Metric 6: Peringatan Kritis (H+3 & >10hr) */}
-        <div
-          className={`p-4 rounded-xl border shadow-2xs transition-all ${
-            h3AlertCount > 0
-              ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
-              : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800'
-          }`}
-        >
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Alert Kritis</span>
-            <AlertTriangle className={`w-3.5 h-3.5 ${h3AlertCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`} />
-          </div>
-          <div className={`text-2xl font-bold font-mono ${h3AlertCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
-            {h3AlertCount}
-          </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
-            {h3AlertCount > 0 ? `${h3AlertCount} dokumen H+3 tanpa PO` : 'Tidak ada antrean kritis'}
+              {urgentCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                  <Zap className="w-3 h-3 fill-current" />
+                  <span>{urgentCount} PO Darurat</span>
+                </span>
+              )}
+
+              {h3AlertCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>{h3AlertCount} Alert H+3</span>
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+              <span>Batas SLA: 10 Hari Kerja</span>
+              <span>·</span>
+              <span>Potongan Libur: {totalClosedWeekendSkipped + totalClosedHolidaysSkipped} Hari</span>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* 6 Executive Metric Cards Asli Saat Mode Lengkap */
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3.5">
+          {/* Metric 1: Total SPP Masuk */}
+          <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+              <span className="font-semibold uppercase tracking-wider text-[10px]">Total SPP</span>
+              <FileText className="w-3.5 h-3.5 text-blue-500" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
+              {totalSPP}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
+              Dari Tim Budget
+            </div>
+          </div>
+
+          {/* Metric 2: Realisasi PO Selesai */}
+          <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+              <span className="font-semibold uppercase tracking-wider text-[10px]">PO Selesai (Close)</span>
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+              {closedPOs}
+            </div>
+            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+              <div
+                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${completionRate}%` }}
+              />
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex justify-between">
+              <span>Rasio Selesai</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{completionRate}%</span>
+            </div>
+          </div>
+
+          {/* Metric 3: PO Pending (Open) */}
+          <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+              <span className="font-semibold uppercase tracking-wider text-[10px]">Antrean PO (Open)</span>
+              <Clock className="w-3.5 h-3.5 text-amber-500" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
+              {openPOs}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
+              {openPOs > 0 ? `${openPOs} menunggu No. PO` : 'Antrean nihil'}
+            </div>
+          </div>
+
+          {/* Metric 4: Kepatuhan SLA On-Time */}
+          <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+              <span className="font-semibold uppercase tracking-wider text-[10px]">Kepatuhan SLA</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
+              {ontimeRate}%
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{ontimeCount} ontime</span>
+              <span>·</span>
+              <span className="text-rose-600 dark:text-rose-400 font-medium">{lateCount} lewat</span>
+            </div>
+          </div>
+
+          {/* Metric 5: PO Darurat (Advance PO) */}
+          <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-amber-200/80 dark:border-amber-900/60 shadow-2xs bg-amber-50/20 dark:bg-amber-950/10">
+            <div className="flex items-center justify-between text-xs text-amber-800 dark:text-amber-400 mb-1.5">
+              <span className="font-semibold uppercase tracking-wider text-[10px]">PO Darurat</span>
+              <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
+              {urgentCount}
+            </div>
+            <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 truncate">
+              {urgentPendingBudgetCount > 0 ? (
+                <span className="font-medium text-rose-600 dark:text-rose-400">{urgentPendingBudgetCount} pending budget ACC</span>
+              ) : (
+                'Fast-Track terselesaikan'
+              )}
+            </div>
+          </div>
+
+          {/* Metric 6: Peringatan Kritis (H+3 & >10hr) */}
+          <div
+            className={`p-4 rounded-xl border shadow-2xs transition-all ${
+              h3AlertCount > 0
+                ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
+                : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+              <span className="font-semibold uppercase tracking-wider text-[10px]">Alert Kritis</span>
+              <AlertTriangle className={`w-3.5 h-3.5 ${h3AlertCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`} />
+            </div>
+            <div className={`text-2xl font-bold font-mono ${h3AlertCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+              {h3AlertCount}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
+              {h3AlertCount > 0 ? `${h3AlertCount} dokumen H+3 tanpa PO` : 'Tidak ada antrean kritis'}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* SECTION BARU: RESUME & REKAPAN DURASI LEAD TIME PROSES SPP S/D TERBIT PO */}
       {/* (DIKURANGI SABTU-MINGGU & LIBUR NASIONAL SKB 3 MENTERI)                   */}
       {/* ========================================================================= */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-sm space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300">
+      {isSimplifiedMode && !showLeadTimeDetail ? (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 shrink-0">
                 <CalendarRange className="w-5 h-5" />
-              </span>
+              </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>Resume Durasi Proses SPP s/d Terbit PO (Lead Time Realisasi)</span>
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Dihitung murni hari kerja efektif dari Tanggal Terima Budget ke Tanggal Terbit PO (otomatis memotong Sabtu-Minggu &amp; Libur SKB).
+                <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>Resume Lead Time &amp; Distribusi Kecepatan Realisasi PO</span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                    Rata-rata: {avgClosedWorkingDays} Hari Kerja
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Dihitung murni hari kerja efektif (potong {totalClosedWeekendSkipped}x akhir pekan &amp; {totalClosedHolidaysSkipped}x libur SKB 3 Menteri). Klik salah satu kotak di bawah untuk memfilter data langsung di Tabel SPP:
                 </p>
               </div>
             </div>
+            <button
+              onClick={() => setShowLeadTimeDetail(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Rincian Libur SKB</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
           </div>
 
-          <button
-            onClick={() => setShowFormulaExplanation((prev) => !prev)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer self-start sm:self-auto"
-          >
-            <Info className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>{showFormulaExplanation ? 'Tutup Aturan Perhitungan' : 'Lihat Aturan Perhitungan'}</span>
-            {showFormulaExplanation ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
+          {/* 4 Kotak Distribusi Kecepatan Interaktif */}
+          {renderSpeedDistributionBoxes()}
+
+          {/* Tabel Dinamis yang Menampilkan Data Sesuai Kriteria 4 Kotak di Atasnya */}
+          {renderSpeedDataTable()}
         </div>
+      ) : (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-sm space-y-5 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300">
+                  <CalendarRange className="w-5 h-5" />
+                </span>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Resume Durasi Proses SPP s/d Terbit PO (Lead Time Realisasi)</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Dihitung murni hari kerja efektif dari Tanggal Terima Budget ke Tanggal Terbit PO (otomatis memotong Sabtu-Minggu &amp; Libur SKB).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                onClick={() => setShowFormulaExplanation((prev) => !prev)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <Info className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>{showFormulaExplanation ? 'Tutup Aturan' : 'Aturan Perhitungan'}</span>
+                {showFormulaExplanation ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+
+              {isSimplifiedMode && (
+                <button
+                  onClick={() => setShowLeadTimeDetail(false)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-semibold transition-colors cursor-pointer"
+                  title="Sembunyikan rincian tabel & grafik lead time"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                  <span>Ringkaskan</span>
+                </button>
+              )}
+            </div>
+          </div>
 
         {/* Banner Edukatif & Penjelasan Formula Pengurangan Hari (Sesuai Permintaan Pengguna) */}
         {showFormulaExplanation && (
@@ -668,149 +1260,13 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
         </div>
 
-        {/* Distribusi Kecepatan Penyelesaian PO */}
-        <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-slate-800 dark:text-slate-200">
-              Distribusi Kecepatan Penerbitan PO ({closedPOs} Dokumen Selesai):
-            </span>
-            <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-              Dihitung murni hari kerja efektif
-            </span>
-          </div>
+        {/* Distribusi Kecepatan Penyelesaian PO (Interaktif) */}
+        {renderSpeedDistributionBoxes()}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-            <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/40 text-emerald-900 dark:text-emerald-200">
-              <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">Sangat Cepat (≤ 3 Hari)</span>
-              <span className="text-lg font-bold font-mono">{speedFast}</span>
-              <span className="text-[10px] text-emerald-700/80 block">{closedPOs > 0 ? Math.round((speedFast / closedPOs) * 100) : 0}% dari PO terbit</span>
-            </div>
-
-            <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/40 text-blue-900 dark:text-blue-200">
-              <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-400 block">Standar (4 - 7 Hari)</span>
-              <span className="text-lg font-bold font-mono">{speedMedium}</span>
-              <span className="text-[10px] text-blue-700/80 block">{closedPOs > 0 ? Math.round((speedMedium / closedPOs) * 100) : 0}% dari PO terbit</span>
-            </div>
-
-            <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200">
-              <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400 block">Mendekati SLA (8 - 10 Hari)</span>
-              <span className="text-lg font-bold font-mono">{speedNearSla}</span>
-              <span className="text-[10px] text-amber-700/80 block">{closedPOs > 0 ? Math.round((speedNearSla / closedPOs) * 100) : 0}% dari PO terbit</span>
-            </div>
-
-            <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 text-rose-900 dark:text-rose-200">
-              <span className="text-[10px] uppercase font-bold text-rose-700 dark:text-rose-400 block">Melebihi SLA (&gt; 10 Hari)</span>
-              <span className="text-lg font-bold font-mono">{speedOverdue}</span>
-              <span className="text-[10px] text-rose-700/80 block">{closedPOs > 0 ? Math.round((speedOverdue / closedPOs) * 100) : 0}% dari PO terbit</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabel Mini Resume: Bukti Perhitungan Lead Time Dokumen Terkini */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-slate-800 dark:text-slate-200">
-              Sampel Rekapan Dokumen &amp; Pengurangan Hari Libur:
-            </span>
-            <button
-              onClick={onNavigateToMonitoring}
-              className="text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
-            >
-              Lihat Seluruhnya di Tabel Data →
-            </button>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-slate-200/90 dark:border-slate-800">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200/90 dark:border-slate-800">
-                <tr>
-                  <th className="px-3.5 py-2.5">No. SPP &amp; Cabang</th>
-                  <th className="px-3.5 py-2.5">Tgl Terima Budget</th>
-                  <th className="px-3.5 py-2.5">Tgl &amp; No. PO</th>
-                  <th className="px-3.5 py-2.5 text-center">Hari Kalender</th>
-                  <th className="px-3.5 py-2.5 text-center">Hari Libur Dipotong</th>
-                  <th className="px-3.5 py-2.5 text-center">Durasi Kerja Bersih</th>
-                  <th className="px-3.5 py-2.5 text-center">Status SLA</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-mono">
-                {closedLeadTimes.slice(0, 5).map(({ item, calc, netWorkingDays, isUrgent }) => {
-                  const isOntime = isUrgent || netWorkingDays <= item.slaLimit;
-                  return (
-                    <tr
-                      key={item.id}
-                      onClick={() => onEditItem(item)}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                    >
-                      <td className="px-3.5 py-2.5 whitespace-nowrap">
-                        <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <span>{item.sppNumber}</span>
-                          {isUrgent && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                              ⚡ DARURAT
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-sans">
-                          {AREA_METADATA[item.area]?.name || item.area} · PIC: {item.pic}
-                        </div>
-                      </td>
-
-                      <td className="px-3.5 py-2.5 whitespace-nowrap text-slate-600 dark:text-slate-400">
-                        {item.budgetReceivedDate}
-                      </td>
-
-                      <td className="px-3.5 py-2.5 whitespace-nowrap">
-                        <div className="font-semibold text-slate-900 dark:text-white">
-                          {item.poNumber || '-'}
-                        </div>
-                        <div className="text-[10px] text-slate-500">
-                          {item.poDate || '-'}
-                        </div>
-                      </td>
-
-                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap text-slate-500 dark:text-slate-400">
-                        {calc.totalCalendarDays} hari
-                      </td>
-
-                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50 text-[11px]">
-                          <span>-{calc.weekendDaysSkipped + calc.holidayDaysSkipped} hari</span>
-                        </div>
-                        <div className="text-[9px] text-slate-400 font-sans mt-0.5">
-                          ({calc.weekendDaysSkipped} wkd, {calc.holidayDaysSkipped} skb)
-                        </div>
-                      </td>
-
-                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
-                        <span className={`font-bold text-xs ${isOntime ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                          {netWorkingDays} hari kerja
-                        </span>
-                      </td>
-
-                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
-                        {isUrgent ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                            FAST-TRACK
-                          </span>
-                        ) : isOntime ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                            ONTIME
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
-                            TERLAMBAT
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Tabel Dinamis yang Menampilkan Data Sesuai Kriteria 4 Kotak di Atasnya (Menggantikan Sampel Rekapan Dokumen) */}
+        {renderSpeedDataTable()}
       </div>
+      )}
 
       {/* Grid 2 Kolom: Komparasi Per Area Cabang & Pipeline Realisasi */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1106,15 +1562,26 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="text"
-              value={picSearch}
-              onChange={(e) => setPicSearch(e.target.value)}
-              placeholder="Cari nama PIC..."
+              value={propSearchPicQuery !== undefined ? propSearchPicQuery : picSearch}
+              onChange={(e) => {
+                setPicSearch(e.target.value);
+                onSearchPicQuery?.(e.target.value);
+              }}
+              placeholder={
+                isSuperadmin
+                  ? "Cari nama PIC..."
+                  : `Cari PIC ${AREA_METADATA[userArea]?.name || ''}...`
+              }
               className="w-full pl-8 pr-3 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
             />
-            {picSearch && (
+            {(propSearchPicQuery || picSearch) && (
               <button
-                onClick={() => setPicSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                type="button"
+                onClick={() => {
+                  setPicSearch('');
+                  onSearchPicQuery?.('');
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
               >
                 <X className="w-3 h-3" />
               </button>

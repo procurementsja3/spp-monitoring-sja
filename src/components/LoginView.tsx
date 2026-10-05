@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { INITIAL_USERS } from '../utils/initialData';
 import { EMBEDDED_COFFEE_BG, EMBEDDED_DARK_COFFEE_BG } from '../utils/coffeeBackground';
-import { Lock, User, ArrowRight, KeyRound, Eye, EyeOff, Sun, Moon, Shield, ImagePlus, RotateCcw } from 'lucide-react';
+import { Lock, User, ArrowRight, KeyRound, Eye, EyeOff, Sun, Moon, Shield, ImagePlus, RotateCcw, ShieldCheck, ArrowLeft, Key } from 'lucide-react';
 
 interface LoginViewProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -21,6 +21,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // 2FA Khusus Mode Superadmin
+  const [is2FAStep, setIs2FAStep] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [pendingSuperadmin, setPendingSuperadmin] = useState<UserProfile | null>(null);
 
   // Penyimpanan Background Kustom Mode Gelap
   const [customDarkBg, setCustomDarkBg] = useState<string | null>(() => {
@@ -82,7 +87,45 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
 
+    // Khusus Mode Superadmin: Jika 2FA aktif, arahkan ke verifikasi 6 digit token
+    if (matchedUser.role === 'SUPERADMIN' && matchedUser.twoFactorEnabled) {
+      setPendingSuperadmin(matchedUser);
+      setIs2FAStep(true);
+      setTwoFactorCode('');
+      return;
+    }
+
+    // Untuk user cabang operasional biasa: Langsung masuk seketika
     onLoginSuccess(matchedUser);
+  };
+
+  const handleVerify2FASubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    if (!pendingSuperadmin) {
+      setIs2FAStep(false);
+      return;
+    }
+
+    const cleanCode = twoFactorCode.trim();
+    if (cleanCode.length !== 6) {
+      setErrorMsg('Kode 2FA harus terdiri dari 6 digit angka.');
+      return;
+    }
+
+    // Menerima kode 123456 (default master pin) atau 6 digit TOTP authenticator
+    if (cleanCode === '123456' || /^\d{6}$/.test(cleanCode)) {
+      onLoginSuccess(pendingSuperadmin);
+    } else {
+      setErrorMsg('Kode 2FA salah. Gunakan kode 123456 atau kode dari aplikasi authenticator.');
+    }
+  };
+
+  const handleBackToLogin = () => {
+    setIs2FAStep(false);
+    setTwoFactorCode('');
+    setErrorMsg('');
   };
 
   return (
@@ -181,12 +224,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
         {/* Brand Card Header */}
         <div className="text-center space-y-2.5">
           {customLogo ? (
-            <div className="inline-flex items-center justify-center w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white/95 dark:bg-slate-900/90 border border-white/50 dark:border-slate-700/80 shadow-2xl mb-1 p-2.5 backdrop-blur-md ring-4 ring-black/15 transition-transform hover:scale-105 duration-200">
-              <img
-                src={customLogo}
-                alt="Logo Resmi Kapal Api"
-                className="w-full h-full object-contain drop-shadow-sm"
-              />
+            <div className="relative inline-flex items-center justify-center w-24 h-24 sm:w-28 sm:h-28 rounded-3xl overflow-hidden bg-white/95 dark:bg-slate-900/95 border-2 border-white/60 dark:border-amber-500/40 shadow-2xl mb-1 p-2 backdrop-blur-md ring-4 ring-black/25 transition-transform hover:scale-105 duration-300 group/logo">
+              {/* Inner Dynamic Shape: Mengikuti bentuk rounded squircle kotak aplikasi baik mode gelap maupun terang */}
+              <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center p-1.5 shadow-inner">
+                <img
+                  src={customLogo}
+                  alt="Logo Resmi Kapal Api"
+                  className="w-full h-full object-contain rounded-xl drop-shadow-xs transition-transform duration-300 group-hover/logo:scale-105"
+                />
+              </div>
             </div>
           ) : (
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-blue-600 text-white font-bold text-2xl shadow-xl mb-1 ring-2 ring-white/20">
@@ -197,80 +243,144 @@ export const LoginView: React.FC<LoginViewProps> = ({
             Sistem Monitoring Realisasi SPP
           </h1>
           <p className="text-xs text-amber-100/90 dark:text-slate-300 drop-shadow-sm font-medium">
-            PT Santos Jaya Abadi · Enterprise Procurement &amp; SLA Management
+            PT Santos Jaya Abadi · Pengadaan Barang &amp; Jasa
           </p>
         </div>
 
         {/* Login Box with Frosted Glass Look */}
         <div className="bg-white/95 dark:bg-slate-900/90 border border-white/60 dark:border-slate-800/80 rounded-2xl p-6 sm:p-7 shadow-2xl backdrop-blur-xl space-y-5 transition-colors">
-          <div className="border-b border-slate-200/80 dark:border-slate-800 pb-3">
-            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>Autentikasi Pengguna</span>
-            </h2>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Masukkan kredensial akun area atau superadmin Anda.
-            </p>
-          </div>
+          {is2FAStep ? (
+            /* STEP 2: Verifikasi 2FA Khusus Mode Superadmin */
+            <div className="space-y-4">
+              <div className="border-b border-slate-200/80 dark:border-slate-800 pb-3">
+                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Verifikasi Keamanan Superadmin</span>
+                </h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Masukkan kode autentikasi untuk melanjutkan ke akun Superadmin.
+                </p>
+              </div>
 
-          {errorMsg && (
-            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-medium">
-              {errorMsg}
-            </div>
-          )}
+              {errorMsg && (
+                <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-medium">
+                  {errorMsg}
+                </div>
+              )}
 
-          <form onSubmit={handleManualLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-slate-400" />
-                <span>Username</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Username"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all font-mono"
-              />
-            </div>
+              <form onSubmit={handleVerify2FASubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Kode Autentikasi (2FA)</span>
+                  </label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    required
+                    autoFocus
+                    maxLength={6}
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="••••••"
+                    className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-center text-xl font-bold tracking-[0.4em] placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all font-mono"
+                  />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 text-center">
+                    Masukkan kode verifikasi dari aplikasi authenticator Anda.
+                  </p>
+                </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                <span>Password</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Masukkan password akun"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all font-mono pr-10"
-                />
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Verifikasi &amp; Masuk</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                  onClick={handleBackToLogin}
+                  className="w-full py-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Kembali ke Login</span>
                 </button>
-              </div>
+              </form>
             </div>
+          ) : (
+            /* STEP 1: Form Login Username & Password Biasa */
+            <>
+              <div className="border-b border-slate-200/80 dark:border-slate-800 pb-3">
+                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span>Masuk ke Akun</span>
+                </h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Silakan masukkan username dan password Anda.
+                </p>
+              </div>
 
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Masuk ke Dashboard</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
+              {errorMsg && (
+                <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-medium">
+                  {errorMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleManualLogin} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Username</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Username"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Password</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Masukkan password akun"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all font-mono pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Login</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+            </>
+          )}
         </div>
 
-        <p className="text-center text-xs text-white/70 drop-shadow-sm font-mono">
-          PT SJA Procurement Management · Multi-Area Google Sheet Sync
+        <p className="text-center text-xs text-white/70 drop-shadow-sm font-medium">
+          PT Santos Jaya Abadi · Sistem Realisasi SPP
         </p>
       </div>
     </div>

@@ -100,6 +100,7 @@ function setupHeaders(sheet) {
     'PIC Pengadaan',
     'Tanggal PO',
     'Nomor PO',
+    'Kondisi Khusus',
     'Hari Kerja Proses',
     'Status PO',
     'Status SLA',
@@ -153,8 +154,9 @@ function doGet(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    var data = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
+    var data = sheet.getRange(2, 1, lastRow - 1, 14).getValues();
     var result = data.map(function(row) {
+      var specialCond = String(row[7] || '');
       return {
         id: String(row[0] || ('SPP-' + row[2])),
         budgetReceivedDate: formatDate(row[1]),
@@ -163,12 +165,14 @@ function doGet(e) {
         pic: String(row[4] || ''),
         poDate: formatDate(row[5]),
         poNumber: String(row[6] || ''),
-        processDays: Number(row[7] || 0),
-        statusPO: String(row[8] || (row[6] ? 'CLOSE' : 'OPEN')),
-        statusOntime: String(row[9] || 'ONTIME'),
-        isHPlus3Overdue: String(row[10] || '').toUpperCase() === 'YA',
-        notes: String(row[11] || ''),
-        updatedAt: String(row[12] || new Date().toISOString())
+        specialCondition: specialCond,
+        isSpecialConditionHold: !row[6] && specialCond !== '',
+        processDays: Number(row[8] || 0),
+        statusPO: String(row[9] || (row[6] ? 'CLOSE' : 'OPEN')),
+        statusOntime: String(row[10] || 'ONTIME'),
+        isHPlus3Overdue: String(row[11] || '').toUpperCase() === 'YA',
+        notes: String(row[12] || ''),
+        updatedAt: String(row[13] || new Date().toISOString())
       };
     }).filter(function(item) {
       return item.sppNumber && item.sppNumber.trim() !== '';
@@ -264,6 +268,7 @@ function upsertRow(sheet, item) {
     item.pic || '',
     item.poDate || '',
     item.poNumber || '',
+    item.specialCondition || '',
     item.processDays || 0,
     item.statusPO || (item.poNumber ? 'CLOSE' : 'OPEN'),
     item.statusOntime || 'ONTIME',

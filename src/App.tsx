@@ -19,7 +19,9 @@ import {
   buildProcessedSPP, 
   DEFAULT_AREA_SHEET_CONFIGS, 
   AREA_METADATA,
-  SAMPLE_DEMO_ITEMS
+  AREA_PIC_LIST,
+  SAMPLE_DEMO_ITEMS,
+  SUKODONO_OFFICIAL_ITEMS
 } from './utils/initialData';
 import { 
   DEFAULT_INDONESIAN_HOLIDAYS, 
@@ -101,7 +103,7 @@ export default function App() {
     return null; // Menampilkan halaman login terlebih dahulu saat pertama kali aplikasi dibuka
   });
 
-  // 2. Data SPP Utama dengan LocalStorage Persistence (Dibersihkan sesuai permintaan "hapus data sesuai foto")
+  // 2. Data SPP Utama dengan LocalStorage Persistence (Memuat 10 data resmi Sukodono terlampir)
   const [items, setItems] = useState<SPPItem[]>(() => {
     try {
       const saved = localStorage.getItem('spp_monitoring_data');
@@ -114,10 +116,14 @@ export default function App() {
           );
           if (isLegacyMockData) {
             localStorage.removeItem('spp_monitoring_data');
-            return [];
+            return SUKODONO_OFFICIAL_ITEMS;
           }
 
-          return parsed.map((item: any) => {
+          // Sertakan data resmi Sukodono jika belum ada
+          const hasSukodono = parsed.some((p: any) => p.area === 'SUKODONO');
+          const mergedList = hasSukodono ? parsed : [...parsed, ...SUKODONO_OFFICIAL_ITEMS];
+
+          return mergedList.map((item: any) => {
             const slaLimit = item.slaLimit === 3 ? 10 : (item.slaLimit || 10);
             return {
               ...item,
@@ -130,7 +136,7 @@ export default function App() {
         }
       }
     } catch {}
-    return buildProcessedSPP();
+    return SUKODONO_OFFICIAL_ITEMS;
   });
 
   // 3. Kalender Libur Nasional
@@ -147,6 +153,23 @@ export default function App() {
 
   // 5. Filter Area (Superadmin dapat memilih ALL atau area tertentu)
   const [activeAreaFilter, setActiveAreaFilter] = useState<SJAArea | 'ALL'>('ALL');
+
+  // 5b. Filter & Pencarian PIC Global (Sinkron di Sidebar, Dashboard, Daftar SPP, & Realisasi)
+  const [selectedPicFilter, setSelectedPicFilter] = useState<string>('ALL');
+  const [searchPicQuery, setSearchPicQuery] = useState<string>('');
+
+  // Saat akun login berganti atau bukan superadmin, sesuaikan filter area & PIC otomatis
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.role !== 'SUPERADMIN' && currentUser.area && currentUser.area !== 'ALL') {
+        setActiveAreaFilter(currentUser.area as SJAArea);
+        const areaPics = AREA_PIC_LIST[currentUser.area as SJAArea] || [];
+        if (selectedPicFilter !== 'ALL' && !areaPics.includes(selectedPicFilter)) {
+          setSelectedPicFilter('ALL');
+        }
+      }
+    }
+  }, [currentUser]);
 
   // 6. Konfigurasi Google Sheet Per-Area (Sepanjang, Karawang, Sukodono, Semarang)
   // Dilengkapi Cloud Persistent Storage agar tidak hilang saat diakses dari PC / Browser lain
@@ -259,8 +282,11 @@ export default function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Filter KPI interaktif
-  const [kpiFilter, setKpiFilter] = useState<{ mode: 'ALL' | 'H3' | 'OPEN' | 'LATE'; label?: string }>({
+  // Filter KPI interaktif & Distribusi Kecepatan Realisasi PO
+  const [kpiFilter, setKpiFilter] = useState<{
+    mode: 'ALL' | 'H3' | 'OPEN' | 'LATE' | 'HOLD' | 'SPEED_LE_3' | 'SPEED_4_7' | 'SPEED_8_10' | 'SPEED_GT_10';
+    label?: string;
+  }>({
     mode: 'ALL',
   });
 
@@ -318,7 +344,26 @@ export default function App() {
     const alerts: SystemNotification[] = [];
 
     items.forEach((item) => {
-      if (item.isHPlus3Overdue) {
+      const hasPo = item.poNumber && item.poNumber.trim() !== '';
+      const isHold = !hasPo && !!(item.specialCondition && item.specialCondition.trim() !== '');
+
+      // 1. Notifikasi Khusus: Monitoring Kondisi Khusus (Hold / Penundaan PO Terjustifikasi)
+      if (isHold) {
+        alerts.push({
+          id: `hold-${item.id}`,
+          title: `⏳ Monitoring Kondisi Khusus (${AREA_METADATA[item.area]?.name}): ${item.sppNumber}`,
+          message: `PO tertunda karena: "${item.specialCondition}". Telah berjalan ${item.processDays} hari kerja. Rekomendasi: follow up berkala ke pihak terkait.`,
+          severity: item.processDays > (item.slaLimit || 10) ? 'warning' : 'info',
+          sppNumber: item.sppNumber,
+          timestamp: new Date().toISOString(),
+          read: false,
+          type: 'SPECIAL_CONDITION_HOLD',
+          picTarget: item.pic,
+        });
+      }
+
+      // 2. Notifikasi H+3 Standar (Hanya jika TANPA kondisi khusus)
+      if (item.isHPlus3Overdue && !isHold) {
         alerts.push({
           id: `h3-${item.id}`,
           title: `Peringatan H+3 (${AREA_METADATA[item.area]?.name}): ${item.sppNumber}`,
@@ -332,7 +377,8 @@ export default function App() {
         });
       }
 
-      if (item.isSignificantDelay) {
+      // 3. Keterlambatan Signifikan (Hanya jika TANPA kondisi khusus)
+      if (item.isSignificantDelay && !isHold) {
         alerts.push({
           id: `delay-${item.id}`,
           title: `Keterlambatan Signifikan (${AREA_METADATA[item.area]?.name}): ${item.sppNumber}`,
@@ -386,9 +432,10 @@ export default function App() {
       const slaLimit = formData.slaLimit || 10;
       // Jika dispensasi darurat & PO terbit: respon cepat = 0 hari kerja, selalu ONTIME
       const processDays = isUrgent && hasPo ? 0 : calc.workingDays;
-      const statusOntime = isUrgent ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
-      const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
-      const isSignificantDelay = !isUrgent && processDays > slaLimit;
+      const isHold = !hasPo && !!(formData.specialCondition && formData.specialCondition.trim() !== '');
+      const statusOntime = isUrgent || isHold ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
+      const isHPlus3Overdue = !isUrgent && !isHold && statusPO === 'OPEN' && processDays >= 3;
+      const isSignificantDelay = !isUrgent && !isHold && processDays > slaLimit;
 
       const updatedList = items.map((i) => {
         if (i.id === editItem.id) {
@@ -405,6 +452,9 @@ export default function App() {
             urgentReason: formData.urgentReason || i.urgentReason,
             urgentApprovedBy: formData.urgentApprovedBy || i.urgentApprovedBy,
             budgetStatus: formData.budgetStatus || i.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
+            specialCondition: formData.specialCondition,
+            specialConditionReason: formData.specialConditionReason,
+            isSpecialConditionHold: isHold,
             updatedAt: new Date().toISOString(),
           } as SPPItem;
         }
@@ -420,9 +470,10 @@ export default function App() {
         const statusPO = hasPo ? 'CLOSE' : 'OPEN';
         const slaLimit = formData.slaLimit || 10;
         const processDays = isUrgent && hasPo ? 0 : calc.workingDays;
-        const statusOntime = isUrgent ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
-        const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
-        const isSignificantDelay = !isUrgent && processDays > slaLimit;
+        const isHold = !hasPo && !!(formData.specialCondition && formData.specialCondition.trim() !== '');
+        const statusOntime = isUrgent || isHold ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
+        const isHPlus3Overdue = !isUrgent && !isHold && statusPO === 'OPEN' && processDays >= 3;
+        const isSignificantDelay = !isUrgent && !isHold && processDays > slaLimit;
 
         const assignedArea: SJAArea = formData.area || (currentUser.role === 'SUPERADMIN' ? (activeAreaFilter !== 'ALL' ? activeAreaFilter : 'SEPANJANG') : (currentUser.area as SJAArea));
 
@@ -445,6 +496,9 @@ export default function App() {
           urgentReason: formData.urgentReason,
           urgentApprovedBy: formData.urgentApprovedBy,
           budgetStatus: formData.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
+          specialCondition: formData.specialCondition,
+          specialConditionReason: formData.specialConditionReason,
+          isSpecialConditionHold: isHold,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -476,6 +530,7 @@ export default function App() {
           statusOntime: processDays <= slaLimit ? ('ONTIME' as const) : ('TERLAMBAT' as const),
           isHPlus3Overdue: false,
           isSignificantDelay: processDays > slaLimit,
+          isSpecialConditionHold: false,
           updatedAt: new Date().toISOString(),
         };
       }
@@ -664,20 +719,61 @@ export default function App() {
     );
   }
 
-  // Filter items berdasarkan hak akses area pengguna
+  // Filter items berdasarkan hak akses area pengguna dan filter PIC terpilih
   const areaScopedItems = items.filter((item) => {
+    // 1. Hak Akses Area
     if (currentUser.role === 'SUPERADMIN') {
-      if (activeAreaFilter === 'ALL') return true;
-      return item.area === activeAreaFilter;
+      if (activeAreaFilter !== 'ALL' && item.area !== activeAreaFilter) return false;
+    } else {
+      if (item.area !== currentUser.area) return false;
     }
-    return item.area === currentUser.area;
+
+    // 2. Filter PIC Global jika dipilih dari Sidebar / Toolbar
+    if (selectedPicFilter !== 'ALL') {
+      if (item.pic?.toLowerCase().trim() !== selectedPicFilter.toLowerCase().trim()) return false;
+    }
+
+    // 3. Pencarian Teks PIC Global jika diketik dari Sidebar / Toolbar
+    if (searchPicQuery.trim()) {
+      const q = searchPicQuery.toLowerCase().trim();
+      const picMatch = item.pic?.toLowerCase().includes(q);
+      const sppMatch = item.sppNumber?.toLowerCase().includes(q);
+      const poMatch = item.poNumber?.toLowerCase().includes(q);
+      if (!picMatch && !sppMatch && !poMatch) return false;
+    }
+
+    return true;
   });
 
-  // Item terfilter berdasarkan klik di KPI Cards
+  // Item terfilter berdasarkan klik di KPI Cards & Distribusi Kecepatan Realisasi PO
   const displayedItems = areaScopedItems.filter((item) => {
     if (kpiFilter.mode === 'H3') return item.isHPlus3Overdue;
     if (kpiFilter.mode === 'OPEN') return item.statusPO === 'OPEN';
     if (kpiFilter.mode === 'LATE') return item.statusOntime === 'TERLAMBAT';
+    if (kpiFilter.mode === 'HOLD') return item.isSpecialConditionHold || (item.specialCondition && item.statusPO === 'OPEN');
+
+    const hasPo = item.statusPO === 'CLOSE' || (!!item.poNumber && item.poNumber.trim() !== '');
+    if (kpiFilter.mode === 'SPEED_LE_3') {
+      if (!hasPo) return false;
+      const net = item.isUrgentAdvance ? 0 : calculateWorkingDays(item.budgetReceivedDate, item.poDate || undefined, holidays).workingDays;
+      return net <= 3;
+    }
+    if (kpiFilter.mode === 'SPEED_4_7') {
+      if (!hasPo) return false;
+      const net = item.isUrgentAdvance ? 0 : calculateWorkingDays(item.budgetReceivedDate, item.poDate || undefined, holidays).workingDays;
+      return net >= 4 && net <= 7;
+    }
+    if (kpiFilter.mode === 'SPEED_8_10') {
+      if (!hasPo) return false;
+      const net = item.isUrgentAdvance ? 0 : calculateWorkingDays(item.budgetReceivedDate, item.poDate || undefined, holidays).workingDays;
+      return net >= 8 && net <= 10;
+    }
+    if (kpiFilter.mode === 'SPEED_GT_10') {
+      if (!hasPo) return false;
+      const net = item.isUrgentAdvance ? 0 : calculateWorkingDays(item.budgetReceivedDate, item.poDate || undefined, holidays).workingDays;
+      return net > 10;
+    }
+
     return true;
   });
 
@@ -722,6 +818,10 @@ export default function App() {
         onUpdateLogo={handleUpdateLogo}
         areaConfigs={areaConfigs}
         onUpdateAreaConfig={handleUpdateAreaConfig}
+        selectedPicFilter={selectedPicFilter}
+        onSelectPicFilter={setSelectedPicFilter}
+        searchPicQuery={searchPicQuery}
+        onSearchPicQuery={setSearchPicQuery}
       />
 
       {/* Main Content Area dengan transisi margin/padding sesuai toggle sidebar */}
@@ -769,6 +869,14 @@ export default function App() {
                 setEditItem(item);
                 setIsFormOpen(true);
               }}
+              onFilterSpeed={(speedMode, label) => {
+                setKpiFilter({ mode: speedMode, label });
+                setActiveTab('monitoring');
+              }}
+              selectedPicFilter={selectedPicFilter}
+              onSelectPicFilter={setSelectedPicFilter}
+              searchPicQuery={searchPicQuery}
+              onSearchPicQuery={setSearchPicQuery}
             />
           )}
 
@@ -779,6 +887,7 @@ export default function App() {
               onFilterHPlus3={() => setKpiFilter({ mode: 'H3', label: 'Alert H+3 Tanpa PO' })}
               onFilterOpen={() => setKpiFilter({ mode: 'OPEN', label: 'Status PO Open (Menunggu Penerbitan PO)' })}
               onFilterLate={() => setKpiFilter({ mode: 'LATE', label: 'Melewati Target SLA Durasi Kerja' })}
+              onFilterHold={() => setKpiFilter({ mode: 'HOLD', label: 'Dokumen Tertahan Kondisi Khusus (Hold PO)' })}
               onResetFilter={() => setKpiFilter({ mode: 'ALL' })}
               activeFilterLabel={kpiFilter.label}
             />
@@ -810,11 +919,28 @@ export default function App() {
                 setIsNotifOpen(true);
               }}
               onOpenExportModal={() => setIsExportOpen(true)}
+              activeKpiFilterLabel={kpiFilter.label}
+              onResetKpiFilter={() => setKpiFilter({ mode: 'ALL' })}
+              selectedPicFilter={selectedPicFilter}
+              onSelectPicFilter={setSelectedPicFilter}
             />
           )}
 
           {/* Tab 2: Analitik Kinerja PIC */}
-          {activeTab === 'analytics' && <VendorAnalytics items={areaScopedItems} />}
+          {activeTab === 'analytics' && (
+            <VendorAnalytics
+              items={areaScopedItems}
+              currentUser={currentUser}
+              selectedPicFilter={selectedPicFilter}
+              onSelectPicFilter={setSelectedPicFilter}
+              searchQuery={searchPicQuery}
+              onSearchQuery={setSearchPicQuery}
+              onEditItem={(item) => {
+                setEditItem(item);
+                setIsFormOpen(true);
+              }}
+            />
+          )}
 
           {/* Tab 3: Kalender Libur SKB 3 Menteri */}
           {activeTab === 'holidays' && (
