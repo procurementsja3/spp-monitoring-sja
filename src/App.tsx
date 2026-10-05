@@ -462,6 +462,14 @@ export default function App() {
       });
       setItems(updatedList);
       await addAuditLog('UPDATE_SPP', `Memperbarui dokumen SPP ${formData.sppNumber} (Area: ${formData.area || editItem.area})`, editItem.id);
+
+      // Sinkronisasi instan ke Google Sheet cabang
+      const targetArea = formData.area || editItem.area;
+      const cfg = areaConfigs[targetArea];
+      if (cfg?.webAppUrl && cfg.webAppUrl.trim().startsWith('http')) {
+        const areaItems = updatedList.filter((i) => i.area === targetArea);
+        pushToGoogleSheet(cfg.webAppUrl, areaItems).catch((e) => console.warn('Instant push error:', e));
+      }
     } else {
       const newCreatedItems: SPPItem[] = itemsData.map((formData, index) => {
         const isUrgent = !!formData.isUrgentAdvance;
@@ -504,17 +512,28 @@ export default function App() {
         };
       });
 
-      setItems((prev) => [...newCreatedItems, ...prev]);
+      const nextAllItems = [...newCreatedItems, ...items];
+      setItems(nextAllItems);
       await addAuditLog(
         'CREATE_SPP_BATCH',
         `Menyimpan batch ${newCreatedItems.length} dokumen SPP baru`
       );
+
+      // Sinkronisasi instan ke Google Sheet untuk area bersangkutan
+      const areasToPush = Array.from(new Set(newCreatedItems.map((n) => n.area)));
+      areasToPush.forEach((areaKey) => {
+        const areaCfg = areaConfigs[areaKey];
+        if (areaCfg?.webAppUrl && areaCfg.webAppUrl.trim().startsWith('http')) {
+          const areaItems = nextAllItems.filter((i) => i.area === areaKey);
+          pushToGoogleSheet(areaCfg.webAppUrl, areaItems).catch((e) => console.warn('Instant push error:', e));
+        }
+      });
     }
 
     setEditItem(null);
   };
 
-  // Quick Update No PO (Otomatis Close)
+  // Quick Update No PO (Otomatis Close & Push Instan ke Google Sheet)
   const handleQuickUpdatePO = async (id: string, poNumber: string, poDate: string) => {
     const updated = items.map((i) => {
       if (i.id === id) {
@@ -543,6 +562,16 @@ export default function App() {
       `Memperbarui No. PO ${poNumber} tanggal ${poDate} untuk SPP ID ${id} -> Status otomatis CLOSE`,
       id
     );
+
+    // Sinkronisasi instan ke Google Sheet
+    const targetItem = updated.find((i) => i.id === id);
+    if (targetItem) {
+      const cfg = areaConfigs[targetItem.area];
+      if (cfg?.webAppUrl && cfg.webAppUrl.trim().startsWith('http')) {
+        const areaItems = updated.filter((i) => i.area === targetItem.area);
+        pushToGoogleSheet(cfg.webAppUrl, areaItems).catch((e) => console.warn('Instant PO push error:', e));
+      }
+    }
   };
 
   // Hapus Single SPP
@@ -551,6 +580,14 @@ export default function App() {
     const updated = items.filter((i) => i.id !== id);
     setItems(updated);
     await addAuditLog('DELETE_SPP', `Menghapus dokumen SPP ${target?.sppNumber || id} (Area: ${target?.area})`, id);
+
+    if (target) {
+      const cfg = areaConfigs[target.area];
+      if (cfg?.webAppUrl && cfg.webAppUrl.trim().startsWith('http')) {
+        const areaItems = updated.filter((i) => i.area === target.area);
+        pushToGoogleSheet(cfg.webAppUrl, areaItems).catch((e) => console.warn('Instant delete push error:', e));
+      }
+    }
   };
 
   // Hapus Banyak SPP Sekaligus (Batch Delete)
@@ -646,49 +683,172 @@ export default function App() {
     await addAuditLog('DELETE_HOLIDAY', `Menghapus tanggal libur: ${date}`);
   };
 
-  // Sinkronisasi Google Sheets Per-Area
+  // ==============================================================================
+  // SISTEM SINKRONISASI OTOMATIS 2-ARAH (APLIKASI ↔ GOOGLE SHEET)
+  // ==============================================================================
+  const [isTwoWaySyncing, setIsTwoWaySyncing] = useState(false);
+  const [lastTwoWaySyncTime, setLastTwoWaySyncTime] = useState<Date | null>(new Date());
+  const [syncToastMessage, setSyncToastMessage] = useState<string | null>(null);
+
+  const showSyncToast = (msg: string) => {
+    setSyncToastMessage(msg);
+    setTimeout(() => {
+      setSyncToastMessage(null);
+    }, 4500);
+  };
+
+  // Fungsi Sinkronisasi 2-Arah Cerdas:
+  // - Menarik baris baru / editan yang dimasukkan langsung di Google Sheet ke Aplikasi
+  // - Menghitung otomatis hari kerja, hari libur SKB 3 menteri & SLA untuk baris dari Sheet
+  // - Memastikan item yang ada di Aplikasi juga tersimpan di Google Sheet
+  const performTwoWaySync = async (isManual = false) => {
+    if (!currentUser || isTwoWaySyncing) return;
+
+    const targetAreas: SJAArea[] = currentUser.role === 'SUPERADMIN'
+      ? (activeAreaFilter === 'ALL' ? (['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'] as SJAArea[]) : [activeAreaFilter as SJAArea])
+      : [currentUser.area as SJAArea];
+
+    setIsTwoWaySyncing(true);
+    let newItemsDetected = 0;
+    let updatedRowsDetected = 0;
+
+    try {
+      for (const area of targetAreas) {
+        const cfg = areaConfigs[area];
+        if (!cfg?.webAppUrl || !cfg.webAppUrl.trim().startsWith('http')) continue;
+
+        try {
+          const rawRows = await fetchFromGoogleSheet(cfg.webAppUrl);
+          if (Array.isArray(rawRows)) {
+            const processedSheetItems: SPPItem[] = rawRows.map((i) => {
+              const calc = calculateWorkingDays(i.budgetReceivedDate, i.poDate, holidays);
+              const processDays = calc.workingDays;
+              const hasPo = !!(i.poNumber && i.poNumber.trim() !== '');
+              const statusPO = hasPo ? 'CLOSE' : 'OPEN';
+              const slaLimit = i.slaLimit || 10;
+              const isUrgent = !!i.isUrgentAdvance;
+              const specialCond = i.specialCondition || '';
+              const isSpecialHold = !hasPo && specialCond.trim() !== '';
+              const statusOntime = isUrgent || isSpecialHold ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
+              const isHPlus3Overdue = !isUrgent && !isSpecialHold && statusPO === 'OPEN' && processDays >= 3;
+              const isSignificantDelay = !isUrgent && !isSpecialHold && processDays > slaLimit;
+
+              return {
+                ...i,
+                id: i.id || `SPP-${i.sppNumber || Date.now()}`,
+                area: i.area || area,
+                processDays: isUrgent && hasPo ? 0 : processDays,
+                statusPO,
+                statusOntime,
+                slaLimit,
+                isHPlus3Overdue,
+                isSignificantDelay,
+                specialCondition: specialCond,
+                isSpecialConditionHold: isSpecialHold,
+                updatedAt: i.updatedAt || new Date().toISOString(),
+              };
+            });
+
+            setItems((prevItems) => {
+              const otherAreas = prevItems.filter((x) => x.area !== area);
+              const currentThisArea = prevItems.filter((x) => x.area === area);
+
+              const currentMap = new Map<string, SPPItem>();
+              currentThisArea.forEach((x) => {
+                currentMap.set(x.sppNumber.trim().toLowerCase(), x);
+                if (x.id) currentMap.set(x.id, x);
+              });
+
+              let areaHasChanges = false;
+              processedSheetItems.forEach((sheetItem) => {
+                const existing = currentMap.get(sheetItem.sppNumber.trim().toLowerCase()) || currentMap.get(sheetItem.id);
+                if (!existing) {
+                  newItemsDetected++;
+                  areaHasChanges = true;
+                } else if (
+                  existing.poNumber !== sheetItem.poNumber ||
+                  existing.poDate !== sheetItem.poDate ||
+                  existing.specialCondition !== sheetItem.specialCondition ||
+                  existing.budgetReceivedDate !== sheetItem.budgetReceivedDate
+                ) {
+                  updatedRowsDetected++;
+                  areaHasChanges = true;
+                }
+              });
+
+              // Jika ada dokumen di aplikasi yang belum ada di Google Sheet, satukan dan kirim
+              const sheetSppSet = new Set(processedSheetItems.map((s) => s.sppNumber.trim().toLowerCase()));
+              const missingFromSheet = currentThisArea.filter((loc) => !sheetSppSet.has(loc.sppNumber.trim().toLowerCase()));
+
+              if (missingFromSheet.length > 0) {
+                const combined = [...processedSheetItems, ...missingFromSheet];
+                pushToGoogleSheet(cfg.webAppUrl, combined).catch(() => {});
+                return [...combined, ...otherAreas];
+              }
+
+              if (areaHasChanges || processedSheetItems.length !== currentThisArea.length) {
+                return [...processedSheetItems, ...otherAreas];
+              }
+
+              return prevItems;
+            });
+
+            setAreaConfigs((prev) => ({
+              ...prev,
+              [area]: {
+                ...prev[area],
+                lastSyncTime: new Date().toISOString(),
+                syncStatus: 'connected',
+              },
+            }));
+          }
+        } catch (err) {
+          console.warn(`Sinkronisasi 2-arah untuk ${area} gagal:`, err);
+        }
+      }
+
+      setLastTwoWaySyncTime(new Date());
+
+      if (isManual) {
+        showSyncToast(
+          newItemsDetected > 0 || updatedRowsDetected > 0
+            ? `✓ Sinkronisasi 2-Arah Berhasil! Terdeteksi ${newItemsDetected} dokumen baru & ${updatedRowsDetected} perubahan dari Google Sheet.`
+            : `✓ Sinkronisasi 2-Arah Selesai! Data aplikasi & Google Sheet sudah 100% mutakhir.`
+        );
+      } else if (newItemsDetected > 0 || updatedRowsDetected > 0) {
+        showSyncToast(
+          `✓ Data Google Sheet otomatis tersinkron (${newItemsDetected} baru, ${updatedRowsDetected} terbarui).`
+        );
+      }
+    } finally {
+      setIsTwoWaySyncing(false);
+    }
+  };
+
+  // Polling Auto-Sync 2-Arah Berkala (Setiap 20 detik) dan saat browser difokuskan kembali
+  useEffect(() => {
+    if (!currentUser) return;
+    const syncInterval = setInterval(() => {
+      performTwoWaySync(false);
+    }, 20000);
+
+    const handleWindowFocus = () => {
+      performTwoWaySync(false);
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      clearInterval(syncInterval);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [currentUser, activeAreaFilter, areaConfigs, holidays]);
+
+  // Sinkronisasi Manual Google Sheets Per-Area
   const handlePullFromSheet = async (area: SJAArea) => {
     const cfg = areaConfigs[area];
     if (!cfg?.webAppUrl) throw new Error(`Web App URL belum diisi untuk ${AREA_METADATA[area]?.name}`);
-    const rawFromSheet = await fetchFromGoogleSheet(cfg.webAppUrl);
-    if (rawFromSheet && rawFromSheet.length > 0) {
-      const tagged: SPPItem[] = rawFromSheet.map((i) => {
-        const calc = calculateWorkingDays(i.budgetReceivedDate, i.poDate, holidays);
-        const processDays = calc.workingDays;
-        const statusPO = i.poNumber && i.poNumber.trim() !== '' ? 'CLOSE' : 'OPEN';
-        const slaLimit = i.slaLimit || 10;
-        const statusOntime = processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT';
-        const isHPlus3Overdue = statusPO === 'OPEN' && processDays >= 3;
-        const isSignificantDelay = processDays > slaLimit;
-
-        return {
-          ...i,
-          id: i.id || `SPP-${i.sppNumber || Date.now()}`,
-          area: i.area || area,
-          processDays,
-          statusPO,
-          statusOntime,
-          slaLimit,
-          isHPlus3Overdue,
-          isSignificantDelay,
-          updatedAt: i.updatedAt || new Date().toISOString(),
-        };
-      });
-
-      setItems((prev) => [
-        ...tagged,
-        ...prev.filter((i) => i.area !== area),
-      ]);
-      setAreaConfigs((prev) => ({
-        ...prev,
-        [area]: {
-          ...prev[area],
-          lastSyncTime: new Date().toISOString(),
-          syncStatus: 'connected',
-        },
-      }));
-      await addAuditLog('GOOGLE_SHEET_READ', `Berhasil menarik ${rawFromSheet.length} baris SPP Google Sheets untuk ${AREA_METADATA[area]?.name}`);
-    }
+    await performTwoWaySync(true);
+    await addAuditLog('GOOGLE_SHEET_READ', `Sinkronisasi tarik data Google Sheets untuk ${AREA_METADATA[area]?.name}`);
   };
 
   const handlePushToSheet = async (area: SJAArea) => {
@@ -848,6 +1008,9 @@ export default function App() {
           isSidebarCollapsed={isSidebarCollapsed}
           theme={theme}
           onToggleTheme={handleToggleTheme}
+          isTwoWaySyncing={isTwoWaySyncing}
+          onTriggerTwoWaySync={() => performTwoWaySync(true)}
+          lastTwoWaySyncTime={lastTwoWaySyncTime}
         />
 
         {/* Main Content Viewport */}
@@ -923,6 +1086,9 @@ export default function App() {
               onResetKpiFilter={() => setKpiFilter({ mode: 'ALL' })}
               selectedPicFilter={selectedPicFilter}
               onSelectPicFilter={setSelectedPicFilter}
+              isTwoWaySyncing={isTwoWaySyncing}
+              onTriggerTwoWaySync={() => performTwoWaySync(true)}
+              lastTwoWaySyncTime={lastTwoWaySyncTime}
             />
           )}
 
@@ -1036,6 +1202,19 @@ export default function App() {
           </div>
         </footer>
       </div>
+
+      {/* Toast Notifikasi Sinkronisasi Otomatis 2-Arah */}
+      {syncToastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-300">
+          <div className="bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 border border-slate-700/60 dark:border-slate-300 text-xs font-semibold">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>{syncToastMessage}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

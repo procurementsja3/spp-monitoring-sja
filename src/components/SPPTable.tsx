@@ -40,6 +40,9 @@ interface SPPTableProps {
   onResetKpiFilter?: () => void;
   selectedPicFilter?: string;
   onSelectPicFilter?: (pic: string) => void;
+  isTwoWaySyncing?: boolean;
+  onTriggerTwoWaySync?: () => void;
+  lastTwoWaySyncTime?: Date | null;
 }
 
 export const SPPTable: React.FC<SPPTableProps> = ({
@@ -62,6 +65,9 @@ export const SPPTable: React.FC<SPPTableProps> = ({
   onResetKpiFilter,
   selectedPicFilter: propSelectedPicFilter,
   onSelectPicFilter,
+  isTwoWaySyncing = false,
+  onTriggerTwoWaySync,
+  lastTwoWaySyncTime,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [syncGoogleSheetOnClear, setSyncGoogleSheetOnClear] = useState(true);
@@ -248,6 +254,26 @@ export const SPPTable: React.FC<SPPTableProps> = ({
               >
                 <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                 <span>Kosongkan Data ({items.length})</span>
+              </button>
+            )}
+
+            {/* Tombol Sinkronisasi 2-Arah Google Sheet */}
+            {onTriggerTwoWaySync && (
+              <button
+                type="button"
+                onClick={onTriggerTwoWaySync}
+                disabled={isTwoWaySyncing}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-emerald-300 dark:border-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-xs font-semibold rounded-lg transition-all whitespace-nowrap shadow-2xs cursor-pointer disabled:opacity-60"
+                title={`Sinkronisasi 2-Arah langsung dengan Google Sheet (${connectedSheetName || 'Aktif'}). Input di Sheet maupun di Aplikasi akan otomatis disamakan.${
+                  lastTwoWaySyncTime ? ` Terakhir sinkron: ${lastTwoWaySyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''
+                }`}
+              >
+                <RotateCcw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isTwoWaySyncing ? 'animate-spin' : ''}`} />
+                <span>{isTwoWaySyncing ? 'Menyinkronkan...' : 'Sinkron 2-Arah'}</span>
+                <span className="relative flex h-2 w-2 ml-0.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
               </button>
             )}
 
