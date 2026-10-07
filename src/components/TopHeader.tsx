@@ -164,7 +164,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus data di aplikasi jika baris di Google Sheet telah dihapus"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingSheet ? 'animate-spin' : ''}`} />
-              <span className="hidden xl:inline text-[11px] font-semibold">
+              <span className="hidden md:inline text-[11px] font-semibold">
                 {isSyncingSheet ? 'Sinkronisasi...' : 'Sinkron 2 Arah'}
               </span>
             </button>

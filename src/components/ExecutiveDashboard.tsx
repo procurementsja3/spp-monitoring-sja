@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { SPPItem, SJAArea, UserProfile, IndonesianHoliday } from '../types';
 import { AREA_METADATA, AREA_PIC_LIST } from '../utils/initialData';
 import { calculateWorkingDays, DEFAULT_INDONESIAN_HOLIDAYS } from '../utils/holidayCalendar';
@@ -24,6 +24,10 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Table,
   LayoutGrid,
   Search,
@@ -87,8 +91,42 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
   const [showLeadTimeDetail, setShowLeadTimeDetail] = useState<boolean>(false);
 
+  // Pagination & Sorting Data Realisasi PO (Default 15 data per halaman & input terbaru di paling atas)
+  const [realizationPage, setRealizationPage] = useState<number>(1);
+  const [realizationPageSize, setRealizationPageSize] = useState<number>(15);
+
+  // Helper mendeteksi timestamp input terbaru (dari createdAt, ID timestamp, updatedAt, poDate, atau budgetReceivedDate)
+  const getItemInputTimestamp = (item: SPPItem): number => {
+    if (item.createdAt) {
+      const t = new Date(item.createdAt).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    const match = item.id?.match(/(\d{13})/);
+    if (match) {
+      const t = parseInt(match[1], 10);
+      if (!isNaN(t) && t > 0) return t;
+    }
+    if (item.updatedAt) {
+      const t = new Date(item.updatedAt).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    if (item.poDate) {
+      const t = new Date(item.poDate).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    if (item.budgetReceivedDate) {
+      const t = new Date(item.budgetReceivedDate).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    return 0;
+  };
+
   // Filter Kecepatan Realisasi PO langsung di halaman Dashboard (Memunculkan data di bawah 4 kotak)
   const [selectedSpeedFilter, setSelectedSpeedFilter] = useState<'ALL' | 'SPEED_LE_3' | 'SPEED_4_7' | 'SPEED_8_10' | 'SPEED_GT_10'>('ALL');
+
+  useEffect(() => {
+    setRealizationPage(1);
+  }, [selectedSpeedFilter, activeAreaFilter, items.length, realizationPageSize]);
 
   const handleSelectSpeedBox = (speedMode: 'SPEED_LE_3' | 'SPEED_4_7' | 'SPEED_8_10' | 'SPEED_GT_10') => {
     setSelectedSpeedFilter((prev) => (prev === speedMode ? 'ALL' : speedMode));
@@ -572,6 +610,44 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     const isFiltered = selectedSpeedFilter !== 'ALL';
     const displayRecords = isFiltered ? filteredSpeedRecords : closedLeadTimes;
 
+    // Urutkan data realisasi PO: Data input terbaru posisi paling atas
+    const sortedDisplayRecords = useMemo(() => {
+      return [...displayRecords].sort((a, b) => {
+        const timeA = getItemInputTimestamp(a.item);
+        const timeB = getItemInputTimestamp(b.item);
+        if (timeA !== timeB) return timeB - timeA; // Descending: terbaru di atas
+        if (a.item.poDate && b.item.poDate && a.item.poDate !== b.item.poDate) {
+          return b.item.poDate.localeCompare(a.item.poDate);
+        }
+        if (a.item.budgetReceivedDate !== b.item.budgetReceivedDate) {
+          return b.item.budgetReceivedDate.localeCompare(a.item.budgetReceivedDate);
+        }
+        return b.item.sppNumber.localeCompare(a.item.sppNumber);
+      });
+    }, [displayRecords]);
+
+    // Kalkulasi Halaman & Irisan Data Paginated (Default 15 data per halaman)
+    const totalRealizationPages = Math.max(1, Math.ceil(sortedDisplayRecords.length / realizationPageSize));
+    const validRealizationPage = Math.min(Math.max(1, realizationPage), totalRealizationPages);
+    const realStartIndex = (validRealizationPage - 1) * realizationPageSize;
+    const realEndIndex = realStartIndex + realizationPageSize;
+    const paginatedDisplayRecords = sortedDisplayRecords.slice(realStartIndex, realEndIndex);
+
+    const realizationPageNumbers = useMemo(() => {
+      if (totalRealizationPages <= 7) {
+        return Array.from({ length: totalRealizationPages }, (_, i) => i + 1);
+      }
+      const pages: (number | string)[] = [];
+      if (validRealizationPage <= 4) {
+        pages.push(1, 2, 3, 4, 5, '...', totalRealizationPages);
+      } else if (validRealizationPage >= totalRealizationPages - 3) {
+        pages.push(1, '...', totalRealizationPages - 4, totalRealizationPages - 3, totalRealizationPages - 2, totalRealizationPages - 1, totalRealizationPages);
+      } else {
+        pages.push(1, '...', validRealizationPage - 1, validRealizationPage, validRealizationPage + 1, '...', totalRealizationPages);
+      }
+      return pages;
+    }, [validRealizationPage, totalRealizationPages]);
+
     return (
       <div className="space-y-3 pt-1 animate-in fade-in duration-200">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs bg-slate-50/80 dark:bg-slate-950/50 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800">
@@ -609,7 +685,21 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Tombol Sinkronisasi 2 Arah Google Sheet */}
+            {onSyncGoogleSheet && (
+              <button
+                type="button"
+                onClick={onSyncGoogleSheet}
+                disabled={isSyncingGoogleSheet}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50/90 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold transition-all shadow-2xs cursor-pointer disabled:opacity-50 shrink-0"
+                title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus di aplikasi jika data di Google Sheet telah dihapus"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingGoogleSheet ? 'animate-spin' : ''}`} />
+                <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkron 2 Arah'}</span>
+              </button>
+            )}
+
             <button
               onClick={() => {
                 if (isFiltered) {
@@ -643,102 +733,206 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200/90 dark:border-slate-800 max-h-[380px] overflow-y-auto shadow-2xs">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100/90 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-10 backdrop-blur-xs">
-                <tr>
-                  <th className="px-3.5 py-2.5">No. SPP &amp; Cabang</th>
-                  <th className="px-3.5 py-2.5">Tgl Terima Budget</th>
-                  <th className="px-3.5 py-2.5">Tgl &amp; No. PO</th>
-                  <th className="px-3.5 py-2.5 text-center">Hari Kalender</th>
-                  <th className="px-3.5 py-2.5 text-center">Hari Libur Dipotong</th>
-                  <th className="px-3.5 py-2.5 text-center">Durasi Bersih</th>
-                  <th className="px-3.5 py-2.5 text-center">Status SLA</th>
-                  <th className="px-3 py-2.5 text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-mono">
-                {displayRecords.map(({ item, calc, netWorkingDays, isUrgent }) => {
-                  const isOntime = isUrgent || netWorkingDays <= item.slaLimit;
-                  return (
-                    <tr
-                      key={item.id}
-                      onClick={() => onEditItem(item)}
-                      className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
-                      title="Klik baris untuk melihat / mengedit detail SPP"
-                    >
-                      <td className="px-3.5 py-2.5 whitespace-nowrap">
-                        <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <span>{item.sppNumber}</span>
-                          {isUrgent && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                              ⚡ DARURAT
+          <div className="rounded-xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-2xs bg-white dark:bg-slate-900">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100/90 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-10 backdrop-blur-xs">
+                  <tr>
+                    <th className="px-3.5 py-2.5">No. SPP &amp; Cabang</th>
+                    <th className="px-3.5 py-2.5">Tgl Terima Budget</th>
+                    <th className="px-3.5 py-2.5">Tgl &amp; No. PO</th>
+                    <th className="px-3.5 py-2.5 text-center">Hari Kalender</th>
+                    <th className="px-3.5 py-2.5 text-center">Hari Libur Dipotong</th>
+                    <th className="px-3.5 py-2.5 text-center">Durasi Bersih</th>
+                    <th className="px-3.5 py-2.5 text-center">Status SLA</th>
+                    <th className="px-3 py-2.5 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-mono">
+                  {paginatedDisplayRecords.map(({ item, calc, netWorkingDays, isUrgent }) => {
+                    const isOntime = isUrgent || netWorkingDays <= item.slaLimit;
+                    return (
+                      <tr
+                        key={item.id}
+                        onClick={() => onEditItem(item)}
+                        className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                        title="Klik baris untuk melihat / mengedit detail SPP"
+                      >
+                        <td className="px-3.5 py-2.5 whitespace-nowrap">
+                          <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>{item.sppNumber}</span>
+                            {isUrgent && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                ⚡ DARURAT
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-sans">
+                            {AREA_METADATA[item.area]?.name || item.area} · PIC: {item.pic}
+                          </div>
+                        </td>
+
+                        <td className="px-3.5 py-2.5 whitespace-nowrap text-slate-600 dark:text-slate-400">
+                          {item.budgetReceivedDate}
+                        </td>
+
+                        <td className="px-3.5 py-2.5 whitespace-nowrap">
+                          <div className="font-semibold text-slate-900 dark:text-white">
+                            {item.poNumber || '-'}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            {item.poDate || '-'}
+                          </div>
+                        </td>
+
+                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap text-slate-500 dark:text-slate-400">
+                          {calc.totalCalendarDays} hari
+                        </td>
+
+                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50 text-[11px]">
+                            <span>-{calc.weekendDaysSkipped + calc.holidayDaysSkipped} hari</span>
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-sans mt-0.5">
+                            ({calc.weekendDaysSkipped} wkd, {calc.holidayDaysSkipped} skb)
+                          </div>
+                        </td>
+
+                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                          <span className={`font-bold text-xs ${isOntime ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                            {netWorkingDays} hari kerja
+                          </span>
+                        </td>
+
+                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                          {isUrgent ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                              FAST-TRACK
+                            </span>
+                          ) : isOntime ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                              ONTIME
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
+                              TERLAMBAT
                             </span>
                           )}
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-sans">
-                          {AREA_METADATA[item.area]?.name || item.area} · PIC: {item.pic}
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="px-3.5 py-2.5 whitespace-nowrap text-slate-600 dark:text-slate-400">
-                        {item.budgetReceivedDate}
-                      </td>
-
-                      <td className="px-3.5 py-2.5 whitespace-nowrap">
-                        <div className="font-semibold text-slate-900 dark:text-white">
-                          {item.poNumber || '-'}
-                        </div>
-                        <div className="text-[10px] text-slate-500">
-                          {item.poDate || '-'}
-                        </div>
-                      </td>
-
-                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap text-slate-500 dark:text-slate-400">
-                        {calc.totalCalendarDays} hari
-                      </td>
-
-                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50 text-[11px]">
-                          <span>-{calc.weekendDaysSkipped + calc.holidayDaysSkipped} hari</span>
-                        </div>
-                        <div className="text-[9px] text-slate-400 font-sans mt-0.5">
-                          ({calc.weekendDaysSkipped} wkd, {calc.holidayDaysSkipped} skb)
-                        </div>
-                      </td>
-
-                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
-                        <span className={`font-bold text-xs ${isOntime ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                          {netWorkingDays} hari kerja
-                        </span>
-                      </td>
-
-                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
-                        {isUrgent ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                            FAST-TRACK
+                        <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                          <span className="text-[11px] font-sans font-medium text-blue-600 dark:text-blue-400 group-hover:underline">
+                            Detail →
                           </span>
-                        ) : isOntime ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                            ONTIME
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Navigation Bar untuk Realisasi PO (Default 15 Data Per Halaman) */}
+            {sortedDisplayRecords.length > 0 && (
+              <div className="p-3.5 border-t border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                {/* Info Status Halaman & Data */}
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-mono text-[11px] flex-wrap justify-center sm:justify-start">
+                  <span>
+                    Menampilkan <strong className="text-slate-900 dark:text-white font-bold">{realStartIndex + 1}</strong> -{' '}
+                    <strong className="text-slate-900 dark:text-white font-bold">{Math.min(realEndIndex, sortedDisplayRecords.length)}</strong> dari{' '}
+                    <strong className="text-slate-900 dark:text-white font-bold">{sortedDisplayRecords.length}</strong> data realisasi PO
+                  </span>
+                  <span className="text-slate-300 dark:text-slate-700">·</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold font-sans">
+                    Halaman {validRealizationPage} dari {totalRealizationPages}
+                  </span>
+                </div>
+
+                {/* Kontrol Navigasi & Opsi Jumlah Baris */}
+                <div className="flex items-center flex-wrap gap-2 justify-center sm:justify-end">
+                  <div className="flex items-center gap-1.5 font-sans text-[11px] text-slate-500">
+                    <span className="hidden md:inline">Tampilkan:</span>
+                    <select
+                      value={realizationPageSize}
+                      onChange={(e) => {
+                        setRealizationPageSize(Number(e.target.value));
+                        setRealizationPage(1);
+                      }}
+                      className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                      title="Pilih jumlah baris yang ditampilkan per halaman"
+                    >
+                      <option value={15}>15 baris</option>
+                      <option value={25}>25 baris</option>
+                      <option value={50}>50 baris</option>
+                      <option value={sortedDisplayRecords.length}>Semua data</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setRealizationPage(1)}
+                      disabled={validRealizationPage === 1}
+                      className="p-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                      title="Halaman Pertama (Data Terbaru)"
+                    >
+                      <ChevronsLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRealizationPage((p) => Math.max(1, p - 1))}
+                      disabled={validRealizationPage === 1}
+                      className="p-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                      title="Halaman Sebelumnya"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    <div className="flex items-center gap-1 px-0.5">
+                      {realizationPageNumbers.map((p, idx) =>
+                        p === '...' ? (
+                          <span key={`real-dots-${idx}`} className="px-1 text-slate-400 font-mono text-xs select-none">
+                            ...
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
-                            TERLAMBAT
-                          </span>
-                        )}
-                      </td>
+                          <button
+                            key={`real-page-${p}`}
+                            type="button"
+                            onClick={() => setRealizationPage(Number(p))}
+                            className={`min-w-[28px] h-7 px-1.5 rounded-lg font-mono text-xs font-semibold transition-all cursor-pointer ${
+                              validRealizationPage === p
+                                ? 'bg-blue-600 text-white shadow-xs scale-105'
+                                : 'border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        )
+                      )}
+                    </div>
 
-                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                        <span className="text-[11px] font-sans font-medium text-blue-600 dark:text-blue-400 group-hover:underline">
-                          Detail →
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    <button
+                      type="button"
+                      onClick={() => setRealizationPage((p) => Math.min(totalRealizationPages, p + 1))}
+                      disabled={validRealizationPage === totalRealizationPages}
+                      className="p-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                      title="Halaman Selanjutnya"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRealizationPage(totalRealizationPages)}
+                      disabled={validRealizationPage === totalRealizationPages}
+                      className="p-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                      title="Halaman Terakhir"
+                    >
+                      <ChevronsRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

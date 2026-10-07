@@ -246,6 +246,232 @@ async function bootstrapServer() {
   });
 
   // ==========================================
+  // GOOGLE SHEET PROXY ROUTES (Server-to-Google Apps Script)
+  // Menjamin komunikasi POST/GET langsung tanpa terhalang CORS browser, iframe sandbox, atau masalah redirect 302
+  // ==========================================
+
+  // 6. POST /api/google-sheet/push: Push/Create/Upsert data SPP langsung ke Google Sheet
+  app.post('/api/google-sheet/push', async (req, res) => {
+    try {
+      const { webAppUrl, items, mode, area } = req.body;
+      const configs = readAreaConfigs();
+
+      // Dapatkan URL tujuan resmi (dari payload atau fallback otomatis dari konfigurasi server)
+      let targetUrl = typeof webAppUrl === 'string' && webAppUrl.trim().startsWith('http')
+        ? webAppUrl.trim()
+        : '';
+
+      if (!targetUrl && area && configs[area]?.webAppUrl) {
+        targetUrl = configs[area].webAppUrl;
+      }
+      if (!targetUrl && area && DEFAULT_AREA_CONFIGS[area as keyof typeof DEFAULT_AREA_CONFIGS]?.webAppUrl) {
+        targetUrl = DEFAULT_AREA_CONFIGS[area as keyof typeof DEFAULT_AREA_CONFIGS].webAppUrl;
+      }
+
+      if (!targetUrl) {
+        res.status(400).json({
+          success: false,
+          error: `URL Google Apps Script tidak ditemukan untuk area ${area || 'umum'}. Pastikan URL telah dikonfigurasi.`,
+        });
+        return;
+      }
+
+      const action = mode || 'UPSERT_BATCH';
+      const itemsList = Array.isArray(items) ? items : items ? [items] : [];
+
+      console.log(`[Google Sheet Proxy] Mengirim ${itemsList.length} item ke Google Sheet (${area || 'Umum'}) via aksi ${action}...`);
+
+      const payload = JSON.stringify({
+        action,
+        items: itemsList,
+        item: itemsList.length === 1 ? itemsList[0] : undefined,
+      });
+
+      // Node.js fetch menangani redirect 302 dari Google Apps Script ke script.googleusercontent.com secara transparan
+      const googleRes = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: payload,
+        redirect: 'follow',
+      });
+
+      const responseText = await googleRes.text();
+      let googleData: any = null;
+      try {
+        googleData = JSON.parse(responseText);
+      } catch {
+        googleData = { raw: responseText };
+      }
+
+      console.log(`[Google Sheet Proxy] Respon dari Apps Script (${googleRes.status}):`, googleData);
+
+      // Sinkronkan juga salinan ke cloud_spp_items.json lokal server
+      if (itemsList.length > 0) {
+        try {
+          const currentItems = readSPPItems();
+          if (action === 'UPSERT_BATCH' || action === 'UPSERT_SINGLE') {
+            const currentMap = new Map(currentItems.map((i: any) => [i.id || i.sppNumber, i]));
+            itemsList.forEach((newItem: any) => {
+              currentMap.set(newItem.id || newItem.sppNumber, newItem);
+            });
+            saveSPPItems(Array.from(currentMap.values()));
+          } else if (action === 'SYNC_FULL' && area) {
+            const filteredOtherAreas = currentItems.filter((i: any) => i.area !== area);
+            saveSPPItems([...itemsList, ...filteredOtherAreas]);
+          }
+        } catch (storageErr) {
+          console.warn('[Google Sheet Proxy] Gagal sinkronkan salinan lokal disk:', storageErr);
+        }
+      }
+
+      if (googleData?.status === 'error') {
+        res.status(502).json({
+          success: false,
+          error: googleData.message || 'Apps Script melaporkan error saat memproses sheet',
+          googleResponse: googleData,
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        count: itemsList.length,
+        area: area || googleData?.area,
+        message: googleData?.message || `Berhasil menyimpan ${itemsList.length} data ke Google Sheet`,
+        googleResponse: googleData,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error('[Google Sheet Proxy Error]:', err);
+      res.status(500).json({
+        success: false,
+        error: err?.message || 'Terjadi kesalahan pada proxy server Google Sheet',
+      });
+    }
+  });
+
+  // 7. GET /api/google-sheet/pull: Menarik data SPP dari Google Sheet
+  app.get('/api/google-sheet/pull', async (req, res) => {
+    try {
+      const { webAppUrl, area } = req.query;
+      const configs = readAreaConfigs();
+
+      let targetUrl = typeof webAppUrl === 'string' && webAppUrl.trim().startsWith('http')
+        ? webAppUrl.trim()
+        : '';
+
+      if (!targetUrl && area && typeof area === 'string' && configs[area]?.webAppUrl) {
+        targetUrl = configs[area].webAppUrl;
+      }
+      if (!targetUrl && area && typeof area === 'string' && DEFAULT_AREA_CONFIGS[area as keyof typeof DEFAULT_AREA_CONFIGS]?.webAppUrl) {
+        targetUrl = DEFAULT_AREA_CONFIGS[area as keyof typeof DEFAULT_AREA_CONFIGS].webAppUrl;
+      }
+
+      if (!targetUrl) {
+        res.status(400).json({
+          success: false,
+          error: 'URL Google Apps Script tidak valid.',
+        });
+        return;
+      }
+
+      const googleRes = await fetch(targetUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        redirect: 'follow',
+      });
+
+      if (!googleRes.ok) {
+        res.status(googleRes.status).json({
+          success: false,
+          error: `HTTP Error dari Google Apps Script: ${googleRes.status} ${googleRes.statusText}`,
+        });
+        return;
+      }
+
+      const googleData = await googleRes.json();
+      res.json(googleData);
+    } catch (err: any) {
+      console.error('[Google Sheet Pull Error]:', err);
+      res.status(500).json({
+        success: false,
+        error: err?.message || 'Gagal menarik data dari Google Apps Script',
+      });
+    }
+  });
+
+  // 8. GET /api/google-sheet/test: Tes ping koneksi ke Google Sheet
+  app.get('/api/google-sheet/test', async (req, res) => {
+    try {
+      const { webAppUrl, area } = req.query;
+      const configs = readAreaConfigs();
+
+      let targetUrl = typeof webAppUrl === 'string' && webAppUrl.trim().startsWith('http')
+        ? webAppUrl.trim()
+        : '';
+
+      if (!targetUrl && area && typeof area === 'string' && configs[area]?.webAppUrl) {
+        targetUrl = configs[area].webAppUrl;
+      }
+
+      if (!targetUrl) {
+        res.status(400).json({
+          status: 'error',
+          message: 'URL Google Apps Script tidak valid.',
+        });
+        return;
+      }
+
+      const pingUrl = targetUrl.includes('?') ? `${targetUrl}&action=PING` : `${targetUrl}?action=PING`;
+      const googleRes = await fetch(pingUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        redirect: 'follow',
+      });
+
+      const data = await googleRes.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({
+        status: 'error',
+        message: err?.message || 'Gagal terhubung ke Google Apps Script',
+      });
+    }
+  });
+
+  // 9. POST /api/google-sheet/clear: Kosongkan baris Google Sheet
+  app.post('/api/google-sheet/clear', async (req, res) => {
+    try {
+      const { webAppUrl, area } = req.body;
+      const configs = readAreaConfigs();
+      let targetUrl = typeof webAppUrl === 'string' && webAppUrl.trim().startsWith('http')
+        ? webAppUrl.trim()
+        : '';
+      if (!targetUrl && area && configs[area]?.webAppUrl) {
+        targetUrl = configs[area].webAppUrl;
+      }
+      if (!targetUrl) {
+        res.status(400).json({ success: false, error: 'URL Google Apps Script tidak valid.' });
+        return;
+      }
+      const googleRes = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'CLEAR_ALL' }),
+        redirect: 'follow',
+      });
+      const text = await googleRes.text();
+      let googleData = {};
+      try { googleData = JSON.parse(text); } catch { googleData = { raw: text }; }
+      res.json({ success: true, googleResponse: googleData });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message });
+    }
+  });
+
+  // ==========================================
   // FRONTEND SERVING (Vite in Dev / Static in Prod)
   // ==========================================
   if (!isProduction) {

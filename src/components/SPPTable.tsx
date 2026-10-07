@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { SPPItem, UserProfile, SJAArea } from '../types';
 import { AREA_METADATA, AREA_PIC_LIST } from '../utils/initialData';
 import { 
@@ -18,7 +18,12 @@ import {
   RotateCcw, 
   Inbox,
   Zap,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ArrowUpDown
 } from 'lucide-react';
 
 interface SPPTableProps {
@@ -127,17 +132,108 @@ export const SPPTable: React.FC<SPPTableProps> = ({
     return matchSearch && matchPO && matchSLA && matchPic && matchAlert && matchUrgent && matchSpecial;
   });
 
-  // Handle select all / deselect all
-  const isAllFilteredSelected =
-    filteredItems.length > 0 &&
-    filteredItems.every((item) => selectedIds.includes(item.id));
+  // Sorting: Default 'NEWEST_FIRST' (Data input terbaru posisi paling atas)
+  const [sortOrder, setSortOrder] = useState<'NEWEST_FIRST' | 'OLDEST_FIRST'>('NEWEST_FIRST');
+
+  // Pagination: Default 15 data per halaman sesuai brief pengguna
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(15);
+
+  // Reset ke halaman 1 setiap kali kriteria filter atau pencarian berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterPO, filterSLA, filterAlert, filterUrgentOnly, filterSpecialConditionOnly, selectedPic, activeAreaFilter, pageSize]);
+
+  // Urutkan item: Data input terbaru posisi paling atas (berdasarkan timestamp ID, createdAt, updatedAt, atau budgetReceivedDate)
+  const sortedItems = useMemo(() => {
+    return [...filteredItems].sort((a, b) => {
+      const getTime = (item: SPPItem): number => {
+        // 1. Prioritaskan createdAt waktu input
+        if (item.createdAt) {
+          const t = new Date(item.createdAt).getTime();
+          if (!isNaN(t) && t > 0) return t;
+        }
+
+        // 2. Ekstrak timestamp dari id (misal SPP-1743950284000 atau SPP-1743950284000-0)
+        const match = item.id?.match(/(\d{13})/);
+        if (match) {
+          const t = parseInt(match[1], 10);
+          if (!isNaN(t) && t > 0) return t;
+        }
+
+        // 3. Gunakan updatedAt
+        if (item.updatedAt) {
+          const t = new Date(item.updatedAt).getTime();
+          if (!isNaN(t) && t > 0) return t;
+        }
+
+        // 4. Gunakan poDate
+        if (item.poDate) {
+          const t = new Date(item.poDate).getTime();
+          if (!isNaN(t) && t > 0) return t;
+        }
+
+        // 5. Gunakan budgetReceivedDate
+        if (item.budgetReceivedDate) {
+          const t = new Date(item.budgetReceivedDate).getTime();
+          if (!isNaN(t) && t > 0) return t;
+        }
+        return 0;
+      };
+
+      const timeA = getTime(a);
+      const timeB = getTime(b);
+
+      if (sortOrder === 'NEWEST_FIRST') {
+        if (timeA !== timeB) return timeB - timeA; // Descending: terbaru di atas
+        if (a.budgetReceivedDate !== b.budgetReceivedDate) {
+          return b.budgetReceivedDate.localeCompare(a.budgetReceivedDate);
+        }
+        return b.sppNumber.localeCompare(a.sppNumber);
+      } else {
+        if (timeA !== timeB) return timeA - timeB;
+        if (a.budgetReceivedDate !== b.budgetReceivedDate) {
+          return a.budgetReceivedDate.localeCompare(b.budgetReceivedDate);
+        }
+        return a.sppNumber.localeCompare(b.sppNumber);
+      }
+    });
+  }, [filteredItems, sortOrder]);
+
+  // Kalkulasi Halaman & Irisan Data Paginated (15 data per halaman)
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize));
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (validCurrentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedItems = sortedItems.slice(startIndex, endIndex);
+
+  // Deret Nomor Halaman Pintar
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages: (number | string)[] = [];
+    if (validCurrentPage <= 4) {
+      pages.push(1, 2, 3, 4, 5, '...', totalPages);
+    } else if (validCurrentPage >= totalPages - 3) {
+      pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+    } else {
+      pages.push(1, '...', validCurrentPage - 1, validCurrentPage, validCurrentPage + 1, '...', totalPages);
+    }
+    return pages;
+  }, [validCurrentPage, totalPages]);
+
+  // Handle select all untuk data pada halaman yang sedang aktif
+  const isAllPageSelected =
+    paginatedItems.length > 0 &&
+    paginatedItems.every((item) => selectedIds.includes(item.id));
 
   const handleToggleSelectAll = () => {
-    if (isAllFilteredSelected) {
-      const filteredItemIds = new Set(filteredItems.map((i) => i.id));
-      setSelectedIds((prev) => prev.filter((id) => !filteredItemIds.has(id)));
+    if (isAllPageSelected) {
+      const pageItemIds = new Set(paginatedItems.map((i) => i.id));
+      setSelectedIds((prev) => prev.filter((id) => !pageItemIds.has(id)));
     } else {
-      const newSelected = new Set([...selectedIds, ...filteredItems.map((i) => i.id)]);
+      const newSelected = new Set([...selectedIds, ...paginatedItems.map((i) => i.id)]);
       setSelectedIds(Array.from(newSelected));
     }
   };
@@ -206,7 +302,8 @@ export const SPPTable: React.FC<SPPTableProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-xl shadow-2xs overflow-hidden transition-colors">
+    <>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-xl shadow-2xs overflow-hidden transition-colors">
       {/* Controls Bar: Search & Filter Segmented Controls */}
       <div className="p-4 border-b border-slate-200/90 dark:border-slate-800/90 space-y-3">
         {/* Banner Filter Aktif (Distribusi Kecepatan / Alert) */}
@@ -498,32 +595,82 @@ export const SPPTable: React.FC<SPPTableProps> = ({
             </select>
           )}
 
-          <div className="ml-auto flex items-center gap-2 text-xs font-mono">
+          {/* Tombol Urutkan Terbaru / Terlama */}
+          <button
+            type="button"
+            onClick={() => setSortOrder((prev) => (prev === 'NEWEST_FIRST' ? 'OLDEST_FIRST' : 'NEWEST_FIRST'))}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+              sortOrder === 'NEWEST_FIRST'
+                ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 shadow-2xs'
+                : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+            }`}
+            title={
+              sortOrder === 'NEWEST_FIRST'
+                ? 'Urutan aktif: Data input terbaru berada di posisi paling atas'
+                : 'Urutan aktif: Data input terlama berada di posisi paling atas'
+            }
+          >
+            <ArrowUpDown className="w-3.5 h-3.5" />
+            <span>{sortOrder === 'NEWEST_FIRST' ? 'Input Terbaru (Atas)' : 'Input Terlama (Atas)'}</span>
+          </button>
+
+          <div className="ml-auto flex items-center gap-3 text-xs font-mono">
+            {/* Quick Page Size Switcher */}
+            <div className="hidden sm:flex items-center gap-1.5 text-slate-500 font-sans text-[11px]">
+              <span>Per hal:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+              >
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={sortedItems.length}>Semua</option>
+              </select>
+            </div>
+
             <span className="text-slate-500 dark:text-slate-400 font-semibold">
-              Menampilkan {filteredItems.length} dari {items.length} SPP
+              {sortedItems.length === 0
+                ? '0 SPP'
+                : `Menampilkan ${startIndex + 1} - ${Math.min(endIndex, sortedItems.length)} dari ${sortedItems.length} SPP`}
+              {totalPages > 1 && ` (Hal ${validCurrentPage}/${totalPages})`}
             </span>
           </div>
         </div>
 
         {/* Selection Bulk Action Floating Bar */}
         {selectedIds.length > 0 && (
-          <div className="flex items-center justify-between bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 px-3.5 py-2 rounded-lg text-xs animate-in fade-in">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 px-3.5 py-2 rounded-lg text-xs animate-in fade-in">
             <div className="flex items-center gap-2 text-rose-900 dark:text-rose-300 font-semibold">
               <span className="w-5 h-5 rounded-full bg-rose-200 dark:bg-rose-900/80 flex items-center justify-center text-[11px] font-bold">
                 {selectedIds.length}
               </span>
               <span>Dokumen SPP dipilih</span>
+              {selectedIds.length < sortedItems.length && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(sortedItems.map((i) => i.id))}
+                  className="text-[11px] text-rose-700 dark:text-rose-300 underline font-semibold hover:text-rose-900 cursor-pointer ml-1"
+                >
+                  Pilih Semua ({sortedItems.length} Data Seluruh Halaman)
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setSelectedIds([])}
-                className="px-2.5 py-1 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-medium hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded transition-colors"
+                className="px-2.5 py-1 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-medium hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded transition-colors cursor-pointer"
               >
                 Batal Pilih
               </button>
               <button
                 onClick={handlePromptDeleteBatch}
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg shadow-2xs transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Hapus Data Terpilih ({selectedIds.length})</span>
@@ -541,11 +688,11 @@ export const SPPTable: React.FC<SPPTableProps> = ({
               <th className="px-3 py-2.5 w-8 text-center">
                 <input
                   type="checkbox"
-                  checked={isAllFilteredSelected}
+                  checked={isAllPageSelected}
                   onChange={handleToggleSelectAll}
-                  disabled={filteredItems.length === 0}
+                  disabled={paginatedItems.length === 0}
                   className="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                  title="Pilih Semua Data"
+                  title="Pilih Semua Data di Halaman Ini"
                 />
               </th>
               <th className="px-4 py-2.5 whitespace-nowrap">Tanggal Terima Budget</th>
@@ -562,7 +709,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
-            {filteredItems.length === 0 ? (
+            {sortedItems.length === 0 ? (
               <tr>
                 <td colSpan={12} className="py-16 text-center">
                   <div className="max-w-md mx-auto flex flex-col items-center justify-center space-y-3 px-4">
@@ -608,7 +755,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                 </td>
               </tr>
             ) : (
-              filteredItems.map((item) => {
+              paginatedItems.map((item) => {
                 const hasPO = item.statusPO === 'CLOSE';
                 const isOverdue = item.statusOntime === 'TERLAMBAT';
                 const isSelected = selectedIds.includes(item.id);
@@ -820,6 +967,120 @@ export const SPPTable: React.FC<SPPTableProps> = ({
         </table>
       </div>
 
+      {/* Pagination Navigation Bar (15 Data Per Halaman & Sisanya Sistem Pagination) */}
+      {sortedItems.length > 0 && (
+        <div className="p-3.5 border-t border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          {/* Info Status Halaman & Data Terpilih */}
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-mono text-[11px] flex-wrap justify-center sm:justify-start">
+            <span>
+              Menampilkan <strong className="text-slate-900 dark:text-white font-bold">{startIndex + 1}</strong> -{' '}
+              <strong className="text-slate-900 dark:text-white font-bold">{Math.min(endIndex, sortedItems.length)}</strong> dari{' '}
+              <strong className="text-slate-900 dark:text-white font-bold">{sortedItems.length}</strong> total SPP
+            </span>
+            <span className="text-slate-300 dark:text-slate-700">·</span>
+            <span className="text-blue-600 dark:text-blue-400 font-semibold font-sans">
+              Halaman {validCurrentPage} dari {totalPages}
+            </span>
+            {items.length !== sortedItems.length && (
+              <span className="text-slate-400 text-[10px] hidden md:inline">
+                (difilter dari {items.length} total)
+              </span>
+            )}
+          </div>
+
+          {/* Kontrol Navigasi & Pengatur Jumlah Data */}
+          <div className="flex items-center flex-wrap gap-2 justify-center sm:justify-end">
+            {/* Opsi Pilihan Jumlah Baris */}
+            <div className="flex items-center gap-1.5 mr-1 font-sans text-[11px] text-slate-500">
+              <span className="hidden md:inline">Tampilkan:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                title="Pilih jumlah baris yang ditampilkan per halaman"
+              >
+                <option value={15}>15 baris</option>
+                <option value={25}>25 baris</option>
+                <option value={50}>50 baris</option>
+                <option value={100}>100 baris</option>
+                <option value={sortedItems.length}>Semua data</option>
+              </select>
+            </div>
+
+            {/* Tombol Halaman Pertama & Sebelumnya */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={validCurrentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                title="Halaman Pertama (Data Paling Baru)"
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={validCurrentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                title="Halaman Sebelumnya"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {/* Tombol Angka Halaman */}
+              <div className="flex items-center gap-1 px-0.5">
+                {pageNumbers.map((p, idx) =>
+                  p === '...' ? (
+                    <span key={`dots-${idx}`} className="px-1 text-slate-400 font-mono text-xs select-none">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={`page-${p}`}
+                      type="button"
+                      onClick={() => setCurrentPage(Number(p))}
+                      className={`min-w-7 h-7 px-2 rounded-lg font-mono text-xs font-semibold transition-all cursor-pointer ${
+                        validCurrentPage === p
+                          ? 'bg-blue-600 text-white font-bold shadow-2xs'
+                          : 'bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title={`Buka Halaman ${p}`}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+              </div>
+
+              {/* Tombol Halaman Berikutnya & Terakhir */}
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={validCurrentPage === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                title="Halaman Berikutnya"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={validCurrentPage === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                title="Halaman Terakhir"
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
       {/* Modal Konfirmasi Hapus Data */}
       {deleteConfirmModal.isOpen && (
         <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
@@ -971,6 +1232,6 @@ export const SPPTable: React.FC<SPPTableProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };

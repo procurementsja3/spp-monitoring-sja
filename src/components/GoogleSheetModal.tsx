@@ -187,7 +187,7 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
     setIsTestingPing(true);
     setFeedbackMsg(null);
     try {
-      const pingResult = await testGoogleSheetConnection(urlInput.trim());
+      const pingResult = await testGoogleSheetConnection(urlInput.trim(), selectedArea);
       setFeedbackMsg({
         type: 'success',
         text: `Koneksi Berhasil! Terhubung ke Google Sheet ${pingResult.branch || currentSpec.name} (Akun: ${pingResult.username || currentSpec.username}).`,

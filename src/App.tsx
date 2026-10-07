@@ -408,9 +408,13 @@ export default function App() {
     setAuditLogs((prev) => [newLog, ...prev]);
   };
 
-  // Simpan SPP Baru atau Update
+  // Simpan SPP Baru atau Update (Otomatis Sinkron 2 Arah Langsung ke Google Sheet Cabang)
   const handleSaveSPP = async (itemsData: Partial<SPPItem>[]) => {
     if (!itemsData || itemsData.length === 0 || !currentUser) return;
+
+    let updatedList: SPPItem[] = [];
+    const affectedAreas = new Set<SJAArea>();
+    let newCreatedItems: SPPItem[] = [];
 
     if (editItem) {
       const formData = itemsData[0];
@@ -425,12 +429,15 @@ export default function App() {
       const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
       const isSignificantDelay = !isUrgent && processDays > slaLimit;
 
-      const updatedList = items.map((i) => {
+      const targetArea: SJAArea = (formData.area || editItem.area) as SJAArea;
+      affectedAreas.add(targetArea);
+
+      updatedList = items.map((i) => {
         if (i.id === editItem.id) {
           return {
             ...i,
             ...formData,
-            area: formData.area || i.area,
+            area: targetArea,
             processDays,
             statusPO,
             statusOntime,
@@ -440,15 +447,18 @@ export default function App() {
             urgentReason: formData.urgentReason || i.urgentReason,
             urgentApprovedBy: formData.urgentApprovedBy || i.urgentApprovedBy,
             budgetStatus: formData.budgetStatus || i.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
+            specialCondition: formData.specialCondition !== undefined ? formData.specialCondition : i.specialCondition,
+            specialConditionReason: formData.specialConditionReason !== undefined ? formData.specialConditionReason : i.specialConditionReason,
             updatedAt: new Date().toISOString(),
           } as SPPItem;
         }
         return i;
       });
+
       setItems(updatedList);
-      await addAuditLog('UPDATE_SPP', `Memperbarui dokumen SPP ${formData.sppNumber} (Area: ${formData.area || editItem.area})`, editItem.id);
+      await addAuditLog('UPDATE_SPP', `Memperbarui dokumen SPP ${formData.sppNumber} (Area: ${targetArea})`, editItem.id);
     } else {
-      const newCreatedItems: SPPItem[] = itemsData.map((formData, index) => {
+      newCreatedItems = itemsData.map((formData, index) => {
         const isUrgent = !!formData.isUrgentAdvance;
         const calc = calculateWorkingDays(formData.budgetReceivedDate!, formData.poDate, holidays);
         const hasPo = formData.poNumber && formData.poNumber.trim() !== '';
@@ -460,11 +470,15 @@ export default function App() {
         const isSignificantDelay = !isUrgent && processDays > slaLimit;
 
         const assignedArea: SJAArea = formData.area || (currentUser.role === 'SUPERADMIN' ? (activeAreaFilter !== 'ALL' ? activeAreaFilter : 'SEPANJANG') : (currentUser.area as SJAArea));
+        affectedAreas.add(assignedArea);
+
+        const areaCode = assignedArea === 'SEPANJANG' ? 'SPJ' : assignedArea === 'KARAWANG' ? 'KRW' : assignedArea === 'SUKODONO' ? 'SKD' : 'SMG';
+        const finalSppNumber = formData.sppNumber?.trim() || `SPP/${areaCode}/${new Date().getFullYear()}/${String(Date.now() + index).slice(-4)}`;
 
         return {
           id: `SPP-${Date.now()}-${index}`,
-          budgetReceivedDate: formData.budgetReceivedDate!,
-          sppNumber: formData.sppNumber!,
+          budgetReceivedDate: formData.budgetReceivedDate || new Date().toISOString().split('T')[0],
+          sppNumber: finalSppNumber,
           pic: formData.pic || currentUser.name,
           area: assignedArea,
           poDate: formData.poDate,
@@ -476,6 +490,8 @@ export default function App() {
           isHPlus3Overdue,
           isSignificantDelay,
           notes: formData.notes,
+          specialCondition: formData.specialCondition,
+          specialConditionReason: formData.specialConditionReason,
           isUrgentAdvance: isUrgent,
           urgentReason: formData.urgentReason,
           urgentApprovedBy: formData.urgentApprovedBy,
@@ -485,7 +501,8 @@ export default function App() {
         };
       });
 
-      setItems((prev) => [...newCreatedItems, ...prev]);
+      updatedList = [...newCreatedItems, ...items];
+      setItems(updatedList);
       await addAuditLog(
         'CREATE_SPP_BATCH',
         `Menyimpan batch ${newCreatedItems.length} dokumen SPP baru`
@@ -493,10 +510,41 @@ export default function App() {
     }
 
     setEditItem(null);
+
+    // OTOMATIS CREATE / SINKRONKAN KE GOOGLE SHEET CABANG (2-WAY SYNC REAL-TIME)
+    for (const area of Array.from(affectedAreas)) {
+      const cfg = areaConfigs[area] || getFallbackAreaConfigs()[area];
+      const targetUrl = cfg?.webAppUrl?.trim() || '';
+      const areaName = AREA_METADATA[area]?.name || area;
+      const itemsToPush: SPPItem[] = editItem
+        ? updatedList.filter((i: SPPItem) => i.id === editItem.id)
+        : newCreatedItems.filter((i: SPPItem) => i.area === area);
+
+      if (itemsToPush.length === 0) continue;
+
+      try {
+        await pushToGoogleSheet(targetUrl, itemsToPush, 'UPSERT_BATCH', area);
+        setSyncToast({
+          type: 'success',
+          title: `✓ Otomatis Masuk ke Google Sheet ${areaName}`,
+          description: `${itemsToPush.length} data SPP (${itemsToPush.map((i: SPPItem) => i.sppNumber).join(', ')}) berhasil disimpan di aplikasi dan otomatis dibuatkan baris baru di Google Sheet ${areaName}.`,
+        });
+        setTimeout(() => setSyncToast(null), 6000);
+      } catch (err: any) {
+        console.error(`Gagal auto sync push ke Google Sheet (${area}):`, err);
+        setSyncToast({
+          type: 'warning',
+          title: 'Tersimpan di Sistem (Google Sheet Tertunda)',
+          description: `Data tersimpan di sistem aplikasi, namun pembuatan baris di Google Sheet ${areaName} mengalami kendala: ${err?.message || err}. Anda dapat menyinkronkan ulang lewat tab 'Integrasi Google Sheet'.`,
+        });
+        setTimeout(() => setSyncToast(null), 7000);
+      }
+    }
   };
 
-  // Quick Update No PO (Otomatis Close)
+  // Quick Update No PO (Otomatis Close & Auto Sync Google Sheet)
   const handleQuickUpdatePO = async (id: string, poNumber: string, poDate: string) => {
+    const targetItem = items.find((i) => i.id === id);
     const updated = items.map((i) => {
       if (i.id === id) {
         const calc = calculateWorkingDays(i.budgetReceivedDate, poDate, holidays);
@@ -523,6 +571,19 @@ export default function App() {
       `Memperbarui No. PO ${poNumber} tanggal ${poDate} untuk SPP ID ${id} -> Status otomatis CLOSE`,
       id
     );
+
+    // Otomatis sinkronkan update nomor PO ke Google Sheet
+    if (targetItem?.area) {
+      const cfg = areaConfigs[targetItem.area] || getFallbackAreaConfigs()[targetItem.area];
+      const targetUpdatedItem = updated.find((i) => i.id === id);
+      if (targetUpdatedItem) {
+        try {
+          await pushToGoogleSheet(cfg?.webAppUrl || '', [targetUpdatedItem], 'UPSERT_BATCH', targetItem.area);
+        } catch (err) {
+          console.error(`Auto sync quick PO (${targetItem.area}) gagal:`, err);
+        }
+      }
+    }
   };
 
   // Hapus Single SPP
@@ -1113,6 +1174,7 @@ export default function App() {
           holidays={holidays}
           currentUser={currentUser}
           currentAreaFilter={activeAreaFilter}
+          areaConfigs={areaConfigs}
         />
 
         <NotificationDrawer

@@ -25,6 +25,10 @@ import {
   RotateCcw,
   Check,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { IsometricPicBarChart, PICMetricData } from './IsometricPicBarChart';
 
@@ -92,6 +96,39 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
 
   // Personil yang dipilih untuk drill-down detail dokumen
   const [selectedPicDetail, setSelectedPicDetail] = useState<PICMetricData | null>(null);
+
+  // Pagination & Sorting untuk Modal Rincian Dokumen PIC (Default 15 data & input terbaru di paling atas)
+  const [modalPage, setModalPage] = useState<number>(1);
+  const [modalPageSize, setModalPageSize] = useState<number>(15);
+
+  const getItemInputTimestamp = (item: SPPItem): number => {
+    if (item.createdAt) {
+      const t = new Date(item.createdAt).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    const match = item.id?.match(/(\d{13})/);
+    if (match) {
+      const t = parseInt(match[1], 10);
+      if (!isNaN(t) && t > 0) return t;
+    }
+    if (item.updatedAt) {
+      const t = new Date(item.updatedAt).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    if (item.poDate) {
+      const t = new Date(item.poDate).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    if (item.budgetReceivedDate) {
+      const t = new Date(item.budgetReceivedDate).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    return 0;
+  };
+
+  useEffect(() => {
+    setModalPage(1);
+  }, [selectedPicDetail, modalPageSize]);
 
   // Kunci filter area jika bukan superadmin saat user berubah
   useEffect(() => {
@@ -794,6 +831,20 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
               <option value="DAYS">Durasi Rata-rata Tercepat</option>
             </select>
           </div>
+
+          {/* Tombol Sinkronisasi 2 Arah Google Sheet */}
+          {onSyncGoogleSheet && (
+            <button
+              type="button"
+              onClick={onSyncGoogleSheet}
+              disabled={isSyncingGoogleSheet}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50/90 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold transition-all shadow-2xs cursor-pointer disabled:opacity-50 shrink-0 ml-auto"
+              title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus di aplikasi jika data di Google Sheet telah dihapus"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingGoogleSheet ? 'animate-spin' : ''}`} />
+              <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkron 2 Arah'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1100,79 +1151,158 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
 
             {/* Tabel Daftar Dokumen yang Ditangani PIC Terpilih */}
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider font-mono">
-                Daftar Dokumen Pengadaan yang Ditangani:
-              </h4>
+              {(() => {
+                const sortedModalItems = [...(selectedPicDetail.items || [])].sort((a, b) => {
+                  const timeA = getItemInputTimestamp(a);
+                  const timeB = getItemInputTimestamp(b);
+                  if (timeA !== timeB) return timeB - timeA;
+                  if (a.poDate && b.poDate && a.poDate !== b.poDate) return b.poDate.localeCompare(a.poDate);
+                  if (a.budgetReceivedDate !== b.budgetReceivedDate) return b.budgetReceivedDate.localeCompare(a.budgetReceivedDate);
+                  return b.sppNumber.localeCompare(a.sppNumber);
+                });
 
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 dark:bg-slate-950 font-mono text-[11px] text-slate-500 uppercase border-b border-slate-200 dark:border-slate-800">
-                    <tr>
-                      <th className="px-3 py-2">Nomor SPP</th>
-                      <th className="px-3 py-2">Tgl Terima Budget</th>
-                      <th className="px-3 py-2">Nomor PO</th>
-                      <th className="px-3 py-2">Tgl PO</th>
-                      <th className="px-3 py-2 text-center">Durasi Kerja</th>
-                      <th className="px-3 py-2 text-center">Status PO</th>
-                      <th className="px-3 py-2 text-center">Status SLA</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {selectedPicDetail.items.map((item) => (
-                      <tr
-                        key={item.id}
-                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        <td className="px-3 py-2.5 font-bold font-mono text-slate-900 dark:text-white">
-                          {item.sppNumber}
-                        </td>
-                        <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 font-mono">
-                          {item.budgetReceivedDate}
-                        </td>
-                        <td className="px-3 py-2.5 font-mono text-slate-700 dark:text-slate-300">
-                          {item.poNumber || <span className="text-slate-400 italic font-sans text-[11px]">Belum terbit</span>}
-                        </td>
-                        <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 font-mono">
-                          {item.poDate || '-'}
-                        </td>
-                        <td className="px-3 py-2.5 text-center font-mono font-bold">
-                          <span
-                            className={
-                              item.processDays <= 10
-                                ? 'text-emerald-600 dark:text-emerald-400'
-                                : 'text-rose-600 dark:text-rose-400'
-                            }
+                const totalModalPages = Math.max(1, Math.ceil(sortedModalItems.length / modalPageSize));
+                const validModalPage = Math.min(Math.max(1, modalPage), totalModalPages);
+                const modalStartIndex = (validModalPage - 1) * modalPageSize;
+                const modalEndIndex = modalStartIndex + modalPageSize;
+                const paginatedModalItems = sortedModalItems.slice(modalStartIndex, modalEndIndex);
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-xs font-mono text-slate-500">
+                      <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Daftar Dokumen Pengadaan yang Ditangani ({sortedModalItems.length} Dokumen):
+                      </span>
+                      <span className="text-[11px] text-blue-600 dark:text-blue-400 font-sans">
+                        Urutan data input terbaru posisi paling atas
+                      </span>
+                    </div>
+
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-50 dark:bg-slate-950 font-mono text-[11px] text-slate-500 uppercase border-b border-slate-200 dark:border-slate-800">
+                          <tr>
+                            <th className="px-3 py-2">Nomor SPP</th>
+                            <th className="px-3 py-2">Tgl Terima Budget</th>
+                            <th className="px-3 py-2">Nomor PO</th>
+                            <th className="px-3 py-2">Tgl PO</th>
+                            <th className="px-3 py-2 text-center">Durasi Kerja</th>
+                            <th className="px-3 py-2 text-center">Status PO</th>
+                            <th className="px-3 py-2 text-center">Status SLA</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
+                          {paginatedModalItems.map((item) => (
+                            <tr
+                              key={item.id}
+                              className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                            >
+                              <td className="px-3 py-2.5 font-bold text-slate-900 dark:text-white">
+                                {item.sppNumber}
+                                {item.isUrgentAdvance && (
+                                  <span className="ml-1 text-[9px] font-bold text-amber-600">⚡ DARURAT</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">
+                                {item.budgetReceivedDate}
+                              </td>
+                              <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300">
+                                {item.poNumber || <span className="text-slate-400 italic font-sans text-[11px]">Belum terbit</span>}
+                              </td>
+                              <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">
+                                {item.poDate || '-'}
+                              </td>
+                              <td className="px-3 py-2.5 text-center font-bold">
+                                <span
+                                  className={
+                                    item.processDays <= 10
+                                      ? 'text-emerald-600 dark:text-emerald-400'
+                                      : 'text-rose-600 dark:text-rose-400'
+                                  }
+                                >
+                                  {item.processDays} hr
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-center">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    item.statusPO === 'CLOSE'
+                                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                                      : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                                  }`}
+                                >
+                                  {item.statusPO}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-center">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    item.statusOntime === 'ONTIME'
+                                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                                      : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
+                                  }`}
+                                >
+                                  {item.statusOntime}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination Bar Modal (15 data per halaman) */}
+                    {sortedModalItems.length > 15 && (
+                      <div className="p-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+                        <span className="text-slate-500 font-mono text-[11px]">
+                          Menampilkan {modalStartIndex + 1} - {Math.min(modalEndIndex, sortedModalItems.length)} dari {sortedModalItems.length} dokumen (Halaman {validModalPage} dari {totalModalPages})
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setModalPage(1)}
+                            disabled={validModalPage === 1}
+                            className="p-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 cursor-pointer"
+                            title="Halaman Pertama"
                           >
-                            {item.processDays} hr
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              item.statusPO === 'CLOSE'
-                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
-                                : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
-                            }`}
+                            <ChevronsLeft className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setModalPage((p) => Math.max(1, p - 1))}
+                            disabled={validModalPage === 1}
+                            className="p-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 cursor-pointer"
+                            title="Halaman Sebelumnya"
                           >
-                            {item.statusPO}
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="px-2 font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {validModalPage} / {totalModalPages}
                           </span>
-                        </td>
-                        <td className="px-3 py-2.5 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              item.statusOntime === 'ONTIME'
-                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
-                                : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
-                            }`}
+                          <button
+                            type="button"
+                            onClick={() => setModalPage((p) => Math.min(totalModalPages, p + 1))}
+                            disabled={validModalPage === totalModalPages}
+                            className="p-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 cursor-pointer"
+                            title="Halaman Selanjutnya"
                           >
-                            {item.statusOntime}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setModalPage(totalModalPages)}
+                            disabled={validModalPage === totalModalPages}
+                            className="p-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 cursor-pointer"
+                            title="Halaman Terakhir"
+                          >
+                            <ChevronsRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Footer Modal */}

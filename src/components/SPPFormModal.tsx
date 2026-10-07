@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { SPPItem, IndonesianHoliday, SJAArea, UserProfile } from '../types';
+import { SPPItem, IndonesianHoliday, SJAArea, UserProfile, AreaSheetConfigMap } from '../types';
 import { calculateWorkingDays } from '../utils/holidayCalendar';
 import { AREA_METADATA, AREA_PIC_LIST } from '../utils/initialData';
-import { Plus, Trash2, Clock, Calendar, User, Tag, Layers, Check, Building, Edit2, Zap, AlertTriangle, AlertCircle, FileText } from 'lucide-react';
+import { Plus, Trash2, Clock, Calendar, User, Tag, Layers, Check, Building, Edit2, Zap, AlertTriangle, AlertCircle, FileText, RefreshCw, FileSpreadsheet } from 'lucide-react';
 
 interface DraftRow {
   tempId: string;
@@ -25,11 +25,12 @@ interface DraftRow {
 interface SPPFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (itemsData: Partial<SPPItem>[]) => void;
+  onSave: (itemsData: Partial<SPPItem>[]) => Promise<any> | void;
   editItem?: SPPItem | null;
   holidays: IndonesianHoliday[];
   currentUser: UserProfile;
   currentAreaFilter: SJAArea | 'ALL';
+  areaConfigs?: AreaSheetConfigMap;
 }
 
 export const SPPFormModal: React.FC<SPPFormModalProps> = ({
@@ -40,6 +41,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
   holidays,
   currentUser,
   currentAreaFilter,
+  areaConfigs,
 }) => {
   const isSuperadmin = currentUser.role === 'SUPERADMIN';
   const initialArea: SJAArea = !isSuperadmin
@@ -77,6 +79,16 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
   const [commonArea, setCommonArea] = useState<SJAArea>(initialArea);
   const [commonPic, setCommonPic] = useState(AREA_PIC_LIST[initialArea]?.[0] || 'Felita');
   const [customRowCount, setCustomRowCount] = useState<number>(20);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAutoGenerateSppNumber = (tempId: string, area: SJAArea, idx: number = 0) => {
+    const areaCode = AREA_METADATA[area]?.code || 'SJA';
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const autoNum = `SPP/${areaCode}/${yyyy}/${mm}/${String(Date.now() + idx).slice(-4)}`;
+    handleUpdateRow(tempId, 'sppNumber', autoNum);
+  };
 
   useEffect(() => {
     if (editItem) {
@@ -229,29 +241,45 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
   const openCount = rows.length - closedCount;
   const lateCount = rows.length - ontimeCount;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (rows.length === 0) return;
+    if (rows.length === 0 || isSubmitting) return;
 
-    const payload: Partial<SPPItem>[] = rows.map((r) => ({
-      budgetReceivedDate: r.budgetReceivedDate,
-      sppNumber: r.sppNumber.trim() || (r.isUrgentAdvance ? `SPP-PENDING-ACC-${Date.now().toString().slice(-4)}` : ''),
-      pic: r.pic.trim() || AREA_PIC_LIST[r.area]?.[0] || 'Felita',
-      area: r.area,
-      poDate: r.poDate || undefined,
-      poNumber: r.poNumber.trim() || undefined,
-      slaLimit: Number(r.slaLimit || 10),
-      isUrgentAdvance: r.isUrgentAdvance,
-      urgentReason: r.isUrgentAdvance ? r.urgentReason : undefined,
-      urgentApprovedBy: r.isUrgentAdvance ? r.urgentApprovedBy : undefined,
-      budgetStatus: r.isUrgentAdvance ? r.budgetStatus : 'APPROVED',
-      specialCondition: r.specialCondition?.trim() || undefined,
-      specialConditionReason: r.specialConditionReason?.trim() || undefined,
-      notes: r.notes || (r.isUrgentAdvance ? `Dispensasi Urgent: ${r.urgentReason} (Disetujui: ${r.urgentApprovedBy})` : r.specialCondition ? `Kondisi Khusus: ${r.specialCondition}${r.specialConditionReason ? ` - ${r.specialConditionReason}` : ''}` : undefined),
-    }));
+    setIsSubmitting(true);
+    try {
+      const payload: Partial<SPPItem>[] = rows.map((r, idx) => {
+        const areaCode = r.area === 'SEPANJANG' ? 'SPJ' : r.area === 'KARAWANG' ? 'KRW' : r.area === 'SUKODONO' ? 'SKD' : 'SMG';
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const autoNum = `SPP/${areaCode}/${yyyy}/${mm}/${String(Date.now() + idx).slice(-4)}`;
+        const finalSppNumber = r.sppNumber.trim() || (r.isUrgentAdvance ? `SPP-PENDING-ACC-${Date.now().toString().slice(-4)}` : autoNum);
 
-    onSave(payload);
-    onClose();
+        return {
+          budgetReceivedDate: r.budgetReceivedDate || new Date().toISOString().split('T')[0],
+          sppNumber: finalSppNumber,
+          pic: r.pic.trim() || AREA_PIC_LIST[r.area]?.[0] || 'Felita',
+          area: r.area,
+          poDate: r.poDate || undefined,
+          poNumber: r.poNumber.trim() || undefined,
+          slaLimit: Number(r.slaLimit || 10),
+          isUrgentAdvance: r.isUrgentAdvance,
+          urgentReason: r.isUrgentAdvance ? r.urgentReason : undefined,
+          urgentApprovedBy: r.isUrgentAdvance ? r.urgentApprovedBy : undefined,
+          budgetStatus: r.isUrgentAdvance ? r.budgetStatus : 'APPROVED',
+          specialCondition: r.specialCondition?.trim() || undefined,
+          specialConditionReason: r.specialConditionReason?.trim() || undefined,
+          notes: r.notes || (r.isUrgentAdvance ? `Dispensasi Urgent: ${r.urgentReason} (Disetujui: ${r.urgentApprovedBy})` : r.specialCondition ? `Kondisi Khusus: ${r.specialCondition}${r.specialConditionReason ? ` - ${r.specialConditionReason}` : ''}` : undefined),
+        };
+      });
+
+      await onSave(payload);
+      onClose();
+    } catch (err) {
+      console.error('Error saat menyimpan SPP:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const allAreas: SJAArea[] = ['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'];
@@ -277,6 +305,13 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                 ? 'Superadmin dapat memilih area cabang dan PIC pengadaan resmi masing-masing cabang.'
                 : `Input pengajuan SPP khusus cabang ${currentUser.name}.`}
             </p>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Otomatis Sinkron ke Google Sheet ({AREA_METADATA[initialArea]?.name || initialArea})</span>
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -551,18 +586,29 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                       />
                     </div>
 
-                    {/* 2. Nomor SPP (Kosong secara default, user ketik sendiri) */}
+                    {/* 2. Nomor SPP (Kosong secara default, user ketik sendiri atau generate otomatis) */}
                     <div className={isSuperadmin ? '' : 'md:col-span-2'}>
-                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
-                        <Tag className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                        <span>Nomor SPP *</span>
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                          <Tag className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                          <span>Nomor SPP</span>
+                          <span className="text-[10px] text-slate-400 font-normal">(Auto jika kosong)</span>
+                        </label>
+                        {!row.sppNumber && (
+                          <button
+                            type="button"
+                            onClick={() => handleAutoGenerateSppNumber(row.tempId, row.area, idx)}
+                            className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
+                          >
+                            + Isi No. Otomatis
+                          </button>
+                        )}
+                      </div>
                       <input
                         type="text"
-                        required
                         value={row.sppNumber}
                         onChange={(e) => handleUpdateRow(row.tempId, 'sppNumber', e.target.value)}
-                        placeholder={`Contoh: SPP/${AREA_METADATA[row.area]?.code || 'SJA'}/2026/10/...`}
+                        placeholder={`Contoh: SPP/${AREA_METADATA[row.area]?.code || 'SJA'}/2026/10/... (Kosong = Otomatis)`}
                         className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg font-mono text-slate-900 dark:text-white focus:outline-none focus:bg-white dark:focus:bg-slate-900 text-xs font-semibold placeholder:text-slate-400 placeholder:font-normal"
                       />
                     </div>
@@ -841,16 +887,27 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg font-semibold text-xs transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 rounded-lg font-semibold text-xs transition-colors"
             >
               Batal
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs shadow-md transition-colors flex items-center gap-1.5"
+              disabled={isSubmitting}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-400 text-white rounded-lg font-bold text-xs shadow-md transition-colors flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
             >
-              <Check className="w-4 h-4" />
-              <span>Simpan SPP ({rows.length} Data)</span>
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Menyimpan ke Google Sheet...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Simpan SPP ({rows.length} Data)</span>
+                </>
+              )}
             </button>
           </div>
         </form>

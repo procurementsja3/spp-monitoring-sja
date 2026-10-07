@@ -108,6 +108,10 @@ function setupHeaders(sheet) {
     'Catatan / Notes',
     'Terakhir Diperbarui'
   ];
+
+  if (sheet.getMaxColumns() < headers.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+  }
   
   if (sheet.getLastRow() === 0) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -200,16 +204,32 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = getTargetSheet(ss);
     
-    var body = JSON.parse(e.postData.contents);
+    var contents = (e && e.postData && e.postData.contents) ? e.postData.contents : '';
+    var body = {};
+    if (contents) {
+      try {
+        body = JSON.parse(contents);
+      } catch (errParse) {
+        try {
+          body = JSON.parse(decodeURIComponent(contents));
+        } catch (errDecode) {}
+      }
+    }
+
     var action = body.action || 'SYNC_FULL';
     var count = 0;
+
+    if (sheet.getMaxColumns() < 14) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), 14 - sheet.getMaxColumns());
+    }
 
     // Aksi SYNC_FULL / REPLACE_ALL: Mengganti seluruh data Google Sheet dengan data aplikasi
     // Sehingga apabila data dihapus di aplikasi, data di Google Sheet juga ikut terhapus!
     if (action === 'SYNC_FULL' || action === 'REPLACE_ALL') {
       var lastRow = sheet.getLastRow();
       if (lastRow > 1) {
-        sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+        var lastCol = Math.max(14, sheet.getLastColumn());
+        sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
       }
       if (Array.isArray(body.items) && body.items.length > 0) {
         var rows = body.items.map(function(item) {
@@ -244,7 +264,8 @@ function doPost(e) {
     } else if (action === 'CLEAR_ALL') {
       var lastRow = sheet.getLastRow();
       if (lastRow > 1) {
-        sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+        var lastCol = Math.max(14, sheet.getLastColumn());
+        sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
         count = lastRow - 1;
       }
     }
@@ -366,7 +387,8 @@ export function normalizeDateString(val: any): string {
  * Tes koneksi real-time ke Google Sheet Apps Script Web App URL
  */
 export async function testGoogleSheetConnection(
-  webAppUrl: string
+  webAppUrl: string,
+  area?: SJAArea
 ): Promise<{
   success: boolean;
   message: string;
@@ -375,6 +397,33 @@ export async function testGoogleSheetConnection(
   username?: string;
   totalRows?: number;
 }> {
+  // 1. Coba melalui backend server proxy terlebih dahulu (Anti-CORS & Iframe Safe)
+  try {
+    const params = new URLSearchParams();
+    if (webAppUrl) params.set('webAppUrl', webAppUrl);
+    if (area) params.set('area', area);
+
+    const proxyRes = await fetch(`/api/google-sheet/test?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (proxyRes.ok) {
+      const resJson = await proxyRes.json();
+      if (resJson.status === 'success') {
+        return {
+          success: true,
+          message: resJson.message || 'Koneksi berhasil!',
+          area: resJson.area,
+          branch: resJson.branch,
+          username: resJson.username,
+          totalRows: resJson.totalRows,
+        };
+      }
+    }
+  } catch (proxyErr) {
+    console.warn('[Proxy Test Notice] Fallback ke direct fetch:', proxyErr);
+  }
+
+  // 2. Fallback direct client fetch (untuk hosting statis / GitHub Pages)
   if (!webAppUrl || !webAppUrl.startsWith('http')) {
     throw new Error('URL Google Apps Script tidak valid. Pastikan diawali https://script.google.com/macros/s/.../exec');
   }
@@ -410,7 +459,27 @@ export async function testGoogleSheetConnection(
 /**
  * Fetch data SPP dari Google Sheets Apps Script Web App URL
  */
-export async function fetchFromGoogleSheet(webAppUrl: string): Promise<SPPItem[]> {
+export async function fetchFromGoogleSheet(webAppUrl: string, area?: SJAArea): Promise<SPPItem[]> {
+  // 1. Coba melalui backend server proxy terlebih dahulu
+  try {
+    const params = new URLSearchParams();
+    if (webAppUrl) params.set('webAppUrl', webAppUrl);
+    if (area) params.set('area', area);
+
+    const proxyRes = await fetch(`/api/google-sheet/pull?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (proxyRes.ok) {
+      const resJson = await proxyRes.json();
+      if (resJson.status === 'success' && Array.isArray(resJson.data)) {
+        return resJson.data;
+      }
+    }
+  } catch (proxyErr) {
+    console.warn('[Proxy Pull Notice] Fallback ke direct fetch:', proxyErr);
+  }
+
+  // 2. Fallback direct fetch (Hosting Statis / GitHub Pages)
   if (!webAppUrl || !webAppUrl.startsWith('http')) {
     throw new Error('URL Google Apps Script tidak valid. Harap periksa format URL.');
   }
@@ -435,50 +504,116 @@ export async function fetchFromGoogleSheet(webAppUrl: string): Promise<SPPItem[]
 }
 
 /**
- * Push data SPP ke Google Sheets (Dukungan 2-Way Sync Penuh)
+ * Push data SPP ke Google Sheets (Dukungan 2-Way Sync Penuh & Pembuatan Otomatis Real-Time)
  */
 export async function pushToGoogleSheet(
   webAppUrl: string, 
   items: SPPItem[],
-  mode: 'SYNC_FULL' | 'UPSERT_BATCH' = 'SYNC_FULL'
-): Promise<boolean> {
+  mode: 'SYNC_FULL' | 'UPSERT_BATCH' | 'UPSERT_SINGLE' = 'UPSERT_BATCH',
+  area?: SJAArea
+): Promise<{ success: boolean; message: string; count?: number }> {
+  // 1. Gunakan backend proxy server Express terlebih dahulu
+  // Menjamin POST tersampaikan 100% tanpa di-drop oleh browser iframe sandbox / CORS / 302 redirect
+  try {
+    const proxyRes = await fetch('/api/google-sheet/push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        webAppUrl,
+        items,
+        mode,
+        area,
+      }),
+    });
+
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data && data.success) {
+        return {
+          success: true,
+          message: data.message || `Berhasil mengirim ${items.length} data ke Google Sheet`,
+          count: data.count || items.length,
+        };
+      }
+      throw new Error(data?.error || 'Gagal mengirim data via backend proxy');
+    }
+  } catch (proxyErr: any) {
+    console.warn('[Backend Proxy Push Error, mencoba fallback direct]:', proxyErr);
+    // Jika server sedang offline / static mode, lanjutkan fallback ke fetch direct di bawah
+  }
+
+  // 2. Fallback direct fetch (untuk GitHub Pages / Static Hosting)
   if (!webAppUrl || !webAppUrl.startsWith('http')) {
     throw new Error('URL Google Apps Script tidak valid.');
   }
 
-  await fetch(webAppUrl, {
-    method: 'POST',
-    mode: 'no-cors', // Apps script redirect mode
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      action: mode,
-      items: items,
-    }),
+  const payload = JSON.stringify({
+    action: mode,
+    items: items,
+    item: items.length === 1 ? items[0] : undefined,
   });
 
-  return true;
+  try {
+    await fetch(webAppUrl, {
+      method: 'POST',
+      mode: 'no-cors', // Apps script redirect mode
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: payload,
+    });
+    return {
+      success: true,
+      message: 'Perintah kirim data ke Google Sheet berhasil dikirimkan.',
+      count: items.length,
+    };
+  } catch (err: any) {
+    throw new Error(err?.message || 'Gagal mengirim data ke Google Sheet');
+  }
 }
 
 /**
  * Kosongkan seluruh baris data di Google Sheet (Header baris 1 dipertahankan aman)
  */
-export async function clearGoogleSheet(webAppUrl: string): Promise<boolean> {
+export async function clearGoogleSheet(webAppUrl: string, area?: SJAArea): Promise<boolean> {
+  // 1. Coba via backend server proxy
+  try {
+    const proxyRes = await fetch('/api/google-sheet/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webAppUrl, area }),
+    });
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data.success) return true;
+    }
+  } catch (proxyErr) {
+    console.warn('[Proxy Clear Notice] Fallback ke direct fetch:', proxyErr);
+  }
+
+  // 2. Fallback direct
   if (!webAppUrl || !webAppUrl.startsWith('http')) {
     throw new Error('URL Google Apps Script tidak valid.');
   }
 
-  await fetch(webAppUrl, {
-    method: 'POST',
-    mode: 'no-cors', // Apps script redirect mode
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      action: 'CLEAR_ALL',
-    }),
+  const payload = JSON.stringify({
+    action: 'CLEAR_ALL',
   });
+
+  try {
+    await fetch(webAppUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: payload,
+    });
+  } catch (err) {
+    console.warn('Fetch no-cors warning:', err);
+  }
 
   return true;
 }
