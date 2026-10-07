@@ -7,7 +7,6 @@ interface KPISummaryProps {
   onFilterHPlus3: () => void;
   onFilterOpen: () => void;
   onFilterLate: () => void;
-  onFilterHold?: () => void;
   onResetFilter: () => void;
   activeFilterLabel?: string;
 }
@@ -17,7 +16,6 @@ export const KPISummary: React.FC<KPISummaryProps> = ({
   onFilterHPlus3,
   onFilterOpen,
   onFilterLate,
-  onFilterHold,
   onResetFilter,
   activeFilterLabel,
 }) => {
@@ -30,7 +28,6 @@ export const KPISummary: React.FC<KPISummaryProps> = ({
 
   const h3AlertCount = items.filter((i) => i.isHPlus3Overdue).length;
   const significantDelayCount = items.filter((i) => i.isSignificantDelay).length;
-  const holdCount = items.filter((i) => i.isSpecialConditionHold || (i.specialCondition && i.statusPO === 'OPEN')).length;
 
   const totalDays = items.reduce((acc, curr) => acc + curr.processDays, 0);
   const avgProcessDays = total > 0 ? (totalDays / total).toFixed(1) : '0';
@@ -54,7 +51,7 @@ export const KPISummary: React.FC<KPISummaryProps> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
         {/* Card 1: Total SPP */}
         <div
           onClick={onResetFilter}
@@ -144,27 +141,6 @@ export const KPISummary: React.FC<KPISummaryProps> = ({
             ) : (
               'Batas durasi aman'
             )}
-          </div>
-        </div>
-
-        {/* Card 6: SPP Kondisi Khusus / On-Hold */}
-        <div
-          onClick={onFilterHold}
-          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer group shadow-2xs hover:shadow-xs ${
-            holdCount > 0
-              ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-300 dark:border-amber-900/60 hover:border-amber-400 dark:hover:border-amber-700'
-              : 'bg-white dark:bg-slate-900/90 border-slate-200/90 dark:border-slate-800/90 hover:border-slate-300 dark:hover:border-slate-700'
-          }`}
-        >
-          <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Kondisi Khusus (Hold)</span>
-            <Clock className={`w-3.5 h-3.5 ${holdCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
-          </div>
-          <div className={`text-2xl font-bold font-mono tracking-tight ${holdCount > 0 ? 'text-amber-800 dark:text-amber-300' : 'text-slate-900 dark:text-white'}`}>
-            {holdCount} <span className="text-xs font-normal font-sans text-amber-700 dark:text-amber-400">dokumen</span>
-          </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
-            {holdCount > 0 ? 'Menunggu revisi/vendor/sample' : 'Semua PO berjalan normal'}
           </div>
         </div>
       </div>

@@ -24,6 +24,7 @@ import {
   Filter,
   RotateCcw,
   Check,
+  RefreshCw,
 } from 'lucide-react';
 import { IsometricPicBarChart, PICMetricData } from './IsometricPicBarChart';
 
@@ -35,6 +36,8 @@ interface VendorAnalyticsProps {
   searchQuery?: string;
   onSearchQuery?: (q: string) => void;
   onEditItem?: (item: SPPItem) => void;
+  onSyncGoogleSheet?: () => void | Promise<void>;
+  isSyncingGoogleSheet?: boolean;
 }
 
 export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
@@ -45,6 +48,8 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
   searchQuery: propSearchQuery,
   onSearchQuery,
   onEditItem,
+  onSyncGoogleSheet,
+  isSyncingGoogleSheet = false,
 }) => {
   const isSuperadmin = currentUser.role === 'SUPERADMIN';
   const userArea: SJAArea =
@@ -327,39 +332,54 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
           </p>
         </div>
 
-        {/* Tab Pengalih Mode Tampilan */}
-        <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-900/90 p-1 border border-slate-200/90 dark:border-slate-800 shrink-0 self-start lg:self-center">
-          <button
-            onClick={() => setViewMode('ALL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              viewMode === 'ALL'
-                ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Lengkap
-          </button>
-          <button
-            onClick={() => setViewMode('CHART_3D')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-              viewMode === 'CHART_3D'
-                ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Box className="w-3.5 h-3.5" />
-            <span>Grafik 3D</span>
-          </button>
-          <button
-            onClick={() => setViewMode('TABLE')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              viewMode === 'TABLE'
-                ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Tabel Scorecard
-          </button>
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start lg:self-center">
+          {/* Tombol Sinkronisasi 2 Arah Google Sheet */}
+          {onSyncGoogleSheet && (
+            <button
+              onClick={onSyncGoogleSheet}
+              disabled={isSyncingGoogleSheet}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/90 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+              title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus di aplikasi jika data di Google Sheet telah dihapus"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingGoogleSheet ? 'animate-spin' : ''}`} />
+              <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkron 2 Arah'}</span>
+            </button>
+          )}
+
+          {/* Tab Pengalih Mode Tampilan */}
+          <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-900/90 p-1 border border-slate-200/90 dark:border-slate-800">
+            <button
+              onClick={() => setViewMode('ALL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === 'ALL'
+                  ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Lengkap
+            </button>
+            <button
+              onClick={() => setViewMode('CHART_3D')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                viewMode === 'CHART_3D'
+                  ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Box className="w-3.5 h-3.5" />
+              <span>Grafik 3D</span>
+            </button>
+            <button
+              onClick={() => setViewMode('TABLE')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === 'TABLE'
+                  ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Tabel Scorecard
+            </button>
+          </div>
         </div>
       </div>
 

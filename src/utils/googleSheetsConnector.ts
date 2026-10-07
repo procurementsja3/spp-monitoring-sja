@@ -100,11 +100,11 @@ function setupHeaders(sheet) {
     'PIC Pengadaan',
     'Tanggal PO',
     'Nomor PO',
-    'Kondisi Khusus',
     'Hari Kerja Proses',
     'Status PO',
     'Status SLA',
     'Alert H+3',
+    'Kondisi Khusus',
     'Catatan / Notes',
     'Terakhir Diperbarui'
   ];
@@ -156,7 +156,6 @@ function doGet(e) {
 
     var data = sheet.getRange(2, 1, lastRow - 1, 14).getValues();
     var result = data.map(function(row) {
-      var specialCond = String(row[7] || '');
       return {
         id: String(row[0] || ('SPP-' + row[2])),
         budgetReceivedDate: formatDate(row[1]),
@@ -165,12 +164,11 @@ function doGet(e) {
         pic: String(row[4] || ''),
         poDate: formatDate(row[5]),
         poNumber: String(row[6] || ''),
-        specialCondition: specialCond,
-        isSpecialConditionHold: !row[6] && specialCond !== '',
-        processDays: Number(row[8] || 0),
-        statusPO: String(row[9] || (row[6] ? 'CLOSE' : 'OPEN')),
-        statusOntime: String(row[10] || 'ONTIME'),
-        isHPlus3Overdue: String(row[11] || '').toUpperCase() === 'YA',
+        processDays: Number(row[7] || 0),
+        statusPO: String(row[8] || (row[6] ? 'CLOSE' : 'OPEN')),
+        statusOntime: String(row[9] || 'ONTIME'),
+        isHPlus3Overdue: String(row[10] || '').toUpperCase() === 'YA',
+        specialCondition: String(row[11] || ''),
         notes: String(row[12] || ''),
         updatedAt: String(row[13] || new Date().toISOString())
       };
@@ -196,17 +194,46 @@ function doGet(e) {
   }
 }
 
-// Endpoint POST: Simpan atau Update data SPP ke Google Sheet
+// Endpoint POST: Simpan atau Update data SPP ke Google Sheet (Mendukung 2-Way Sync)
 function doPost(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = getTargetSheet(ss);
     
     var body = JSON.parse(e.postData.contents);
-    var action = body.action || 'UPSERT_BATCH';
+    var action = body.action || 'SYNC_FULL';
     var count = 0;
 
-    if (action === 'UPSERT_SINGLE' && body.item) {
+    // Aksi SYNC_FULL / REPLACE_ALL: Mengganti seluruh data Google Sheet dengan data aplikasi
+    // Sehingga apabila data dihapus di aplikasi, data di Google Sheet juga ikut terhapus!
+    if (action === 'SYNC_FULL' || action === 'REPLACE_ALL') {
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+      }
+      if (Array.isArray(body.items) && body.items.length > 0) {
+        var rows = body.items.map(function(item) {
+          return [
+            item.id || ('SPP-' + item.sppNumber),
+            item.budgetReceivedDate || '',
+            item.sppNumber || '',
+            BRANCH_NAME,
+            item.pic || '',
+            item.poDate || '',
+            item.poNumber || '',
+            item.processDays || 0,
+            item.statusPO || (item.poNumber ? 'CLOSE' : 'OPEN'),
+            item.statusOntime || 'ONTIME',
+            item.isHPlus3Overdue ? 'YA' : 'TIDAK',
+            item.specialCondition || '',
+            item.notes || '',
+            new Date().toISOString()
+          ];
+        });
+        sheet.getRange(2, 1, rows.length, 14).setValues(rows);
+        count = rows.length;
+      }
+    } else if (action === 'UPSERT_SINGLE' && body.item) {
       upsertRow(sheet, body.item);
       count = 1;
     } else if (action === 'UPSERT_BATCH' && Array.isArray(body.items)) {
@@ -217,7 +244,6 @@ function doPost(e) {
     } else if (action === 'CLEAR_ALL') {
       var lastRow = sheet.getLastRow();
       if (lastRow > 1) {
-        // Kosongkan seluruh baris isi data (baris 2 ke bawah), baris 1 header tetap aman!
         sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
         count = lastRow - 1;
       }
@@ -231,7 +257,7 @@ function doPost(e) {
       count: count,
       message: action === 'CLEAR_ALL'
         ? 'Berhasil mengosongkan seluruh baris data di Google Sheet ' + BRANCH_NAME + ' (Header tetap aman).'
-        : 'Berhasil menyinkronkan ' + count + ' data SPP ke Google Sheet ' + BRANCH_NAME,
+        : 'Sinkronisasi 2 arah berhasil: ' + count + ' data SPP di Google Sheet ' + BRANCH_NAME + ' terbarui.',
       timestamp: new Date().toISOString()
     })).setMimeType(ContentService.MimeType.JSON);
 
@@ -268,11 +294,11 @@ function upsertRow(sheet, item) {
     item.pic || '',
     item.poDate || '',
     item.poNumber || '',
-    item.specialCondition || '',
     item.processDays || 0,
     item.statusPO || (item.poNumber ? 'CLOSE' : 'OPEN'),
     item.statusOntime || 'ONTIME',
     item.isHPlus3Overdue ? 'YA' : 'TIDAK',
+    item.specialCondition || '',
     item.notes || '',
     new Date().toISOString()
   ];
@@ -288,188 +314,53 @@ function formatDate(val) {
   if (!val) return '';
   if (val instanceof Date) {
     var y = val.getFullYear();
-    var m = String(val.getMonth() + 1).padStart(2, '0');
-    var d = String(val.getDate()).padStart(2, '0');
-    return y + '-' + m + '-' + d;
+    var m = val.getMonth() + 1;
+    var d = val.getDate();
+    return y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
   }
   return String(val);
-}
-
-// ==============================================================================
-// 5. RUMUS OTOMATIS KOLOM I s/d M (OTOMATIS DISET SAAT INPUT MANUAL DI SHEET)
-// ==============================================================================
-function applyFormulasToRow(sheet, r) {
-  // Kolom I: Hari Kerja Proses (NETWORKDAYS)
-  sheet.getRange(r, 9).setFormula('=IF(B' + r + '="","",NETWORKDAYS(B' + r + ',IF(F' + r + '<>"",F' + r + ',TODAY())))');
-  
-  // Kolom J: Status PO (CLOSE / OPEN)
-  sheet.getRange(r, 10).setFormula('=IF(B' + r + '="","",IF(G' + r + '<>"","CLOSE","OPEN"))');
-  
-  // Kolom K: Status SLA (ONTIME / TERLAMBAT)
-  sheet.getRange(r, 11).setFormula('=IF(I' + r + '="","",IF(I' + r + '<=10,"ONTIME","TERLAMBAT"))');
-  
-  // Kolom L: Alert H+3 (YA / TIDAK)
-  sheet.getRange(r, 12).setFormula('=IF(B' + r + '="","",IF(AND(J' + r + '="OPEN",I' + r + '>=3,H' + r + '=""),"YA","TIDAK"))');
-  
-  // Kolom M: Catatan / Notes
-  sheet.getRange(r, 13).setFormula('=IF(B' + r + '="","",IF(J' + r + '="CLOSE",IF(K' + r + '="ONTIME","PO Selesai On-Time (" & I' + r + ' & " hari)","PO Terlambat (" & I' + r + ' & " hari)"),IF(H' + r + '<>"","Hold: " & H' + r + ',IF(L' + r + '="YA","Peringatan H+3: Segera terbitkan PO","Menunggu PO (" & I' + r + ' & " hari)"))))');
-}
-
-// ==============================================================================
-// 6. TRIGGER OTOMATIS onEdit: SAAT USER MENGISI / EDIT BARIS DI GOOGLE SHEET
-// ==============================================================================
-function onEdit(e) {
-  try {
-    var range = e && e.range;
-    if (!range) return;
-    var sheet = range.getSheet();
-    if (sheet.getName() !== SHEET_NAME) return;
-    var row = range.getRow();
-    if (row <= 1) return; // Abaikan baris 1 header
-
-    // Ambil Nomor SPP (Kolom 3) dan Tanggal Terima Budget (Kolom 2)
-    var sppNumber = String(sheet.getRange(row, 3).getValue() || '').trim();
-    var budgetDate = sheet.getRange(row, 2).getValue();
-    if (!sppNumber && !budgetDate) return;
-
-    // 1. Otomatis isi Kolom A (ID Dokumen) jika kosong
-    var docId = String(sheet.getRange(row, 1).getValue() || '').trim();
-    if (!docId && sppNumber) {
-      sheet.getRange(row, 1).setValue('SPP-' + sppNumber);
-    }
-
-    // 2. Otomatis isi Kolom D (Area Cabang) jika kosong
-    var areaVal = String(sheet.getRange(row, 4).getValue() || '').trim();
-    if (!areaVal) {
-      sheet.getRange(row, 4).setValue(BRANCH_NAME);
-    }
-
-    // 3. Pasang / Perbarui Rumus Otomatis Kolom I, J, K, L, M
-    applyFormulasToRow(sheet, row);
-
-    // 4. Update Kolom N (Terakhir Diperbarui) dengan timestamp WIB
-    var timestampStr = Utilities.formatDate(new Date(), 'GMT+7', 'yyyy-MM-dd HH:mm:ss');
-    sheet.getRange(row, 14).setValue(timestampStr);
-  } catch(err) {
-    // Silent error handler agar pengetikan tidak terganggu
-  }
-}
-
-// ==============================================================================
-// 7. MENU KHUSUS SPREADSHEET (SJA PROCUREMENT)
-// ==============================================================================
-function onOpen() {
-  try {
-    var ui = SpreadsheetApp.getUi();
-    ui.createMenu('⚡ SJA Procurement')
-      .addItem('Terapkan Rumus Otomatis (Kolom I - M) ke Seluruh Baris', 'menuApplyFormulasToAllRows')
-      .addItem('Lengkapi ID Dokumen & Area Cabang yang Kosong', 'menuAutoFillMissingIds')
-      .addSeparator()
-      .addItem('Petunjuk Rumus Kolom I - N', 'menuShowFormulaHelp')
-      .addToUi();
-  } catch(e) {}
-}
-
-function menuApplyFormulasToAllRows() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = getTargetSheet(ss);
-  var lastRow = sheet.getLastRow();
-  if (lastRow <= 1) {
-    SpreadsheetApp.getUi().alert('Belum ada baris data SPP untuk diterapkan rumus.');
-    return;
-  }
-  for (var r = 2; r <= lastRow; r++) {
-    var spp = sheet.getRange(r, 3).getValue();
-    var bDate = sheet.getRange(r, 2).getValue();
-    if (spp || bDate) {
-      applyFormulasToRow(sheet, r);
-    }
-  }
-  SpreadsheetApp.getUi().alert('Berhasil! Seluruh baris dari baris 2 hingga ' + lastRow + ' telah dipasangi rumus otomatis untuk Kolom I, J, K, L, dan M.');
-}
-
-function menuAutoFillMissingIds() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = getTargetSheet(ss);
-  var lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return;
-  var count = 0;
-  for (var r = 2; r <= lastRow; r++) {
-    var spp = String(sheet.getRange(r, 3).getValue() || '').trim();
-    if (spp) {
-      var idVal = sheet.getRange(r, 1).getValue();
-      if (!idVal) {
-        sheet.getRange(r, 1).setValue('SPP-' + spp);
-        count++;
-      }
-      var areaVal = sheet.getRange(r, 4).getValue();
-      if (!areaVal) {
-        sheet.getRange(r, 4).setValue(BRANCH_NAME);
-      }
-    }
-  }
-  SpreadsheetApp.getUi().alert('Selesai! ' + count + ' baris ID Dokumen & Area Cabang berhasil dilengkapi otomatis.');
-}
-
-function menuShowFormulaHelp() {
-  var helpText = 
-    'PANDUAN RUMUS OTOMATIS SPREADSHEET:\\n\\n' +
-    '• Kolom I (Hari Kerja): =IF(B2=\"\",\"\",NETWORKDAYS(B2,IF(F2<>\"\",F2,TODAY())))\\n' +
-    '• Kolom J (Status PO): =IF(B2=\"\",\"\",IF(G2<>\"\",\"CLOSE\",\"OPEN\"))\\n' +
-    '• Kolom K (Status SLA): =IF(I2=\"\",\"\",IF(I2<=10,\"ONTIME\",\"TERLAMBAT\"))\\n' +
-    '• Kolom L (Alert H+3): =IF(B2=\"\",\"\",IF(AND(J2=\"OPEN\",I2>=3,H2=\"\"),\"YA\",\"TIDAK\"))\\n' +
-    '• Kolom M (Catatan): =IF(B2=\"\",\"\",IF(J2=\"CLOSE\",IF(K2=\"ONTIME\",\"PO Selesai On-Time (\" & I2 & \" hari)\",\"PO Terlambat (\" & I2 & \" hari)\"),IF(H2<>\"\",\"Hold: \" & H2,IF(L2=\"YA\",\"Peringatan H+3: Segera terbitkan PO\",\"Menunggu PO (\" & I2 & \" hari)\"))))\\n' +
-    '• Kolom N (Terakhir Update): Diisi otomatis saat diedit atau gunakan =IF(B2=\"\",\"\",TEXT(NOW(),\"yyyy-mm-dd hh:mm:ss\"))';
-  SpreadsheetApp.getUi().alert(helpText);
 }
 `;
 }
 
-// Daftar rumus resmi Google Sheets untuk Kolom I sampai N
-export const OFFICIAL_SHEET_FORMULAS = [
-  {
-    col: 'I',
-    name: 'Hari Kerja Proses',
-    desc: 'Menghitung hari kerja efektif antara Tanggal Terima Budget (B) dan Tanggal PO (F). Jika PO belum terbit, otomatis menghitung hari kerja berjalan s/d hari ini.',
-    formula: '=IF(B2="", "", NETWORKDAYS(B2, IF(F2<>"", F2, TODAY())))',
-    example: '1 hari kerja',
-  },
-  {
-    col: 'J',
-    name: 'Status PO',
-    desc: 'Otomatis CLOSE jika Nomor PO (G) terisi, dan OPEN jika Nomor PO masih kosong.',
-    formula: '=IF(B2="", "", IF(G2<>"", "CLOSE", "OPEN"))',
-    example: 'CLOSE / OPEN',
-  },
-  {
-    col: 'K',
-    name: 'Status SLA',
-    desc: 'Otomatis ONTIME jika Hari Kerja (I) <= 10 hari, dan TERLAMBAT jika melebihi batas 10 hari kerja.',
-    formula: '=IF(I2="", "", IF(I2<=10, "ONTIME", "TERLAMBAT"))',
-    example: 'ONTIME / TERLAMBAT',
-  },
-  {
-    col: 'L',
-    name: 'Alert H+3',
-    desc: 'Otomatis YA jika Status PO masih OPEN, durasi kerja sudah >= 3 hari, dan tidak ada kondisi khusus hold.',
-    formula: '=IF(B2="", "", IF(AND(J2="OPEN", I2>=3, H2=""), "YA", "TIDAK"))',
-    example: 'YA / TIDAK',
-  },
-  {
-    col: 'M',
-    name: 'Catatan / Notes',
-    desc: 'Menghasilkan ringkasan keterangan status operasional pengadaan secara otomatis.',
-    formula: '=IF(B2="", "", IF(J2="CLOSE", IF(K2="ONTIME", "PO Selesai On-Time (" & I2 & " hari)", "PO Terlambat (" & I2 & " hari)"), IF(H2<>"", "Hold: " & H2, IF(L2="YA", "Peringatan H+3: Segera terbitkan PO", "Menunggu PO (" & I2 & " hari)"))))',
-    example: 'PO Selesai On-Time (1 hari)',
-  },
-  {
-    col: 'N',
-    name: 'Terakhir Diperbarui',
-    desc: 'Timestamp waktu update otomatis saat baris diedit via Apps Script, atau dapat menggunakan rumus waktu.',
-    formula: '=IF(B2="", "", TEXT(NOW(), "yyyy-mm-dd hh:mm:ss"))',
-    example: '2026-10-04 19:10:00',
-  },
-];
+/**
+ * Normalisasi format tanggal fleksibel menjadi string YYYY-MM-DD standar
+ */
+export function normalizeDateString(val: any): string {
+  if (!val) return '';
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return '';
+    if (trimmed.includes('T')) {
+      return trimmed.split('T')[0];
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    const ddmmyyyy = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (ddmmyyyy) {
+      const day = ddmmyyyy[1].padStart(2, '0');
+      const month = ddmmyyyy[2].padStart(2, '0');
+      const year = ddmmyyyy[3];
+      return `${year}-${month}-${day}`;
+    }
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return trimmed;
+  }
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return String(val);
+}
 
 /**
  * Tes koneksi real-time ke Google Sheet Apps Script Web App URL
@@ -544,9 +435,13 @@ export async function fetchFromGoogleSheet(webAppUrl: string): Promise<SPPItem[]
 }
 
 /**
- * Push data SPP ke Google Sheets
+ * Push data SPP ke Google Sheets (Dukungan 2-Way Sync Penuh)
  */
-export async function pushToGoogleSheet(webAppUrl: string, items: SPPItem[]): Promise<boolean> {
+export async function pushToGoogleSheet(
+  webAppUrl: string, 
+  items: SPPItem[],
+  mode: 'SYNC_FULL' | 'UPSERT_BATCH' = 'SYNC_FULL'
+): Promise<boolean> {
   if (!webAppUrl || !webAppUrl.startsWith('http')) {
     throw new Error('URL Google Apps Script tidak valid.');
   }
@@ -558,7 +453,7 @@ export async function pushToGoogleSheet(webAppUrl: string, items: SPPItem[]): Pr
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      action: 'UPSERT_BATCH',
+      action: mode,
       items: items,
     }),
   });

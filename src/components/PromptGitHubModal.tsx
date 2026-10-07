@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { getMasterPromptText, generateStandaloneGitHubHtml } from '../utils/promptGenerator';
-import { Sparkles, Copy, Check, Download, Github, Code, ExternalLink, X, Laptop, GitBranch, ArrowRight, FolderGit2, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Copy, Check, Download, Github, Code, ExternalLink, X } from 'lucide-react';
 
 interface PromptGitHubModalProps {
   isOpen: boolean;
@@ -8,7 +8,7 @@ interface PromptGitHubModalProps {
 }
 
 export const PromptGitHubModal: React.FC<PromptGitHubModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'PROMPT' | 'GITHUB_HTML' | 'GITHUB_DESKTOP' | 'API_ERP'>('GITHUB_DESKTOP');
+  const [activeTab, setActiveTab] = useState<'PROMPT' | 'GITHUB_HTML' | 'API_ERP'>('PROMPT');
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
@@ -64,50 +64,39 @@ export const PromptGitHubModal: React.FC<PromptGitHubModalProps> = ({ isOpen, on
         </div>
 
         {/* Tab Buttons */}
-        <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-md text-xs">
-          <button
-            onClick={() => setActiveTab('GITHUB_DESKTOP')}
-            className={`flex-1 py-1.5 px-2 rounded font-medium flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap ${
-              activeTab === 'GITHUB_DESKTOP'
-                ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Laptop className="w-3.5 h-3.5" />
-            <span>Panduan GitHub Desktop</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('GITHUB_HTML')}
-            className={`flex-1 py-1.5 px-2 rounded font-medium flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap ${
-              activeTab === 'GITHUB_HTML'
-                ? 'bg-white text-slate-900 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Github className="w-3.5 h-3.5" />
-            <span>Unduh Standalone HTML</span>
-          </button>
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md text-xs">
           <button
             onClick={() => setActiveTab('PROMPT')}
-            className={`flex-1 py-1.5 px-2 rounded font-medium flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap ${
+            className={`flex-1 py-1.5 rounded font-medium flex items-center justify-center gap-1.5 transition-colors ${
               activeTab === 'PROMPT'
                 ? 'bg-white text-indigo-700 shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Master Prompt AI</span>
+            <span>Salin Prompt Master AI</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('GITHUB_HTML')}
+            className={`flex-1 py-1.5 rounded font-medium flex items-center justify-center gap-1.5 transition-colors ${
+              activeTab === 'GITHUB_HTML'
+                ? 'bg-white text-slate-900 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Github className="w-3.5 h-3.5" />
+            <span>Unduh Standalone HTML (GitHub Pages)</span>
           </button>
           <button
             onClick={() => setActiveTab('API_ERP')}
-            className={`flex-1 py-1.5 px-2 rounded font-medium flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap ${
+            className={`flex-1 py-1.5 rounded font-medium flex items-center justify-center gap-1.5 transition-colors ${
               activeTab === 'API_ERP'
                 ? 'bg-white text-slate-900 shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Code className="w-3.5 h-3.5" />
-            <span>REST API ERP</span>
+            <span>Dokumentasi REST API &amp; ERP</span>
           </button>
         </div>
 
@@ -183,101 +172,6 @@ export const PromptGitHubModal: React.FC<PromptGitHubModalProps> = ({ isOpen, on
               <p className="text-[11px] text-cyan-300 pt-1">
                 Aplikasi Anda akan langsung online di: <code>https://username.github.io/spp-monitoring/</code>
               </p>
-            </div>
-          </div>
-        )}
-
-        {/* TAB: PANDUAN GITHUB DESKTOP */}
-        {activeTab === 'GITHUB_DESKTOP' && (
-          <div className="space-y-4 text-xs">
-            <div className="p-3.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-xl border border-indigo-500/30 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-indigo-600/30 border border-indigo-500/50 text-indigo-300">
-                  <Laptop className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>Panduan Lengkap GitHub Desktop</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono font-semibold">
-                      GUI Tanpa Terminal
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-300 mt-0.5">
-                    Kelola source code, lakukan commit, push pembaruan, dan hosting GitHub Pages dengan mudah lewat aplikasi visual.
-                  </p>
-                </div>
-              </div>
-              <a
-                href="https://desktop.github.com/"
-                target="_blank"
-                rel="noreferrer"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-xs transition-colors shrink-0"
-              >
-                <span>Download GitHub Desktop</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
-
-            {/* 4 Langkah Praktis GitHub Desktop */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Langkah 1 */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[11px]">1</span>
-                  <h4 className="font-bold text-slate-900 text-xs">Download &amp; Login Akun GitHub</h4>
-                </div>
-                <ul className="text-slate-600 text-[11px] space-y-1 pl-7 list-disc">
-                  <li>Unduh aplikasi resmi di <a href="https://desktop.github.com/" target="_blank" rel="noreferrer" className="text-blue-600 underline font-semibold">desktop.github.com</a> dan pasang di komputer Anda.</li>
-                  <li>Buka GitHub Desktop ➔ klik menu <strong>File &gt; Options &gt; Accounts</strong>.</li>
-                  <li>Klik <strong>Sign in to GitHub.com</strong> dan selesaikan otorisasi login di browser.</li>
-                </ul>
-              </div>
-
-              {/* Langkah 2 */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[11px]">2</span>
-                  <h4 className="font-bold text-slate-900 text-xs">Hubungkan Repository ke GitHub Desktop</h4>
-                </div>
-                <div className="text-slate-600 text-[11px] space-y-1.5 pl-7">
-                  <p>
-                    <strong>Opsi A (Clone dari Akun GitHub):</strong><br />
-                    Klik <strong>File &gt; Clone repository...</strong> ➔ Pilih repo Anda (misal <code>spp-monitoring</code>) ➔ Tentukan folder di PC (Local path) ➔ Klik <strong>Clone</strong>.
-                  </p>
-                  <p>
-                    <strong>Opsi B (Dari Folder di PC):</strong><br />
-                    Klik <strong>File &gt; Add local repository...</strong> ➔ Arahkan ke folder project ➔ Klik <strong>Publish repository</strong> di bilah atas untuk mengunggah ke GitHub.
-                  </p>
-                </div>
-              </div>
-
-              {/* Langkah 3 */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[11px]">3</span>
-                  <h4 className="font-bold text-slate-900 text-xs">Melakukan Perubahan (Commit &amp; Push)</h4>
-                </div>
-                <ul className="text-slate-600 text-[11px] space-y-1 pl-7 list-disc">
-                  <li>Setiap Anda mengedit atau menambahkan file baru, perubahan otomatis tampil di panel kiri (<strong>Changes</strong>).</li>
-                  <li>Di kotak kiri bawah (<strong>Summary</strong>), ketik deskripsi ringkas (contoh: <code>Update auto-logout &amp; sync</code>).</li>
-                  <li>Klik tombol biru <strong>Commit to main</strong>.</li>
-                  <li>Klik tombol <strong>Push origin</strong> di bilah atas untuk mengunggah pembaruan ke GitHub.</li>
-                </ul>
-              </div>
-
-              {/* Langkah 4 */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[11px]">4</span>
-                  <h4 className="font-bold text-slate-900 text-xs">Aktifkan Hosting GitHub Pages (Gratis)</h4>
-                </div>
-                <ul className="text-slate-600 text-[11px] space-y-1 pl-7 list-disc">
-                  <li>Buka repositori Anda di browser web (<code>github.com/username/repo</code>).</li>
-                  <li>Klik tab <strong>Settings</strong> ➔ klik menu <strong>Pages</strong> di panel kiri.</li>
-                  <li>Pada bagian <strong>Branch</strong>, pilih <code>main</code> dan folder <code>/ (root)</code>, lalu klik <strong>Save</strong>.</li>
-                  <li>Dalam 1–2 menit, link website Anda aktif di: <code>https://username.github.io/repo/</code>.</li>
-                </ul>
-              </div>
             </div>
           </div>
         )}

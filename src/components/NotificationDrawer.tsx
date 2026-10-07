@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { SystemNotification, SPPItem } from '../types';
 import { 
   Bell, Mail, MessageSquare, CheckCheck, X, ExternalLink, Copy, Check,
-  Phone, Trash2, Ban, RotateCcw, AlertTriangle, ShieldAlert, Settings, Search, UserCheck, Plus, Clock
+  Phone, Trash2, Ban, RotateCcw, AlertTriangle, ShieldAlert, Settings, Search, UserCheck, Plus
 } from 'lucide-react';
 
 interface NotificationDrawerProps {
@@ -127,24 +127,9 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const h3Items = items.filter((i) => i.isHPlus3Overdue && !i.isSpecialConditionHold && !i.specialCondition);
-  const holdItems = items.filter((i) => i.isSpecialConditionHold || (i.specialCondition && i.statusPO === 'OPEN'));
+  const h3Items = items.filter((i) => i.isHPlus3Overdue);
 
   const generateWaMessage = (item: SPPItem) => {
-    if (item.specialCondition) {
-      return `📋 *MONITORING KOORDINASI PENGADAAN (HOLD PO)*
-Kepada Yth. Sdr/i. *${item.pic}* / Rekan Terkait
-
-Mengenai dokumen pengadaan:
-• *No. SPP*: ${item.sppNumber}
-• *Tanggal Terima Budget*: ${item.budgetReceivedDate}
-• *Durasi Berjalan*: ${item.processDays} Hari Kerja
-• *Status*: ⏳ TERTUNDA / ON-HOLD (Kondisi Khusus)
-• *Kondisi Khusus*: ${item.specialCondition}${item.specialConditionReason ? ` (${item.specialConditionReason})` : ''}
-
-Mohon konfirmasi dan informasi tindak lanjut terkait kendala di atas agar dokumen PO dapat segera diterbitkan saat kendala terselesaikan. Terima kasih.`;
-    }
-
     return `🚨 *PERINGATAN RESMI SLA PENGADAAN*
 Kepada Yth. Sdr/i. *${item.pic}* (PIC Pengadaan)
 
@@ -336,77 +321,6 @@ Mohon segera melengkapi dokumen dan menerbitkan PO untuk menjaga integritas SLA 
                             }}
                             className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition-colors cursor-pointer"
                             title="Kirim Notifikasi Email Resmi"
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Section: Monitoring SPP Tertahan Kondisi Khusus */}
-              {holdItems.length > 0 && (
-                <div className="p-3.5 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between text-xs text-amber-800 dark:text-amber-300 font-bold">
-                    <span className="flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      <span>⏳ {holdItems.length} SPP Tertahan Kondisi Khusus (Hold)</span>
-                    </span>
-                    <span className="text-[10px] font-normal font-mono text-amber-600 dark:text-amber-400">Monitoring Koordinasi</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {holdItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-amber-200 dark:border-amber-900/60 text-xs flex items-center justify-between shadow-2xs"
-                      >
-                        <div className="space-y-0.5 max-w-[70%]">
-                          <div className="font-mono font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                            <span>{item.sppNumber}</span>
-                            <span className="text-[9px] px-1 py-0.2 rounded font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                              HOLD
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-amber-800 dark:text-amber-300 font-medium truncate" title={item.specialCondition}>
-                            Kondisi: {item.specialCondition}
-                          </div>
-                          <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                            PIC: {item.pic} · Berjalan {item.processDays} hari kerja
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {waContacts[item.pic]?.isPermanentlyDisabled ? (
-                            <button
-                              onClick={() => {
-                                setSelectedItemForAlert(item);
-                                setAlertChannel('WHATSAPP');
-                              }}
-                              className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
-                              title="WhatsApp Dinonaktifkan Permanen untuk PIC ini"
-                            >
-                              <Ban className="w-3.5 h-3.5 text-rose-500" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                setSelectedItemForAlert(item);
-                                setAlertChannel('WHATSAPP');
-                              }}
-                              className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-lg transition-colors cursor-pointer"
-                              title="Kirim pesan koordinasi WhatsApp terkait kondisi khusus ini"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              setSelectedItemForAlert(item);
-                              setAlertChannel('EMAIL');
-                            }}
-                            className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition-colors cursor-pointer"
-                            title="Kirim Notifikasi Email Koordinasi"
                           >
                             <Mail className="w-3.5 h-3.5" />
                           </button>

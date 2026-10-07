@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { INITIAL_USERS } from '../utils/initialData';
 import { EMBEDDED_COFFEE_BG, EMBEDDED_DARK_COFFEE_BG } from '../utils/coffeeBackground';
-import { Lock, User, ArrowRight, KeyRound, Eye, EyeOff, Sun, Moon, ImagePlus, RotateCcw, ShieldCheck, ArrowLeft, Key } from 'lucide-react';
+import { Lock, User, ArrowRight, KeyRound, Eye, EyeOff, Sun, Moon, Shield, ImagePlus, RotateCcw, ShieldCheck, ArrowLeft, Key } from 'lucide-react';
 
 interface LoginViewProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -312,8 +312,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
             /* STEP 1: Form Login Username & Password Biasa */
             <>
               <div className="border-b border-slate-200/80 dark:border-slate-800 pb-3">
-                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                  Masuk ke Akun
+                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span>Masuk ke Akun</span>
                 </h2>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                   Silakan masukkan username dan password Anda.

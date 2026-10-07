@@ -127,6 +127,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const config = areaConfigs?.[area];
     const savedSpreadsheetUrl = config?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS[area]?.spreadsheetUrl;
 
+    // Deteksi khusus jika tautan Sukodono masih mengarah ke ID 404 yang telah terhapus
+    if (area === 'SUKODONO' && (!savedSpreadsheetUrl || savedSpreadsheetUrl.includes('1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM'))) {
+      setSelectedSheetArea(area);
+      setSheetUrlInput(savedSpreadsheetUrl || '');
+      setIsSheetLinkModalOpen(true);
+      showToast('Tautan Google Sheet Sukodono bawaan tidak ditemukan (404). Silakan masukkan tautan aktif Anda.');
+      return;
+    }
+
     if (savedSpreadsheetUrl && savedSpreadsheetUrl.startsWith('http')) {
       window.open(savedSpreadsheetUrl, '_blank');
       showToast(`Membuka Google Sheet ${AREA_METADATA[area].name}...`);
@@ -327,26 +336,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Action Button: "+ Input SPP" (Hanya untuk User Cabang, Tidak untuk Superadmin) */}
-        {!isSuperadmin && (
-          <div className="p-3 border-b border-slate-200/90 dark:border-slate-800/80 shrink-0 space-y-2">
-            <button
-              onClick={() => {
-                onOpenNewSPP();
-                if (isMobileOpen) onCloseMobile();
-              }}
-              className={`w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium text-xs py-2.5 rounded-lg shadow-sm hover:shadow transition-all ${
-                isCollapsed && !isMobileOpen ? 'px-0' : 'px-4'
-              }`}
-              title={isCollapsed && !isMobileOpen ? 'Tambah SPP Baru' : undefined}
-            >
-              <Plus className="w-4 h-4 shrink-0" />
-              {(!isCollapsed || isMobileOpen) && (
-                <span className="truncate">Tambah SPP Baru</span>
-              )}
-            </button>
-          </div>
-        )}
+        {/* Action Button: "+ Input SPP" */}
+        <div className="p-3 border-b border-slate-200/90 dark:border-slate-800/80 shrink-0 space-y-2">
+          <button
+            onClick={() => {
+              onOpenNewSPP();
+              if (isMobileOpen) onCloseMobile();
+            }}
+            className={`w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium text-xs py-2.5 rounded-lg shadow-sm hover:shadow transition-all ${
+              isCollapsed && !isMobileOpen ? 'px-0' : 'px-4'
+            }`}
+            title={isCollapsed && !isMobileOpen ? 'Tambah SPP Baru' : undefined}
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            {(!isCollapsed || isMobileOpen) && (
+              <span className="truncate">Tambah SPP Baru</span>
+            )}
+          </button>
+        </div>
 
         {/* Panel Filter Area & PIC Ringkas (Sistem Drop Down List Hemat Ruang agar Menu Utama Terlihat) */}
         {(!isCollapsed || isMobileOpen) && (

@@ -32,6 +32,7 @@ import {
   CalendarDays,
   Sparkles,
   SlidersHorizontal,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ExecutiveDashboardProps {
@@ -48,6 +49,8 @@ interface ExecutiveDashboardProps {
   onSelectPicFilter?: (pic: string) => void;
   searchPicQuery?: string;
   onSearchPicQuery?: (q: string) => void;
+  onSyncGoogleSheet?: () => void | Promise<void>;
+  isSyncingGoogleSheet?: boolean;
 }
 
 export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
@@ -64,6 +67,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   onSelectPicFilter,
   searchPicQuery: propSearchPicQuery,
   onSearchPicQuery,
+  onSyncGoogleSheet,
+  isSyncingGoogleSheet = false,
 }) => {
   const isSuperadmin = currentUser.role === 'SUPERADMIN';
   const allAreas: SJAArea[] = ['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'];
@@ -797,15 +802,25 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </button>
             </div>
 
-            {!isSuperadmin && (
+            {onSyncGoogleSheet && (
               <button
-                onClick={onOpenNewSPP}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-blue-50 text-blue-800 font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                onClick={onSyncGoogleSheet}
+                disabled={isSyncingGoogleSheet}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl border border-emerald-400/40 shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus data di aplikasi jika baris di Google Sheet telah dihapus"
               >
-                <Plus className="w-4 h-4 text-blue-600" />
-                <span>Input SPP</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingGoogleSheet ? 'animate-spin' : ''}`} />
+                <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkron 2 Arah'}</span>
               </button>
             )}
+
+            <button
+              onClick={onOpenNewSPP}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-blue-50 text-blue-800 font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-blue-600" />
+              <span>Input SPP</span>
+            </button>
             <button
               onClick={onNavigateToMonitoring}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600/60 hover:bg-blue-600 text-white font-semibold text-xs rounded-xl border border-blue-400/40 shadow-xs transition-colors cursor-pointer"

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, SystemNotification } from '../types';
-import { Bell, ShieldCheck, Menu, PanelLeft, Calendar, Clock, LogOut, Sun, Moon } from 'lucide-react';
+import { Bell, ShieldCheck, Menu, PanelLeft, Calendar, Clock, LogOut, Sun, Moon, RefreshCw } from 'lucide-react';
 
 interface TopHeaderProps {
   currentUser: UserProfile;
@@ -13,9 +13,8 @@ interface TopHeaderProps {
   isSidebarCollapsed: boolean;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
-  isTwoWaySyncing?: boolean;
-  onTriggerTwoWaySync?: () => void;
-  lastTwoWaySyncTime?: Date | null;
+  onSyncGoogleSheet?: () => void | Promise<void>;
+  isSyncingSheet?: boolean;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -29,9 +28,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   isSidebarCollapsed,
   theme,
   onToggleTheme,
-  isTwoWaySyncing = false,
-  onTriggerTwoWaySync,
-  lastTwoWaySyncTime,
+  onSyncGoogleSheet,
+  isSyncingSheet = false,
 }) => {
   const unreadAlerts = notifications.filter((n) => !n.read).length;
   const urgentCount = notifications.filter((n) => !n.read && n.severity === 'urgent').length;
@@ -111,23 +109,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             >
               {isSuperadmin ? 'Semua Area (Superadmin)' : `Area: ${currentUser.name}`}
             </span>
-            {onTriggerTwoWaySync && (
-              <button
-                type="button"
-                onClick={onTriggerTwoWaySync}
-                disabled={isTwoWaySyncing}
-                className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-all cursor-pointer shadow-2xs"
-                title={`Sinkronisasi 2-Arah Aktif. Input di Sheet maupun di Aplikasi disamakan otomatis.${
-                  lastTwoWaySyncTime ? ` Terakhir sinkron: ${lastTwoWaySyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''
-                }. Klik untuk sinkron sekarang.`}
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span>{isTwoWaySyncing ? 'Menyinkronkan...' : 'Auto-Sync 2-Arah'}</span>
-              </button>
-            )}
           </div>
         </div>
 
@@ -172,8 +153,23 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Theme Toggle (Dark/Light), Security, Notification, Logout */}
+        {/* Right: Theme Toggle (Dark/Light), 2-Way Sync, Security, Notification, Logout */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Tombol Sinkronisasi 2 Arah Google Sheet */}
+          {onSyncGoogleSheet && (
+            <button
+              onClick={onSyncGoogleSheet}
+              disabled={isSyncingSheet}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50/90 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+              title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus data di aplikasi jika baris di Google Sheet telah dihapus"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingSheet ? 'animate-spin' : ''}`} />
+              <span className="hidden xl:inline text-[11px] font-semibold">
+                {isSyncingSheet ? 'Sinkronisasi...' : 'Sinkron 2 Arah'}
+              </span>
+            </button>
+          )}
+
           {/* TOMBOL MODE GELAP / TERANG (LUXURY EXECUTIVE TOGGLE) */}
           <button
             onClick={onToggleTheme}
