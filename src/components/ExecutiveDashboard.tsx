@@ -124,9 +124,51 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   // Filter Kecepatan Realisasi PO langsung di halaman Dashboard (Memunculkan data di bawah 4 kotak)
   const [selectedSpeedFilter, setSelectedSpeedFilter] = useState<'ALL' | 'SPEED_LE_3' | 'SPEED_4_7' | 'SPEED_8_10' | 'SPEED_GT_10'>('ALL');
 
+  // State Filter Pencarian Per-Masing-Masing Kolom Header Tabel Realisasi PO
+  const [colSearchSpp, setColSearchSpp] = useState<string>('');
+  const [colSearchBudgetReceived, setColSearchBudgetReceived] = useState<string>('');
+  const [colSearchPo, setColSearchPo] = useState<string>('');
+  const [colSearchCalendarDays, setColSearchCalendarDays] = useState<string>('');
+  const [colSearchHolidays, setColSearchHolidays] = useState<string>('');
+  const [colSearchNetDays, setColSearchNetDays] = useState<string>('');
+  const [colSearchSla, setColSearchSla] = useState<'ALL' | 'ONTIME' | 'TERLAMBAT' | 'FAST-TRACK'>('ALL');
+  const [showColSearchRow, setShowColSearchRow] = useState<boolean>(true);
+
+  const activeColFiltersCount = [
+    colSearchSpp.trim(),
+    colSearchBudgetReceived.trim(),
+    colSearchPo.trim(),
+    colSearchCalendarDays.trim(),
+    colSearchHolidays.trim(),
+    colSearchNetDays.trim(),
+    colSearchSla !== 'ALL' ? colSearchSla : '',
+  ].filter(Boolean).length;
+
+  const handleResetColFilters = () => {
+    setColSearchSpp('');
+    setColSearchBudgetReceived('');
+    setColSearchPo('');
+    setColSearchCalendarDays('');
+    setColSearchHolidays('');
+    setColSearchNetDays('');
+    setColSearchSla('ALL');
+  };
+
   useEffect(() => {
     setRealizationPage(1);
-  }, [selectedSpeedFilter, activeAreaFilter, items.length, realizationPageSize]);
+  }, [
+    selectedSpeedFilter, 
+    activeAreaFilter, 
+    items.length, 
+    realizationPageSize,
+    colSearchSpp,
+    colSearchBudgetReceived,
+    colSearchPo,
+    colSearchCalendarDays,
+    colSearchHolidays,
+    colSearchNetDays,
+    colSearchSla
+  ]);
 
   const handleSelectSpeedBox = (speedMode: 'SPEED_LE_3' | 'SPEED_4_7' | 'SPEED_8_10' | 'SPEED_GT_10') => {
     setSelectedSpeedFilter((prev) => (prev === speedMode ? 'ALL' : speedMode));
@@ -608,11 +650,100 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   // Tabel Dinamis yang Menampilkan Data Sesuai Kriteria 4 Kotak di Atasnya
   const renderSpeedDataTable = () => {
     const isFiltered = selectedSpeedFilter !== 'ALL';
-    const displayRecords = isFiltered ? filteredSpeedRecords : closedLeadTimes;
+    const baseRecords = isFiltered ? filteredSpeedRecords : closedLeadTimes;
+
+    // Filter Per-Masing-Masing Kolom Header
+    const colFilteredDisplayRecords = useMemo(() => {
+      return baseRecords.filter(({ item, calc, netWorkingDays, isUrgent }) => {
+        // 1. No. SPP & Cabang & PIC
+        if (colSearchSpp.trim()) {
+          const q = colSearchSpp.trim().toLowerCase();
+          const sppMatch = item.sppNumber.toLowerCase().includes(q);
+          const areaName = (AREA_METADATA[item.area]?.name || item.area).toLowerCase();
+          const areaCode = (AREA_METADATA[item.area]?.code || '').toLowerCase();
+          const picMatch = (item.pic || '').toLowerCase().includes(q);
+          if (!sppMatch && !areaName.includes(q) && !areaCode.includes(q) && !picMatch) {
+            return false;
+          }
+        }
+
+        // 2. Tgl Terima Budget
+        if (colSearchBudgetReceived.trim()) {
+          const q = colSearchBudgetReceived.trim().toLowerCase();
+          if (!(item.budgetReceivedDate || '').toLowerCase().includes(q)) {
+            return false;
+          }
+        }
+
+        // 3. Tgl & No. PO
+        if (colSearchPo.trim()) {
+          const q = colSearchPo.trim().toLowerCase();
+          const poNumMatch = (item.poNumber || '').toLowerCase().includes(q);
+          const poDateMatch = (item.poDate || '').toLowerCase().includes(q);
+          if (!poNumMatch && !poDateMatch) {
+            return false;
+          }
+        }
+
+        // 4. Hari Kalender
+        if (colSearchCalendarDays.trim()) {
+          const q = colSearchCalendarDays.trim().toLowerCase();
+          const calStr = String(calc.totalCalendarDays);
+          if (!calStr.includes(q)) {
+            return false;
+          }
+        }
+
+        // 5. Hari Libur Dipotong
+        if (colSearchHolidays.trim()) {
+          const q = colSearchHolidays.trim().toLowerCase();
+          const totalLibur = calc.weekendDaysSkipped + calc.holidayDaysSkipped;
+          const liburStr = String(totalLibur);
+          const wkdStr = String(calc.weekendDaysSkipped);
+          const skbStr = String(calc.holidayDaysSkipped);
+          if (!liburStr.includes(q) && !wkdStr.includes(q) && !skbStr.includes(q)) {
+            return false;
+          }
+        }
+
+        // 6. Durasi Bersih
+        if (colSearchNetDays.trim()) {
+          const q = colSearchNetDays.trim().toLowerCase();
+          const durStr = String(netWorkingDays);
+          if (!durStr.includes(q)) {
+            return false;
+          }
+        }
+
+        // 7. Status SLA
+        if (colSearchSla !== 'ALL') {
+          if (colSearchSla === 'FAST-TRACK') {
+            if (!isUrgent) return false;
+          } else if (colSearchSla === 'ONTIME') {
+            const isOntime = isUrgent || netWorkingDays <= item.slaLimit;
+            if (!isOntime || isUrgent) return false;
+          } else if (colSearchSla === 'TERLAMBAT') {
+            const isOntime = isUrgent || netWorkingDays <= item.slaLimit;
+            if (isOntime) return false;
+          }
+        }
+
+        return true;
+      });
+    }, [
+      baseRecords,
+      colSearchSpp,
+      colSearchBudgetReceived,
+      colSearchPo,
+      colSearchCalendarDays,
+      colSearchHolidays,
+      colSearchNetDays,
+      colSearchSla,
+    ]);
 
     // Urutkan data realisasi PO: Data input terbaru posisi paling atas
     const sortedDisplayRecords = useMemo(() => {
-      return [...displayRecords].sort((a, b) => {
+      return [...colFilteredDisplayRecords].sort((a, b) => {
         const timeA = getItemInputTimestamp(a.item);
         const timeB = getItemInputTimestamp(b.item);
         if (timeA !== timeB) return timeB - timeA; // Descending: terbaru di atas
@@ -624,7 +755,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         }
         return b.item.sppNumber.localeCompare(a.item.sppNumber);
       });
-    }, [displayRecords]);
+    }, [colFilteredDisplayRecords]);
 
     // Kalkulasi Halaman & Irisan Data Paginated (Default 15 data per halaman)
     const totalRealizationPages = Math.max(1, Math.ceil(sortedDisplayRecords.length / realizationPageSize));
@@ -666,11 +797,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
                       : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
                   }`}>
-                    {getSpeedFilterLabel()} ({filteredSpeedRecords.length} Dokumen)
+                    {getSpeedFilterLabel()} ({sortedDisplayRecords.length} dari {filteredSpeedRecords.length} Dokumen)
                   </span>
                 </span>
               ) : (
-                <span>Daftar Dokumen Realisasi PO ({closedLeadTimes.length} PO Terbit):</span>
+                <span>
+                  Daftar Dokumen Realisasi PO ({sortedDisplayRecords.length}
+                  {activeColFiltersCount > 0 ? ` dari ${closedLeadTimes.length}` : ''} PO Terbit):
+                </span>
               )}
             </span>
 
@@ -680,12 +814,45 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline font-semibold cursor-pointer px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-900 transition-colors"
                 title="Tampilkan semua dokumen realisasi PO tanpa filter kecepatan"
               >
-                ✕ Tampilkan Semua Dokumen
+                ✕ Hapus Filter Kecepatan
               </button>
             )}
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Tombol Toggle Kolom Pencarian Header */}
+            <button
+              type="button"
+              onClick={() => setShowColSearchRow((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+                showColSearchRow
+                  ? 'bg-blue-50 dark:bg-blue-950/70 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+                  : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+              title="Tampilkan atau sembunyikan baris pencarian per kolom header"
+            >
+              <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>{showColSearchRow ? 'Filter Kolom Aktif' : 'Buka Pencarian Kolom'}</span>
+              {activeColFiltersCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">
+                  {activeColFiltersCount}
+                </span>
+              )}
+            </button>
+
+            {/* Tombol Reset Filter Kolom jika ada teks filter aktif */}
+            {activeColFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={handleResetColFilters}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-xs font-semibold hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors cursor-pointer"
+                title="Hapus seluruh teks pencarian kolom header"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Reset Filter Kolom ({activeColFiltersCount})</span>
+              </button>
+            )}
+
             {/* Tombol Sinkronisasi 2 Arah Google Sheet */}
             {onSyncGoogleSheet && (
               <button
@@ -693,7 +860,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 onClick={onSyncGoogleSheet}
                 disabled={isSyncingGoogleSheet}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50/90 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold transition-all shadow-2xs cursor-pointer disabled:opacity-50 shrink-0"
-                title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus di aplikasi jika data di Google Sheet telah dihapus"
+                title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan perbarui kolom hari kerja di Google Sheet"
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingGoogleSheet ? 'animate-spin' : ''}`} />
                 <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkron 2 Arah'}</span>
@@ -717,36 +884,234 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
         </div>
 
-        {displayRecords.length === 0 ? (
+        {sortedDisplayRecords.length === 0 ? (
           <div className="p-8 text-center rounded-xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 space-y-2">
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Tidak ada dokumen PO yang masuk dalam kriteria <strong>{getSpeedFilterLabel()}</strong>
+              Tidak ada dokumen PO yang cocok dengan kriteria pencarian kolom
             </p>
             <p className="text-[11px] text-slate-500">
-              Klik kotak kriteria lainnya di atas atau klik tombol &quot;Tampilkan Semua Dokumen&quot;.
+              {activeColFiltersCount > 0
+                ? `${activeColFiltersCount} filter kolom sedang aktif. Silakan ubah kata kunci atau klik tombol Reset Filter Kolom.`
+                : 'Klik kotak kriteria lainnya di atas atau klik tombol Tampilkan Semua Dokumen.'}
             </p>
-            <button
-              onClick={() => setSelectedSpeedFilter('ALL')}
-              className="mt-2 px-3 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
-            >
-              Kembali ke Semua Dokumen
-            </button>
+            <div className="flex items-center justify-center gap-2 pt-1">
+              {activeColFiltersCount > 0 && (
+                <button
+                  onClick={handleResetColFilters}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                >
+                  Reset Pencarian Kolom
+                </button>
+              )}
+              {isFiltered && (
+                <button
+                  onClick={() => setSelectedSpeedFilter('ALL')}
+                  className="px-3 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
+                >
+                  Kembali ke Semua Dokumen
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="rounded-xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-2xs bg-white dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-100/90 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-10 backdrop-blur-xs">
+                  {/* Baris 1: Judul Header Kolom */}
                   <tr>
-                    <th className="px-3.5 py-2.5">No. SPP &amp; Cabang</th>
-                    <th className="px-3.5 py-2.5">Tgl Terima Budget</th>
-                    <th className="px-3.5 py-2.5">Tgl &amp; No. PO</th>
-                    <th className="px-3.5 py-2.5 text-center">Hari Kalender</th>
-                    <th className="px-3.5 py-2.5 text-center">Hari Libur Dipotong</th>
-                    <th className="px-3.5 py-2.5 text-center">Durasi Bersih</th>
-                    <th className="px-3.5 py-2.5 text-center">Status SLA</th>
-                    <th className="px-3 py-2.5 text-center">Aksi</th>
+                    <th className="px-3.5 py-2.5 min-w-[200px]">No. SPP &amp; Cabang</th>
+                    <th className="px-3.5 py-2.5 min-w-[130px]">Tgl Terima Budget</th>
+                    <th className="px-3.5 py-2.5 min-w-[180px]">Tgl &amp; No. PO</th>
+                    <th className="px-3.5 py-2.5 text-center min-w-[105px]">Hari Kalender</th>
+                    <th className="px-3.5 py-2.5 text-center min-w-[130px]">Hari Libur Dipotong</th>
+                    <th className="px-3.5 py-2.5 text-center min-w-[110px]">Durasi Bersih</th>
+                    <th className="px-3.5 py-2.5 text-center min-w-[110px]">Status SLA</th>
+                    <th className="px-3 py-2.5 text-center min-w-[75px]">Aksi</th>
                   </tr>
+
+                  {/* Baris 2: Kolom Pencarian Per Masing-Masing Header (Sesuai Permintaan Pengguna) */}
+                  {showColSearchRow && (
+                    <tr className="bg-slate-50/95 dark:bg-slate-900/95 border-t border-slate-200/70 dark:border-slate-800/70 text-[11px] font-normal">
+                      {/* 1. Filter No. SPP & Cabang */}
+                      <th className="px-2.5 py-2">
+                        <div className="relative">
+                          <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={colSearchSpp}
+                            onChange={(e) => setColSearchSpp(e.target.value)}
+                            placeholder="Cari SPP / Cabang / PIC..."
+                            className="w-full pl-6 pr-5 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                            title="Filter pencarian nomor SPP, cabang, atau nama PIC"
+                          />
+                          {colSearchSpp && (
+                            <button
+                              type="button"
+                              onClick={() => setColSearchSpp('')}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                              title="Hapus pencarian ini"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      </th>
+
+                      {/* 2. Filter Tgl Terima Budget */}
+                      <th className="px-2.5 py-2">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={colSearchBudgetReceived}
+                            onChange={(e) => setColSearchBudgetReceived(e.target.value)}
+                            placeholder="Cari tgl terima..."
+                            className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                            title="Filter pencarian tanggal terima budget (contoh: 2026-10 atau 07)"
+                          />
+                          {colSearchBudgetReceived && (
+                            <button
+                              type="button"
+                              onClick={() => setColSearchBudgetReceived('')}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                              title="Hapus pencarian ini"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      </th>
+
+                      {/* 3. Filter Tgl & No. PO */}
+                      <th className="px-2.5 py-2">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={colSearchPo}
+                            onChange={(e) => setColSearchPo(e.target.value)}
+                            placeholder="Cari No. PO / tgl..."
+                            className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                            title="Filter pencarian nomor PO atau tanggal PO"
+                          />
+                          {colSearchPo && (
+                            <button
+                              type="button"
+                              onClick={() => setColSearchPo('')}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                              title="Hapus pencarian ini"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      </th>
+
+                      {/* 4. Filter Hari Kalender */}
+                      <th className="px-2 py-2 text-center">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={colSearchCalendarDays}
+                            onChange={(e) => setColSearchCalendarDays(e.target.value)}
+                            placeholder="Hari..."
+                            className="w-full px-1.5 py-1 text-xs text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                            title="Filter pencarian jumlah total hari kalender"
+                          />
+                          {colSearchCalendarDays && (
+                            <button
+                              type="button"
+                              onClick={() => setColSearchCalendarDays('')}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                              title="Hapus pencarian ini"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      </th>
+
+                      {/* 5. Filter Hari Libur Dipotong */}
+                      <th className="px-2 py-2 text-center">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={colSearchHolidays}
+                            onChange={(e) => setColSearchHolidays(e.target.value)}
+                            placeholder="Libur..."
+                            className="w-full px-1.5 py-1 text-xs text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                            title="Filter pencarian potongan hari libur (akhir pekan & SKB)"
+                          />
+                          {colSearchHolidays && (
+                            <button
+                              type="button"
+                              onClick={() => setColSearchHolidays('')}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                              title="Hapus pencarian ini"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      </th>
+
+                      {/* 6. Filter Durasi Bersih */}
+                      <th className="px-2 py-2 text-center">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={colSearchNetDays}
+                            onChange={(e) => setColSearchNetDays(e.target.value)}
+                            placeholder="Durasi..."
+                            className="w-full px-1.5 py-1 text-xs text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                            title="Filter pencarian durasi bersih hari kerja (contoh: 0 atau 1)"
+                          />
+                          {colSearchNetDays && (
+                            <button
+                              type="button"
+                              onClick={() => setColSearchNetDays('')}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                              title="Hapus pencarian ini"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      </th>
+
+                      {/* 7. Filter Status SLA */}
+                      <th className="px-2 py-2 text-center">
+                        <select
+                          value={colSearchSla}
+                          onChange={(e) => setColSearchSla(e.target.value as any)}
+                          className="w-full px-1 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans cursor-pointer"
+                          title="Filter status SLA"
+                        >
+                          <option value="ALL">Semua SLA</option>
+                          <option value="ONTIME">ONTIME</option>
+                          <option value="TERLAMBAT">TERLAMBAT</option>
+                          <option value="FAST-TRACK">FAST-TRACK</option>
+                        </select>
+                      </th>
+
+                      {/* 8. Tombol Reset Header */}
+                      <th className="px-2 py-2 text-center">
+                        {activeColFiltersCount > 0 ? (
+                          <button
+                            type="button"
+                            onClick={handleResetColFilters}
+                            className="px-2 py-1 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold transition-colors cursor-pointer"
+                            title="Reset seluruh kolom pencarian"
+                          >
+                            Reset
+                          </button>
+                        ) : (
+                          <span className="text-slate-400 text-[10px] select-none" title="Filter kolom siap digunakan">
+                            Filter
+                          </span>
+                        )}
+                      </th>
+                    </tr>
+                  )}
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-mono">
                   {paginatedDisplayRecords.map(({ item, calc, netWorkingDays, isUrgent }) => {

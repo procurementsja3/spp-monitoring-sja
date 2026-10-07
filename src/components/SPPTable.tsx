@@ -23,7 +23,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  ArrowUpDown
+  ArrowUpDown,
+  X
 } from 'lucide-react';
 
 interface SPPTableProps {
@@ -109,10 +110,50 @@ export const SPPTable: React.FC<SPPTableProps> = ({
   // Unique PICs list
   const uniquePics = Array.from(new Set(items.map((i) => i.pic))).filter(Boolean);
 
+  // State Filter Pencarian Per-Masing-Masing Kolom Header Tabel SPP Utama
+  const [colSearchBudgetReceived, setColSearchBudgetReceived] = useState<string>('');
+  const [colSearchSpp, setColSearchSpp] = useState<string>('');
+  const [colSearchArea, setColSearchArea] = useState<string>('');
+  const [colSearchPic, setColSearchPic] = useState<string>('');
+  const [colSearchPoDate, setColSearchPoDate] = useState<string>('');
+  const [colSearchPoNumber, setColSearchPoNumber] = useState<string>('');
+  const [colSearchSpecialCondition, setColSearchSpecialCondition] = useState<string>('');
+  const [colSearchProcessDays, setColSearchProcessDays] = useState<string>('');
+  const [colSearchStatusPo, setColSearchStatusPo] = useState<'ALL' | 'CLOSE' | 'OPEN'>('ALL');
+  const [colSearchStatusSla, setColSearchStatusSla] = useState<'ALL' | 'ONTIME' | 'TERLAMBAT' | 'FAST-TRACK'>('ALL');
+  const [showColSearchRow, setShowColSearchRow] = useState<boolean>(true);
+
+  const activeColFiltersCount = [
+    colSearchBudgetReceived.trim(),
+    colSearchSpp.trim(),
+    colSearchArea.trim(),
+    colSearchPic.trim(),
+    colSearchPoDate.trim(),
+    colSearchPoNumber.trim(),
+    colSearchSpecialCondition.trim(),
+    colSearchProcessDays.trim(),
+    colSearchStatusPo !== 'ALL' ? colSearchStatusPo : '',
+    colSearchStatusSla !== 'ALL' ? colSearchStatusSla : '',
+  ].filter(Boolean).length;
+
+  const handleResetColFilters = () => {
+    setColSearchBudgetReceived('');
+    setColSearchSpp('');
+    setColSearchArea('');
+    setColSearchPic('');
+    setColSearchPoDate('');
+    setColSearchPoNumber('');
+    setColSearchSpecialCondition('');
+    setColSearchProcessDays('');
+    setColSearchStatusPo('ALL');
+    setColSearchStatusSla('ALL');
+  };
+
   // Filtering
   const filteredItems = items.filter((item) => {
     const q = searchQuery.toLowerCase();
     const matchSearch =
+      !q ||
       item.sppNumber.toLowerCase().includes(q) ||
       item.pic.toLowerCase().includes(q) ||
       (item.poNumber || '').toLowerCase().includes(q) ||
@@ -129,6 +170,59 @@ export const SPPTable: React.FC<SPPTableProps> = ({
     const matchUrgent = !filterUrgentOnly || !!item.isUrgentAdvance;
     const matchSpecial = !filterSpecialConditionOnly || Boolean(item.specialCondition && item.specialCondition.trim() !== '');
 
+    // Filter Per-Masing-Masing Kolom Header
+    if (colSearchBudgetReceived.trim()) {
+      const qCol = colSearchBudgetReceived.trim().toLowerCase();
+      if (!(item.budgetReceivedDate || '').toLowerCase().includes(qCol)) return false;
+    }
+    if (colSearchSpp.trim()) {
+      const qCol = colSearchSpp.trim().toLowerCase();
+      if (!(item.sppNumber || '').toLowerCase().includes(qCol)) return false;
+    }
+    if (colSearchArea.trim() && colSearchArea !== 'ALL') {
+      const qCol = colSearchArea.trim().toLowerCase();
+      const areaName = (AREA_METADATA[item.area]?.name || item.area).toLowerCase();
+      const areaCode = (AREA_METADATA[item.area]?.code || '').toLowerCase();
+      if (!areaName.includes(qCol) && !areaCode.includes(qCol) && item.area.toLowerCase() !== qCol) return false;
+    }
+    if (colSearchPic.trim()) {
+      const qCol = colSearchPic.trim().toLowerCase();
+      if (!(item.pic || '').toLowerCase().includes(qCol)) return false;
+    }
+    if (colSearchPoDate.trim()) {
+      const qCol = colSearchPoDate.trim().toLowerCase();
+      if (!(item.poDate || '').toLowerCase().includes(qCol)) return false;
+    }
+    if (colSearchPoNumber.trim()) {
+      const qCol = colSearchPoNumber.trim().toLowerCase();
+      if (!(item.poNumber || '').toLowerCase().includes(qCol)) return false;
+    }
+    if (colSearchSpecialCondition.trim()) {
+      const qCol = colSearchSpecialCondition.trim().toLowerCase();
+      const specCond = (item.specialCondition || '').toLowerCase();
+      const specReason = (item.specialConditionReason || '').toLowerCase();
+      const urgentReason = (item.urgentReason || '').toLowerCase();
+      const notes = (item.notes || '').toLowerCase();
+      if (!specCond.includes(qCol) && !specReason.includes(qCol) && !urgentReason.includes(qCol) && !notes.includes(qCol)) return false;
+    }
+    if (colSearchProcessDays.trim()) {
+      const qCol = colSearchProcessDays.trim().toLowerCase();
+      const daysStr = String(item.processDays);
+      if (!daysStr.includes(qCol)) return false;
+    }
+    if (colSearchStatusPo !== 'ALL') {
+      if (item.statusPO !== colSearchStatusPo) return false;
+    }
+    if (colSearchStatusSla !== 'ALL') {
+      if (colSearchStatusSla === 'FAST-TRACK') {
+        if (!item.isUrgentAdvance) return false;
+      } else if (colSearchStatusSla === 'ONTIME') {
+        if (item.statusOntime !== 'ONTIME' || item.isUrgentAdvance) return false;
+      } else if (colSearchStatusSla === 'TERLAMBAT') {
+        if (item.statusOntime !== 'TERLAMBAT') return false;
+      }
+    }
+
     return matchSearch && matchPO && matchSLA && matchPic && matchAlert && matchUrgent && matchSpecial;
   });
 
@@ -142,7 +236,27 @@ export const SPPTable: React.FC<SPPTableProps> = ({
   // Reset ke halaman 1 setiap kali kriteria filter atau pencarian berubah
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterPO, filterSLA, filterAlert, filterUrgentOnly, filterSpecialConditionOnly, selectedPic, activeAreaFilter, pageSize]);
+  }, [
+    searchQuery, 
+    filterPO, 
+    filterSLA, 
+    filterAlert, 
+    filterUrgentOnly, 
+    filterSpecialConditionOnly, 
+    selectedPic, 
+    activeAreaFilter, 
+    pageSize,
+    colSearchBudgetReceived,
+    colSearchSpp,
+    colSearchArea,
+    colSearchPic,
+    colSearchPoDate,
+    colSearchPoNumber,
+    colSearchSpecialCondition,
+    colSearchProcessDays,
+    colSearchStatusPo,
+    colSearchStatusSla
+  ]);
 
   // Urutkan item: Data input terbaru posisi paling atas (berdasarkan timestamp ID, createdAt, updatedAt, atau budgetReceivedDate)
   const sortedItems = useMemo(() => {
@@ -614,6 +728,39 @@ export const SPPTable: React.FC<SPPTableProps> = ({
             <span>{sortOrder === 'NEWEST_FIRST' ? 'Input Terbaru (Atas)' : 'Input Terlama (Atas)'}</span>
           </button>
 
+          {/* Tombol Toggle Kolom Pencarian Header */}
+          <button
+            type="button"
+            onClick={() => setShowColSearchRow((prev) => !prev)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer shadow-2xs ${
+              showColSearchRow
+                ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+                : 'bg-slate-50 dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+            }`}
+            title="Tampilkan atau sembunyikan kotak pencarian per masing-masing kolom header"
+          >
+            <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>{showColSearchRow ? 'Filter Kolom Aktif' : 'Pencarian Per Kolom'}</span>
+            {activeColFiltersCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">
+                {activeColFiltersCount}
+              </span>
+            )}
+          </button>
+
+          {/* Tombol Reset Filter Kolom jika ada filter aktif */}
+          {activeColFiltersCount > 0 && (
+            <button
+              type="button"
+              onClick={handleResetColFilters}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-xs font-semibold hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors cursor-pointer"
+              title="Hapus seluruh teks pencarian kolom header"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Reset Filter Kolom ({activeColFiltersCount})</span>
+            </button>
+          )}
+
           <div className="ml-auto flex items-center gap-3 text-xs font-mono">
             {/* Quick Page Size Switcher */}
             <div className="hidden sm:flex items-center gap-1.5 text-slate-500 font-sans text-[11px]">
@@ -684,6 +831,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full text-xs text-left text-slate-700 dark:text-slate-300">
           <thead className="bg-slate-50/90 dark:bg-slate-950/80 text-slate-500 dark:text-slate-400 uppercase font-mono tracking-wider border-b border-slate-200/90 dark:border-slate-800/90 text-[11px]">
+            {/* Baris 1: Judul Header Kolom */}
             <tr>
               <th className="px-3 py-2.5 w-8 text-center">
                 <input
@@ -695,18 +843,269 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                   title="Pilih Semua Data di Halaman Ini"
                 />
               </th>
-              <th className="px-4 py-2.5 whitespace-nowrap">Tanggal Terima Budget</th>
-              <th className="px-4 py-2.5 whitespace-nowrap">Nomor SPP</th>
-              <th className="px-4 py-2.5 whitespace-nowrap">Area Cabang</th>
-              <th className="px-4 py-2.5 whitespace-nowrap">PIC</th>
-              <th className="px-4 py-2.5 whitespace-nowrap">Tanggal PO</th>
-              <th className="px-4 py-2.5 whitespace-nowrap">Nomor PO</th>
-              <th className="px-4 py-2.5 whitespace-nowrap">Kondisi Khusus</th>
-              <th className="px-4 py-2.5 text-center whitespace-nowrap">Jumlah Hari Proses</th>
-              <th className="px-4 py-2.5 text-center whitespace-nowrap">Status PO</th>
-              <th className="px-4 py-2.5 text-center whitespace-nowrap">Status SLA</th>
-              <th className="px-4 py-2.5 text-right whitespace-nowrap">Aksi</th>
+              <th className="px-4 py-2.5 whitespace-nowrap min-w-[130px]">Tanggal Terima Budget</th>
+              <th className="px-4 py-2.5 whitespace-nowrap min-w-[170px]">Nomor SPP</th>
+              <th className="px-4 py-2.5 whitespace-nowrap min-w-[130px]">Area Cabang</th>
+              <th className="px-4 py-2.5 whitespace-nowrap min-w-[110px]">PIC</th>
+              <th className="px-4 py-2.5 whitespace-nowrap min-w-[120px]">Tanggal PO</th>
+              <th className="px-4 py-2.5 whitespace-nowrap min-w-[150px]">Nomor PO</th>
+              <th className="px-4 py-2.5 whitespace-nowrap min-w-[160px]">Kondisi Khusus</th>
+              <th className="px-4 py-2.5 text-center whitespace-nowrap min-w-[110px]">Jumlah Hari Proses</th>
+              <th className="px-4 py-2.5 text-center whitespace-nowrap min-w-[100px]">Status PO</th>
+              <th className="px-4 py-2.5 text-center whitespace-nowrap min-w-[110px]">Status SLA</th>
+              <th className="px-4 py-2.5 text-right whitespace-nowrap min-w-[70px]">Aksi</th>
             </tr>
+
+            {/* Baris 2: Kolom Pencarian Per-Masing-Masing Header (Sesuai Permintaan Pengguna) */}
+            {showColSearchRow && (
+              <tr className="bg-slate-50/95 dark:bg-slate-900/95 border-t border-slate-200/80 dark:border-slate-800/80 text-[11px] font-normal font-sans lowercase">
+                {/* 1. Reset / Checkbox column */}
+                <th className="px-2 py-1.5 text-center">
+                  {activeColFiltersCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={handleResetColFilters}
+                      className="text-rose-600 hover:text-rose-700 dark:text-rose-400 p-0.5 cursor-pointer"
+                      title="Reset semua kolom filter pencarian"
+                    >
+                      <X className="w-3.5 h-3.5 mx-auto" />
+                    </button>
+                  ) : (
+                    <span className="text-slate-300 dark:text-slate-700 select-none">#</span>
+                  )}
+                </th>
+
+                {/* 2. Tanggal Terima Budget */}
+                <th className="px-2 py-1.5">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={colSearchBudgetReceived}
+                      onChange={(e) => setColSearchBudgetReceived(e.target.value)}
+                      placeholder="Cari tgl terima..."
+                      className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                      title="Filter tanggal terima budget (misal: 2026-10 atau 07)"
+                    />
+                    {colSearchBudgetReceived && (
+                      <button
+                        type="button"
+                        onClick={() => setColSearchBudgetReceived('')}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                        title="Hapus filter ini"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
+                </th>
+
+                {/* 3. Nomor SPP */}
+                <th className="px-2 py-1.5">
+                  <div className="relative">
+                    <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={colSearchSpp}
+                      onChange={(e) => setColSearchSpp(e.target.value)}
+                      placeholder="Cari No. SPP..."
+                      className="w-full pl-6 pr-5 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                      title="Filter nomor SPP"
+                    />
+                    {colSearchSpp && (
+                      <button
+                        type="button"
+                        onClick={() => setColSearchSpp('')}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                        title="Hapus filter ini"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
+                </th>
+
+                {/* 4. Area Cabang */}
+                <th className="px-2 py-1.5">
+                  <select
+                    value={colSearchArea}
+                    onChange={(e) => setColSearchArea(e.target.value)}
+                    className="w-full px-1.5 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans cursor-pointer"
+                    title="Filter cabang"
+                  >
+                    <option value="">Semua Cabang</option>
+                    <option value="SEPANJANG">Sepanjang</option>
+                    <option value="KARAWANG">Karawang</option>
+                    <option value="SUKODONO">Sukodono</option>
+                    <option value="SEMARANG">Semarang</option>
+                  </select>
+                </th>
+
+                {/* 5. PIC */}
+                <th className="px-2 py-1.5">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={colSearchPic}
+                      onChange={(e) => setColSearchPic(e.target.value)}
+                      placeholder="Cari PIC..."
+                      className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                      title="Filter nama PIC"
+                    />
+                    {colSearchPic && (
+                      <button
+                        type="button"
+                        onClick={() => setColSearchPic('')}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                        title="Hapus filter ini"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
+                </th>
+
+                {/* 6. Tanggal PO */}
+                <th className="px-2 py-1.5">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={colSearchPoDate}
+                      onChange={(e) => setColSearchPoDate(e.target.value)}
+                      placeholder="Cari tgl PO..."
+                      className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                      title="Filter tanggal PO"
+                    />
+                    {colSearchPoDate && (
+                      <button
+                        type="button"
+                        onClick={() => setColSearchPoDate('')}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                        title="Hapus filter ini"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
+                </th>
+
+                {/* 7. Nomor PO */}
+                <th className="px-2 py-1.5">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={colSearchPoNumber}
+                      onChange={(e) => setColSearchPoNumber(e.target.value)}
+                      placeholder="Cari No. PO..."
+                      className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                      title="Filter nomor PO"
+                    />
+                    {colSearchPoNumber && (
+                      <button
+                        type="button"
+                        onClick={() => setColSearchPoNumber('')}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                        title="Hapus filter ini"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
+                </th>
+
+                {/* 8. Kondisi Khusus */}
+                <th className="px-2 py-1.5">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={colSearchSpecialCondition}
+                      onChange={(e) => setColSearchSpecialCondition(e.target.value)}
+                      placeholder="Cari kondisi..."
+                      className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                      title="Filter kendala khusus / catatan"
+                    />
+                    {colSearchSpecialCondition && (
+                      <button
+                        type="button"
+                        onClick={() => setColSearchSpecialCondition('')}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                        title="Hapus filter ini"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
+                </th>
+
+                {/* 9. Jumlah Hari Proses */}
+                <th className="px-2 py-1.5 text-center">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={colSearchProcessDays}
+                      onChange={(e) => setColSearchProcessDays(e.target.value)}
+                      placeholder="Hari..."
+                      className="w-full px-1.5 py-1 text-xs text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                      title="Filter jumlah hari kerja proses (misal 0 atau 1)"
+                    />
+                    {colSearchProcessDays && (
+                      <button
+                        type="button"
+                        onClick={() => setColSearchProcessDays('')}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                        title="Hapus filter ini"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
+                </th>
+
+                {/* 10. Status PO */}
+                <th className="px-2 py-1.5 text-center">
+                  <select
+                    value={colSearchStatusPo}
+                    onChange={(e) => setColSearchStatusPo(e.target.value as any)}
+                    className="w-full px-1 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans cursor-pointer"
+                    title="Filter status PO"
+                  >
+                    <option value="ALL">Semua</option>
+                    <option value="CLOSE">Close</option>
+                    <option value="OPEN">Open</option>
+                  </select>
+                </th>
+
+                {/* 11. Status SLA */}
+                <th className="px-2 py-1.5 text-center">
+                  <select
+                    value={colSearchStatusSla}
+                    onChange={(e) => setColSearchStatusSla(e.target.value as any)}
+                    className="w-full px-1 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans cursor-pointer"
+                    title="Filter status SLA"
+                  >
+                    <option value="ALL">Semua</option>
+                    <option value="ONTIME">ONTIME</option>
+                    <option value="TERLAMBAT">TERLAMBAT</option>
+                    <option value="FAST-TRACK">FAST-TRACK</option>
+                  </select>
+                </th>
+
+                {/* 12. Aksi (Tombol Reset) */}
+                <th className="px-2 py-1.5 text-right">
+                  {activeColFiltersCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={handleResetColFilters}
+                      className="px-2 py-1 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 text-[11px] font-semibold transition-colors cursor-pointer"
+                      title="Reset seluruh kolom filter pencarian"
+                    >
+                      Reset
+                    </button>
+                  ) : (
+                    <span className="text-slate-400 text-[10px] select-none pr-2">Filter</span>
+                  )}
+                </th>
+              </tr>
+            )}
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
             {sortedItems.length === 0 ? (
@@ -744,8 +1143,9 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                             setFilterSLA('ALL');
                             setFilterAlert('ALL');
                             setSelectedPic('ALL');
+                            handleResetColFilters();
                           }}
-                          className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 transition-colors"
+                          className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
                         >
                           Reset Semua Filter
                         </button>
