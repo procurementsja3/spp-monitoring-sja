@@ -58,6 +58,30 @@ import { ExportModal } from './components/ExportModal';
 import { Security2FAModal } from './components/Security2FAModal';
 import { PromptGitHubModal } from './components/PromptGitHubModal';
 
+// Helper re-evaluasi dinamis seluruh metrik hari kerja proses (>24 jam = 1 hari, same day = 0 hari)
+export function recalculateSPPFields(item: any, holidaysList: IndonesianHoliday[] = DEFAULT_INDONESIAN_HOLIDAYS): SPPItem {
+  const isUrgent = !!item.isUrgentAdvance;
+  const calc = calculateWorkingDays(item.budgetReceivedDate, item.poDate || undefined, holidaysList);
+  const hasPo = !!(item.poNumber && String(item.poNumber).trim() !== '');
+  const statusPO = hasPo ? 'CLOSE' : 'OPEN';
+  const slaLimit = item.slaLimit === 3 ? 10 : (item.slaLimit || 10);
+  const processDays = isUrgent && hasPo ? 0 : calc.workingDays;
+  const statusOntime = isUrgent ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
+  const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
+  const isSignificantDelay = !isUrgent && processDays > slaLimit;
+
+  return {
+    ...item,
+    area: item.area || 'SEPANJANG',
+    processDays,
+    statusPO,
+    statusOntime,
+    isHPlus3Overdue,
+    isSignificantDelay,
+    slaLimit,
+  };
+}
+
 export default function App() {
   // 0. Theme Mode: 'dark' atau 'light' (Luxury Enterprise Experience)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -124,16 +148,7 @@ export default function App() {
             return [];
           }
 
-          return parsed.map((item: any) => {
-            const slaLimit = item.slaLimit === 3 ? 10 : (item.slaLimit || 10);
-            return {
-              ...item,
-              area: item.area || 'SEPANJANG',
-              slaLimit,
-              statusOntime: item.processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT',
-              isSignificantDelay: item.processDays > slaLimit,
-            };
-          });
+          return parsed.map((item: any) => recalculateSPPFields(item));
         }
       }
     } catch {}
@@ -789,6 +804,17 @@ export default function App() {
       ...prev.filter((i) => i.area !== area),
     ]);
 
+    // 3. SINKRONISASI 2 ARAH BALIK KE GOOGLE SHEET:
+    // Update kembali nilai kolom 'Hari Kerja Proses' dan 'Status SLA' hasil rekalkulasi terbaru ke Google Sheet
+    try {
+      const cfg = areaConfigs[area] || getFallbackAreaConfigs()[area];
+      if (cfg?.webAppUrl && tagged.length > 0) {
+        await pushToGoogleSheet(cfg.webAppUrl, tagged, 'UPSERT_BATCH', area);
+      }
+    } catch (pushBackErr) {
+      console.warn(`[2-Way Sync Push-Back Notice] Gagal memperbarui kolom Hari Kerja di Google Sheet (${area}):`, pushBackErr);
+    }
+
     setAreaConfigs((prev) => ({
       ...prev,
       [area]: {
@@ -799,7 +825,7 @@ export default function App() {
     }));
 
     const areaName = AREA_METADATA[area]?.name || area;
-    let logText = `Sinkronisasi 2 arah ${areaName}: ${tagged.length} data aktif diselaraskan (${addedCount} baru, ${updatedCount} diperbarui)`;
+    let logText = `Sinkronisasi 2 arah ${areaName}: ${tagged.length} data aktif diselaraskan (${addedCount} baru, ${updatedCount} diperbarui, kolom hari kerja proses di Google Sheet terbarui)`;
     if (deletedCount > 0) {
       logText += `, serta ${deletedCount} data yang dihapus di Google Sheet telah dihapus dari aplikasi (${deletedFromSheet.map((d) => d.sppNumber).slice(0, 3).join(', ')}${deletedCount > 3 ? '...' : ''})`;
     }

@@ -1377,34 +1377,44 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs pt-1">
               <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-blue-200/60 dark:border-slate-800 space-y-1">
                 <span className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
-                  <Coffee className="w-3.5 h-3.5" />
-                  <span>1. Pengurangan Akhir Pekan (-2 Hari)</span>
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>1. Hari yang Sama = 0 Hari (&lt; 24 Jam)</span>
                 </span>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                  Jika SPP diterima hari <strong>Jumat</strong> dan PO terbit hari <strong>Senin</strong>, durasi Sabtu dan Minggu <strong>dikurangi 2 hari</strong>. Dokumen hanya dihitung 2 hari kerja.
+                  Jika SPP diterima <strong>7 Okt</strong> dan PO terbit <strong>7 Okt</strong>, proses selesai di hari yang sama (&lt; 24 jam) sehingga dihitung <strong>0 hari kerja</strong> (Same-day response).
+                </p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-indigo-200/60 dark:border-slate-800 space-y-1">
+                <span className="font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  <span>2. Hari Berikutnya = 1 Hari (&gt; 24 Jam)</span>
+                </span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                  Jika SPP diterima <strong>7 Okt</strong> dan PO terbit <strong>8 Okt</strong>, durasi telah melewati 24 jam pertama kerja, sehingga terhitung <strong>1 hari kerja</strong>.
                 </p>
               </div>
 
               <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-emerald-200/60 dark:border-slate-800 space-y-1">
                 <span className="font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
                   <CalendarX2 className="w-3.5 h-3.5" />
-                  <span>2. Pengurangan Libur SKB 3 Menteri</span>
+                  <span>3. Potong Libur &amp; Weekend</span>
                 </span>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                  Seluruh Hari Libur Nasional &amp; Cuti Bersama resmi pemerintah (contoh: <strong>Hari Raya Idul Fitri</strong>, <strong>Natal</strong>, <strong>Nyepi</strong>, <strong>Tahun Baru</strong>, dll) otomatis memotong durasi proses.
+                  Sabtu-Minggu &amp; Libur SKB 3 Menteri otomatis dipotong. Misal terima <strong>Jumat</strong> dan PO terbit <strong>Senin</strong>, akhir pekan dipotong sehingga hanya <strong>1 hari kerja</strong>.
                 </p>
               </div>
 
               <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-amber-200/60 dark:border-slate-800 space-y-1">
                 <span className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
                   <Zap className="w-3.5 h-3.5" />
-                  <span>3. Jalur PO Darurat (Dispensasi)</span>
+                  <span>4. PO Darurat (Dispensasi)</span>
                 </span>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                  Untuk kondisi darurat (mesin pabrik breakdown / stok kritis) di mana PO terbit mendahului ACC budget, hari proses dihitung <strong>0 hari kerja (Fast-Track ONTIME)</strong> tanpa pinalti.
+                  Untuk kondisi darurat (mesin pabrik breakdown / spare part kritis) PO terbit mendahului ACC budget, dihitung <strong>0 hari kerja (Fast-Track ONTIME)</strong>.
                 </p>
               </div>
             </div>

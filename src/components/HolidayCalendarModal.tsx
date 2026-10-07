@@ -74,18 +74,22 @@ export const HolidayCalendarModal: React.FC<HolidayCalendarModalProps> = ({
           <Info className="w-4 h-4 text-cyan-600" />
           <span>Aturan Resmi Penghitungan Hari Kerja (Working Days Procurement SLA):</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-slate-600 pt-1">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-slate-600 pt-1">
           <div className="flex items-start gap-2">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-            <span><strong>Hari Sabtu &amp; Minggu:</strong> Diabaikan secara otomatis oleh kalender sistem.</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
+            <span><strong>Same-Day (&lt; 24 Jam):</strong> Selesai di hari yang sama dihitung <strong>0 hari kerja</strong> (Hari ke-0).</span>
           </div>
           <div className="flex items-start gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-            <span><strong>Hari Libur Nasional:</strong> Tanggal merah resmi SKB tidak menambah beban SLA tim.</span>
+            <span><strong>H+1 (&gt; 24 Jam):</strong> Diterima tgl T dan PO tgl T+1 hari kerja terhitung <strong>1 hari kerja</strong>.</span>
           </div>
           <div className="flex items-start gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-            <span><strong>Batas Normal H+3:</strong> Dihitung dari 3 hari kerja penuh setelah tanggal budget diterima.</span>
+            <span><strong>Sabtu &amp; Minggu / Libur:</strong> Hari non-kerja dan tanggal merah SKB otomatis dipotong.</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+            <span><strong>Batas Normal SLA:</strong> Toleransi 10 hari kerja (notifikasi H+3 jika masih Open).</span>
           </div>
         </div>
       </div>

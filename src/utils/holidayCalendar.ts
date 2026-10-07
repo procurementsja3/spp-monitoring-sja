@@ -136,6 +136,21 @@ export function calculateWorkingDays(
     };
   }
 
+  const startISO = formatDateToISO(start);
+  const endISO = formatDateToISO(end);
+
+  // Jika tanggal mulai dan tanggal selesai sama persis (proses selesai di hari yang sama / < 24 jam):
+  // Dihitung 0 Hari Kerja (Same-Day / Hari ke-0)
+  if (startISO === endISO) {
+    return {
+      workingDays: 0,
+      totalCalendarDays: 0,
+      weekendDaysSkipped: 0,
+      holidayDaysSkipped: 0,
+      holidaysSkippedList: [],
+    };
+  }
+
   let current = new Date(start);
   let workingDays = 0;
   let totalCalendarDays = 0;
@@ -143,10 +158,12 @@ export function calculateWorkingDays(
   let holidayDaysSkipped = 0;
   const holidaysSkippedList: string[] = [];
 
-  // Hitung hari kerja dari startDate hingga endDate
-  // Aturan standar proses pengadaan: jika PO selesai di hari yang sama, dihitung 0 atau 1 hari kerja (disini kita hitung hari kerja transisi: Day 1 - Day 0)
-  while (current <= end) {
+  // Hitung selisih hari kerja (Elapsed Working Days / Perhitungan > 24 Jam):
+  // Hari pertama terima adalah Day 0. Setiap pergantian hari kerja aktif bernilai +1 hari kerja.
+  // Contoh: 7 Okt (Rabu) ke 8 Okt (Kamis) = 1 Hari Kerja (setelah melewati 24 jam pertama).
+  while (current < end) {
     totalCalendarDays++;
+    current.setDate(current.getDate() + 1);
     const currentISO = formatDateToISO(current);
     const weekend = isWeekend(current);
     const holidayCheck = checkIsIndonesianHoliday(currentISO, holidays);
@@ -159,15 +176,11 @@ export function calculateWorkingDays(
         holidaysSkippedList.push(`${holidayCheck.holidayName} (${currentISO})`);
       }
     } else {
-      // Hanya hari kerja efektif
-      // Kita hitung hari kerja berjalan. Jika start == end pada hari kerja yang sama = 1 hari kerja
+      // Hari kerja efektif berikutnya (+1 hari kerja)
       workingDays++;
     }
-
-    current.setDate(current.getDate() + 1);
   }
 
-  // Jika start dan end adalah hari yang sama dan merupakan hari kerja, workingDays = 1
   return {
     workingDays: Math.max(0, workingDays),
     totalCalendarDays,
