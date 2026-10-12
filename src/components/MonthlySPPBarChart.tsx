@@ -20,7 +20,8 @@ import {
   Table as TableIcon,
   ShieldCheck,
   Building2,
-  Maximize2
+  Maximize2,
+  Users
 } from 'lucide-react';
 
 export interface MonthlyBarData {
@@ -85,7 +86,7 @@ export const MonthlySPPBarChart: React.FC<MonthlySPPBarChartProps> = ({
 
   // State Tooltip & Hover
   const [hoveredMonth, setHoveredMonth] = useState<MonthlyBarData | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number; placement?: 'top' | 'bottom' } | null>(null);
 
   // State Modal Rincian Dokumen Bulanan saat Bar diklik
   const [selectedMonthModal, setSelectedMonthModal] = useState<MonthlyBarData | null>(null);
@@ -193,6 +194,52 @@ export const MonthlySPPBarChart: React.FC<MonthlySPPBarChartProps> = ({
     return Math.ceil(maxVal / 5) * 5;
   }, [monthlyData]);
 
+  // Breakdown Beban Kerja per PIC untuk Bulan yang sedang di-hover
+  const hoveredPicBreakdown = useMemo(() => {
+    if (!hoveredMonth || !hoveredMonth.items.length) return [];
+
+    const map = new Map<
+      string,
+      {
+        name: string;
+        total: number;
+        closed: number;
+        open: number;
+        ontime: number;
+        late: number;
+      }
+    >();
+
+    hoveredMonth.items.forEach((item) => {
+      const rawPic = (item.pic || '').trim();
+      const picName = rawPic || 'Tanpa PIC';
+      const key = picName.toUpperCase();
+      const existing = map.get(key) || {
+        name: picName,
+        total: 0,
+        closed: 0,
+        open: 0,
+        ontime: 0,
+        late: 0,
+      };
+
+      existing.total += 1;
+      if (item.statusPO === 'CLOSE') {
+        existing.closed += 1;
+      } else {
+        existing.open += 1;
+      }
+      if (item.statusOntime === 'ONTIME') {
+        existing.ontime += 1;
+      } else if (item.statusOntime === 'TERLAMBAT') {
+        existing.late += 1;
+      }
+      map.set(key, existing);
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [hoveredMonth]);
+
   // Handle Mouse Hover untuk Tooltip
   const handleMouseEnterBar = (
     e: React.MouseEvent<SVGGElement | HTMLDivElement>,
@@ -200,9 +247,19 @@ export const MonthlySPPBarChart: React.FC<MonthlySPPBarChartProps> = ({
   ) => {
     const rect = e.currentTarget.getBoundingClientRect();
     setHoveredMonth(month);
+
+    // Hitung posisi aman agar tooltip tidak terpotong di bagian atas atau samping layar
+    const showBelow = rect.top < 340;
+    const tooltipWidth = 290;
+    const clampedX = Math.min(
+      Math.max(rect.left + rect.width / 2, tooltipWidth / 2 + 16),
+      window.innerWidth - tooltipWidth / 2 - 16
+    );
+
     setTooltipPos({
-      x: rect.left + rect.width / 2,
-      y: rect.top - 12,
+      x: clampedX,
+      y: showBelow ? rect.bottom + 12 : rect.top - 12,
+      placement: showBelow ? 'bottom' : 'top',
     });
   };
 
@@ -624,12 +681,15 @@ export const MonthlySPPBarChart: React.FC<MonthlySPPBarChartProps> = ({
           {/* Tooltip Mengambang Dinamis Saat Kursor Diarahkan ke Bar Bulan */}
           {hoveredMonth && tooltipPos && (
             <div
-              className="fixed z-50 pointer-events-none -translate-x-1/2 -translate-y-full mb-2 bg-slate-900/95 dark:bg-black/95 text-white backdrop-blur-md rounded-xl p-3 border border-slate-700/80 shadow-2xl text-xs min-w-[220px] max-w-[280px] animate-in fade-in zoom-in-95 duration-150"
+              className={`fixed z-50 pointer-events-none -translate-x-1/2 ${
+                tooltipPos.placement === 'bottom' ? 'translate-y-0 mt-2' : '-translate-y-full mb-2'
+              } bg-slate-900/95 dark:bg-black/95 text-white backdrop-blur-md rounded-xl p-3 border border-slate-700/80 shadow-2xl text-xs min-w-[260px] max-w-[320px] animate-in fade-in zoom-in-95 duration-150`}
               style={{
                 left: `${tooltipPos.x}px`,
                 top: `${tooltipPos.y}px`,
               }}
             >
+              {/* Header Tooltip */}
               <div className="flex items-center justify-between border-b border-slate-700/70 pb-1.5 mb-2">
                 <span className="font-bold text-slate-100 flex items-center gap-1.5">
                   <CalendarDays className="w-3.5 h-3.5 text-blue-400" />
@@ -637,11 +697,12 @@ export const MonthlySPPBarChart: React.FC<MonthlySPPBarChartProps> = ({
                     {hoveredMonth.monthName} {hoveredMonth.year}
                   </span>
                 </span>
-                <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-blue-500/30 text-blue-300 font-bold">
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-300 font-bold border border-blue-400/30">
                   {hoveredMonth.total} Dokumen
                 </span>
               </div>
 
+              {/* Status Ringkasan Dokumen */}
               <div className="space-y-1.5 text-[11px]">
                 <div className="flex justify-between items-center text-slate-300">
                   <span>📥 Total SPP Diterima:</span>
@@ -685,7 +746,80 @@ export const MonthlySPPBarChart: React.FC<MonthlySPPBarChartProps> = ({
                 )}
               </div>
 
-              <div className="mt-2 pt-1 border-t border-slate-800 text-[10px] text-blue-300/80 text-center">
+              {/* Breakdown PIC Pekerjaan */}
+              {hoveredPicBreakdown.length > 0 && (
+                <div className="border-t border-slate-700/70 pt-2 mt-2">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-200 mb-1.5">
+                    <span className="flex items-center gap-1.5 text-indigo-300">
+                      <Users className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Breakdown PIC ({hoveredMonth.total} SPP):</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {hoveredPicBreakdown.length} PIC
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 max-h-[145px] overflow-y-auto pr-0.5 custom-scrollbar">
+                    {hoveredPicBreakdown.map((pic) => {
+                      const pct =
+                        hoveredMonth.total > 0 ? Math.round((pic.total / hoveredMonth.total) * 100) : 0;
+                      return (
+                        <div
+                          key={pic.name}
+                          className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/60 flex flex-col gap-1 text-[10.5px]"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-100 flex items-center gap-1.5 truncate max-w-[155px]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                              <span className="truncate">{pic.name}</span>
+                            </span>
+                            <div className="flex items-center gap-1 font-mono text-[10px] shrink-0">
+                              <strong className="text-white font-bold">{pic.total} SPP</strong>
+                              <span className="text-indigo-300 font-medium">({pct}%)</span>
+                            </div>
+                          </div>
+
+                          {/* Mini Progress Bar Close vs Open */}
+                          <div className="w-full bg-slate-700/60 rounded-full h-1 overflow-hidden flex">
+                            <div
+                              className="bg-emerald-500 h-full transition-all"
+                              style={{
+                                width: `${pic.total > 0 ? (pic.closed / pic.total) * 100 : 0}%`,
+                              }}
+                              title={`Close: ${pic.closed}`}
+                            />
+                            <div
+                              className="bg-amber-500 h-full transition-all"
+                              style={{
+                                width: `${pic.total > 0 ? (pic.open / pic.total) * 100 : 0}%`,
+                              }}
+                              title={`Open: ${pic.open}`}
+                            />
+                          </div>
+
+                          {/* Rincian Status Realisasi PO PIC */}
+                          <div className="flex items-center justify-between text-[9px] text-slate-400 pt-0.5">
+                            <span className="text-emerald-400 font-mono">
+                              ✓ {pic.closed} Close {pic.total > 0 && pic.closed === pic.total ? '(100%)' : ''}
+                            </span>
+                            {pic.open > 0 ? (
+                              <span className="text-amber-400 font-mono font-medium">
+                                ⏳ {pic.open} Open
+                              </span>
+                            ) : (
+                              <span className="text-emerald-400/80 font-mono">
+                                Selesai
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-2 pt-1.5 border-t border-slate-800 text-[10px] text-blue-300/80 text-center">
                 Klik bar untuk melihat rincian dokumen
               </div>
             </div>
