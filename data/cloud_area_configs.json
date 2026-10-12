@@ -17,7 +17,7 @@
   },
   "SUKODONO": {
     "webAppUrl": "https://script.google.com/macros/s/AKfycbx2ZMN-kHDzoa5ZP3lODQTDF-sPt2vIMuXWb5NuodG7IrUmUQqHr6YDby0azMYHc5GE/exec",
-    "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM/edit?usp=sharing",
+    "spreadsheetUrl": "https://docs.google.com/spreadsheets/u/0/?q=SPP_Sukodono",
     "sheetName": "SPP_Sukodono",
     "autoSync": true,
     "syncStatus": "connected",

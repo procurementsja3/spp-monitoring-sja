@@ -173,6 +173,14 @@ function doGet(e) {
         statusOntime: String(row[9] || 'ONTIME'),
         isHPlus3Overdue: String(row[10] || '').toUpperCase() === 'YA',
         specialCondition: String(row[11] || ''),
+        specialConditionReason: (function() {
+          var n = String(row[12] || '');
+          if (n.indexOf('Kondisi Khusus:') === 0) {
+            var parts = n.replace('Kondisi Khusus:', '').split(' - ');
+            return parts.length > 1 ? parts.slice(1).join(' - ').trim() : '';
+          }
+          return '';
+        })(),
         notes: String(row[12] || ''),
         updatedAt: String(row[13] || new Date().toISOString())
       };

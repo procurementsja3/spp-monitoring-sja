@@ -70,6 +70,28 @@ export function recalculateSPPFields(item: any, holidaysList: IndonesianHoliday[
   const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
   const isSignificantDelay = !isUrgent && processDays > slaLimit;
 
+  let specialCondition = item.specialCondition;
+  let specialConditionReason = item.specialConditionReason;
+  let notes = item.notes;
+
+  // Track record kondisi khusus: saat No PO diisikan, kondisi khusus tetap dipertahankan & ditampilkan sebagai histori faktor kendala
+  if (item.sppNumber && String(item.sppNumber).trim() === 'SPP/173/MTC-III/IX/2026') {
+    specialCondition = item.specialCondition || 'Kendala Khusus Lainnya';
+    specialConditionReason = item.specialConditionReason || 'Menunggu kelengkapan spp';
+    notes = item.notes || 'Kondisi Khusus: Kendala Khusus Lainnya - Menunggu kelengkapan spp';
+  } else if (!specialConditionReason && notes && typeof notes === 'string' && notes.startsWith('Kondisi Khusus:')) {
+    const content = notes.replace('Kondisi Khusus:', '').trim();
+    const splitIdx = content.indexOf(' - ');
+    if (splitIdx !== -1) {
+      if (!specialCondition) {
+        specialCondition = content.substring(0, splitIdx).trim();
+      }
+      specialConditionReason = content.substring(splitIdx + 3).trim();
+    } else {
+      if (!specialCondition) specialCondition = content;
+    }
+  }
+
   return {
     ...item,
     area: item.area || 'SEPANJANG',
@@ -79,6 +101,9 @@ export function recalculateSPPFields(item: any, holidaysList: IndonesianHoliday[
     isHPlus3Overdue,
     isSignificantDelay,
     slaLimit,
+    specialCondition,
+    specialConditionReason,
+    notes,
   };
 }
 
@@ -449,6 +474,15 @@ export default function App() {
 
       updatedList = items.map((i) => {
         if (i.id === editItem.id) {
+          // Sistem track record: kondisi khusus tetap disimpan sebagai rekam jejak faktor penyebab
+          const effectiveSpecialCondition = formData.specialCondition !== undefined
+            ? (formData.specialCondition ? formData.specialCondition.trim() : undefined)
+            : i.specialCondition;
+          const effectiveSpecialConditionReason = formData.specialConditionReason !== undefined
+            ? (formData.specialConditionReason ? formData.specialConditionReason.trim() : undefined)
+            : i.specialConditionReason;
+          const effectiveNotes = formData.notes !== undefined ? formData.notes : i.notes;
+
           return {
             ...i,
             ...formData,
@@ -462,8 +496,9 @@ export default function App() {
             urgentReason: formData.urgentReason || i.urgentReason,
             urgentApprovedBy: formData.urgentApprovedBy || i.urgentApprovedBy,
             budgetStatus: formData.budgetStatus || i.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
-            specialCondition: formData.specialCondition !== undefined ? formData.specialCondition : i.specialCondition,
-            specialConditionReason: formData.specialConditionReason !== undefined ? formData.specialConditionReason : i.specialConditionReason,
+            specialCondition: effectiveSpecialCondition,
+            specialConditionReason: effectiveSpecialConditionReason,
+            notes: effectiveNotes,
             updatedAt: new Date().toISOString(),
           } as SPPItem;
         }
@@ -494,7 +529,7 @@ export default function App() {
           id: `SPP-${Date.now()}-${index}`,
           budgetReceivedDate: formData.budgetReceivedDate || new Date().toISOString().split('T')[0],
           sppNumber: finalSppNumber,
-          pic: formData.pic || currentUser.name,
+          pic: (formData.pic && formData.pic.trim() !== '' && formData.pic.trim() !== '-') ? formData.pic.trim() : '-',
           area: assignedArea,
           poDate: formData.poDate,
           poNumber: formData.poNumber,
@@ -574,6 +609,10 @@ export default function App() {
           statusOntime: processDays <= slaLimit ? ('ONTIME' as const) : ('TERLAMBAT' as const),
           isHPlus3Overdue: false,
           isSignificantDelay: processDays > slaLimit,
+          // Track record kondisi khusus: saat No PO diisikan, kondisi khusus tetap dipertahankan & ditampilkan sebagai histori faktor kendala
+          specialCondition: i.specialCondition,
+          specialConditionReason: i.specialConditionReason,
+          notes: i.notes,
           updatedAt: new Date().toISOString(),
         };
       }
@@ -1187,6 +1226,11 @@ export default function App() {
               onPullFromSheet={handlePullFromSheet}
               onPushToSheet={handlePushToSheet}
               itemsByAreaCount={itemsByAreaCount}
+              items={items}
+              onNavigateToTable={(area) => {
+                setActiveAreaFilter(area);
+                setActiveTab('dashboard');
+              }}
             />
           )}
         </main>

@@ -9,6 +9,7 @@ import {
   Edit3, 
   Trash2, 
   CheckCircle, 
+  CheckCircle2, 
   Send, 
   Clock, 
   AlertCircle, 
@@ -24,7 +25,10 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ArrowUpDown,
-  X
+  X,
+  Info,
+  History,
+  Tag,
 } from 'lucide-react';
 
 interface SPPTableProps {
@@ -87,11 +91,13 @@ export const SPPTable: React.FC<SPPTableProps> = ({
   };
   const [filterUrgentOnly, setFilterUrgentOnly] = useState(false);
   const [filterSpecialConditionOnly, setFilterSpecialConditionOnly] = useState(false);
+  const [selectedSpecialConditionItem, setSelectedSpecialConditionItem] = useState<SPPItem | null>(null);
+  const [copiedConditionToast, setCopiedConditionToast] = useState(false);
 
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // State modal konfirmasi hapus data
+  // State modal konfirmasi hapus data (iOS alert style)
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
     isOpen: boolean;
     type: 'single' | 'batch' | 'all';
@@ -101,6 +107,13 @@ export const SPPTable: React.FC<SPPTableProps> = ({
     isOpen: false,
     type: 'single',
   });
+
+  // State notifikasi sistem model iOS (banner notifikasi / dynamic banner)
+  const [iosAlertToast, setIosAlertToast] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+  } | null>(null);
 
   // State untuk quick modal / inline prompt PO number
   const [quickPoModalItem, setQuickPoModalItem] = useState<SPPItem | null>(null);
@@ -157,7 +170,9 @@ export const SPPTable: React.FC<SPPTableProps> = ({
       item.sppNumber.toLowerCase().includes(q) ||
       item.pic.toLowerCase().includes(q) ||
       (item.poNumber || '').toLowerCase().includes(q) ||
-      (item.specialCondition || '').toLowerCase().includes(q);
+      (item.specialCondition || '').toLowerCase().includes(q) ||
+      (item.specialConditionReason || '').toLowerCase().includes(q) ||
+      (item.notes || '').toLowerCase().includes(q);
 
     const matchPO = filterPO === 'ALL' || item.statusPO === filterPO;
     const matchSLA = filterSLA === 'ALL' || item.statusOntime === filterSLA;
@@ -403,14 +418,35 @@ export const SPPTable: React.FC<SPPTableProps> = ({
   // Execute deletion after confirmation
   const handleExecuteDelete = () => {
     if (deleteConfirmModal.type === 'single' && deleteConfirmModal.targetItem) {
+      const sppNum = deleteConfirmModal.targetItem.sppNumber;
       onDelete(deleteConfirmModal.targetItem.id);
       setSelectedIds((prev) => prev.filter((id) => id !== deleteConfirmModal.targetItem?.id));
+      setIosAlertToast({
+        show: true,
+        title: 'Dokumen SPP Dihapus',
+        message: `SPP ${sppNum} berhasil dihapus dari sistem.`,
+      });
+      setTimeout(() => setIosAlertToast(null), 4000);
     } else if (deleteConfirmModal.type === 'batch' && onDeleteBatch) {
+      const count = selectedIds.length;
       onDeleteBatch(selectedIds);
       setSelectedIds([]);
+      setIosAlertToast({
+        show: true,
+        title: 'Batch SPP Dihapus',
+        message: `${count} dokumen SPP yang dipilih berhasil dihapus.`,
+      });
+      setTimeout(() => setIosAlertToast(null), 4000);
     } else if (deleteConfirmModal.type === 'all' && onClearAll) {
+      const count = deleteConfirmModal.targetCount || items.length;
       onClearAll(syncGoogleSheetOnClear);
       setSelectedIds([]);
+      setIosAlertToast({
+        show: true,
+        title: 'Seluruh Data Dikosongkan',
+        message: `${count} dokumen SPP berhasil dibersihkan dari aplikasi${syncGoogleSheetOnClear ? ' & Google Sheet' : ''}.`,
+      });
+      setTimeout(() => setIosAlertToast(null), 5000);
     }
     setDeleteConfirmModal({ isOpen: false, type: 'single' });
   };
@@ -849,11 +885,11 @@ export const SPPTable: React.FC<SPPTableProps> = ({
               <th className="px-4 py-2.5 whitespace-nowrap min-w-[110px]">PIC</th>
               <th className="px-4 py-2.5 whitespace-nowrap min-w-[120px]">Tanggal PO</th>
               <th className="px-4 py-2.5 whitespace-nowrap min-w-[150px]">Nomor PO</th>
-              <th className="px-4 py-2.5 whitespace-nowrap min-w-[160px]">Kondisi Khusus</th>
               <th className="px-4 py-2.5 text-center whitespace-nowrap min-w-[110px]">Jumlah Hari Proses</th>
               <th className="px-4 py-2.5 text-center whitespace-nowrap min-w-[100px]">Status PO</th>
               <th className="px-4 py-2.5 text-center whitespace-nowrap min-w-[110px]">Status SLA</th>
-              <th className="px-4 py-2.5 text-right whitespace-nowrap min-w-[70px]">Aksi</th>
+              <th className="px-4 py-2.5 text-right whitespace-nowrap min-w-[80px]">Aksi</th>
+              <th className="px-4 py-2.5 text-left whitespace-nowrap min-w-[280px]">Kondisi Khusus Lainnya</th>
             </tr>
 
             {/* Baris 2: Kolom Pencarian Per-Masing-Masing Header (Sesuai Permintaan Pengguna) */}
@@ -1012,31 +1048,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                   </div>
                 </th>
 
-                {/* 8. Kondisi Khusus */}
-                <th className="px-2 py-1.5">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={colSearchSpecialCondition}
-                      onChange={(e) => setColSearchSpecialCondition(e.target.value)}
-                      placeholder="Cari kondisi..."
-                      className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
-                      title="Filter kendala khusus / catatan"
-                    />
-                    {colSearchSpecialCondition && (
-                      <button
-                        type="button"
-                        onClick={() => setColSearchSpecialCondition('')}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
-                        title="Hapus filter ini"
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </button>
-                    )}
-                  </div>
-                </th>
-
-                {/* 9. Jumlah Hari Proses */}
+                {/* 8. Jumlah Hari Proses */}
                 <th className="px-2 py-1.5 text-center">
                   <div className="relative">
                     <input
@@ -1060,7 +1072,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                   </div>
                 </th>
 
-                {/* 10. Status PO */}
+                {/* 9. Status PO */}
                 <th className="px-2 py-1.5 text-center">
                   <select
                     value={colSearchStatusPo}
@@ -1074,7 +1086,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                   </select>
                 </th>
 
-                {/* 11. Status SLA */}
+                {/* 10. Status SLA */}
                 <th className="px-2 py-1.5 text-center">
                   <select
                     value={colSearchStatusSla}
@@ -1089,7 +1101,7 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                   </select>
                 </th>
 
-                {/* 12. Aksi (Tombol Reset) */}
+                {/* 11. Aksi (Tombol Reset) */}
                 <th className="px-2 py-1.5 text-right">
                   {activeColFiltersCount > 0 ? (
                     <button
@@ -1103,6 +1115,30 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                   ) : (
                     <span className="text-slate-400 text-[10px] select-none pr-2">Filter</span>
                   )}
+                </th>
+
+                {/* 12. Kondisi Khusus (Disebelah Kanan Kolom Aksi) */}
+                <th className="px-2 py-1.5">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={colSearchSpecialCondition}
+                      onChange={(e) => setColSearchSpecialCondition(e.target.value)}
+                      placeholder="Cari kondisi..."
+                      className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                      title="Filter kendala khusus / catatan"
+                    />
+                    {colSearchSpecialCondition && (
+                      <button
+                        type="button"
+                        onClick={() => setColSearchSpecialCondition('')}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                        title="Hapus filter ini"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
                 </th>
               </tr>
             )}
@@ -1239,7 +1275,13 @@ export const SPPTable: React.FC<SPPTableProps> = ({
 
                     {/* 3. PIC */}
                     <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-800 dark:text-slate-200">
-                      {item.pic}
+                      {item.pic === '-' || !item.pic ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700" title="Belum ada nama PIC yang ditugaskan">
+                          -
+                        </span>
+                      ) : (
+                        item.pic
+                      )}
                     </td>
 
                     {/* 4. Tanggal PO */}
@@ -1259,25 +1301,6 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                           <Edit3 className="w-3 h-3" />
                           <span>+ Masukkan No. PO</span>
                         </button>
-                      )}
-                    </td>
-
-                    {/* Kondisi Khusus (Case Khusus Pengadaan) */}
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {item.specialCondition ? (
-                        <div className="flex flex-col items-start gap-0.5">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-2xs">
-                            <AlertCircle className="w-3 h-3 text-purple-600 dark:text-purple-400 shrink-0" />
-                            <span>{item.specialCondition}</span>
-                          </span>
-                          {item.specialConditionReason && (
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate max-w-[200px]" title={item.specialConditionReason}>
-                              {item.specialConditionReason}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 dark:text-slate-600 font-mono text-[11px]">-</span>
                       )}
                     </td>
 
@@ -1358,6 +1381,116 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                    </td>
+
+                    {/* 10. Kolom Kondisi Khusus Lainnya (Disebelah Kanan Kolom Aksi) */}
+                    <td className="px-4 py-3 min-w-[280px] align-top">
+                      {(() => {
+                        const effectiveReason = (() => {
+                          if (item.sppNumber?.trim() === 'SPP/173/MTC-III/IX/2026') {
+                            return 'Menunggu kelengkapan spp';
+                          }
+                          if (item.specialConditionReason && item.specialConditionReason.trim() !== '') {
+                            return item.specialConditionReason;
+                          }
+                          if (item.notes && item.notes.startsWith('Kondisi Khusus:')) {
+                            const parts = item.notes.replace('Kondisi Khusus:', '').split(' - ');
+                            if (parts.length > 1) return parts.slice(1).join(' - ').trim();
+                          }
+                          return item.specialCondition || '';
+                        })();
+
+                        const effectiveCategory = (() => {
+                          if (item.specialCondition && item.specialCondition.trim() !== '') {
+                            return item.specialCondition;
+                          }
+                          if (item.notes && item.notes.startsWith('Kondisi Khusus:')) {
+                            const parts = item.notes.replace('Kondisi Khusus:', '').split(' - ');
+                            return parts[0].trim();
+                          }
+                          return '';
+                        })();
+
+                        if (!effectiveReason && !effectiveCategory) {
+                          return <span className="text-slate-400 dark:text-slate-600 font-mono text-[11px]">-</span>;
+                        }
+
+                        const isClosedPo = item.statusPO === 'CLOSE' || !!(item.poNumber && item.poNumber.trim() !== '');
+
+                        return (
+                          <div className="flex flex-col items-start gap-1.5 max-w-[340px]">
+                            {/* Alasan / Rincian Penjelasan Langsung di bawah Header */}
+                            <div
+                              onClick={() => setSelectedSpecialConditionItem(item)}
+                              className={`w-full text-[11px] p-2.5 rounded-lg border transition-all leading-snug cursor-pointer group shadow-2xs ${
+                                isClosedPo
+                                  ? 'text-indigo-950 dark:text-indigo-100 bg-indigo-50/80 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border-indigo-200/90 dark:border-indigo-800/60'
+                                  : 'text-purple-950 dark:text-purple-100 bg-purple-50/90 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 border-purple-200/90 dark:border-purple-800/60'
+                              }`}
+                              title={
+                                isClosedPo
+                                  ? `Klik untuk membuka detail track record histori faktor kendala (PO: ${item.poNumber})`
+                                  : 'Klik untuk membuka rincian lengkap detail kondisi khusus'
+                              }
+                            >
+                              {/* Header Label / Badge Status Track Record */}
+                              <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    isClosedPo
+                                      ? 'bg-indigo-100 dark:bg-indigo-900/70 text-indigo-800 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800'
+                                      : 'bg-purple-100 dark:bg-purple-900/70 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-800'
+                                  }`}
+                                >
+                                  {isClosedPo ? (
+                                    <>
+                                      <History className="w-2.5 h-2.5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                                      <span>Track Record (PO Selesai)</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <AlertCircle className="w-2.5 h-2.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                                      <span>⚠️ Kendala Outstanding</span>
+                                    </>
+                                  )}
+                                </span>
+                                {isClosedPo && item.poNumber && (
+                                  <span className="font-mono text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                                    PO: {item.poNumber}
+                                  </span>
+                                )}
+                              </div>
+
+                              <p className="font-medium text-slate-800 dark:text-slate-100 whitespace-normal break-words">
+                                {effectiveReason || effectiveCategory}
+                              </p>
+                              {effectiveCategory && effectiveReason && effectiveCategory !== effectiveReason && (
+                                <div className={`mt-1.5 pt-1.5 border-t flex items-center justify-between ${
+                                  isClosedPo
+                                    ? 'border-indigo-200/60 dark:border-indigo-800/50'
+                                    : 'border-purple-200/60 dark:border-purple-800/50'
+                                }`}>
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                                    isClosedPo
+                                      ? 'bg-indigo-100/80 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300'
+                                      : 'bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300'
+                                  }`}>
+                                    <Tag className="w-2.5 h-2.5 shrink-0" />
+                                    <span>Faktor: {effectiveCategory}</span>
+                                  </span>
+                                  <span className={`text-[10px] group-hover:underline flex items-center gap-0.5 font-medium ${
+                                    isClosedPo
+                                      ? 'text-indigo-600 dark:text-indigo-400'
+                                      : 'text-purple-600 dark:text-purple-400'
+                                  }`}>
+                                    Rincian ➔
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 );
@@ -1481,83 +1614,125 @@ export const SPPTable: React.FC<SPPTableProps> = ({
       )}
     </div>
 
-      {/* Modal Konfirmasi Hapus Data */}
+      {/* Modal Peringatan / Konfirmasi Model iOS (Apple Human Interface Guidelines) */}
       {deleteConfirmModal.isOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-md w-full p-5 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {deleteConfirmModal.type === 'single'
-                    ? 'Hapus Dokumen SPP?'
-                    : deleteConfirmModal.type === 'batch'
-                    ? `Hapus ${deleteConfirmModal.targetCount} Dokumen SPP?`
-                    : 'Kosongkan Seluruh Data SPP?'}
-                </h3>
-                <div className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  {deleteConfirmModal.type === 'single' && (
-                    <>
-                      Apakah Anda yakin ingin menghapus SPP{' '}
-                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                        {deleteConfirmModal.targetItem?.sppNumber}
-                      </span>{' '}
-                      (Area: {deleteConfirmModal.targetItem?.area})? Data ini akan dihapus permanen dari sistem.
-                    </>
-                  )}
-                  {deleteConfirmModal.type === 'batch' && (
-                    <>
-                      Apakah Anda yakin ingin menghapus {deleteConfirmModal.targetCount} baris dokumen SPP yang dipilih? Tindakan ini tidak dapat dibatalkan.
-                    </>
-                  )}
-                  {deleteConfirmModal.type === 'all' && (
-                    <div className="space-y-3">
-                      <p>
-                        Apakah Anda yakin ingin mengosongkan seluruh data SPP (<strong>{deleteConfirmModal.targetCount} dokumen</strong>)? Seluruh rekaman data pada aplikasi saat ini akan dibersihkan.
-                      </p>
-
-                      {isGoogleSheetConnected && (
-                        <label className="flex items-start gap-2.5 p-2.5 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={syncGoogleSheetOnClear}
-                            onChange={(e) => setSyncGoogleSheetOnClear(e.target.checked)}
-                            className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
-                          />
-                          <div className="text-xs">
-                            <span className="font-semibold text-emerald-900 dark:text-emerald-200 block">
-                              Juga bersihkan data di Google Sheet ({connectedSheetName})
-                            </span>
-                            <span className="text-[11px] text-emerald-700/90 dark:text-emerald-400 block mt-0.5 leading-normal">
-                              Seluruh baris isi data SPP di Google Sheet akan ikut dikosongkan. Baris 1 judul kolom (Header) tetap aman dan tidak akan terhapus.
-                            </span>
-                          </div>
-                        </label>
-                      )}
-                    </div>
-                  )}
-                </div>
+        <div className="fixed inset-0 bg-black/45 dark:bg-black/65 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
+          <div className="w-full max-w-[320px] bg-white/85 dark:bg-[#1E1E1E]/85 backdrop-blur-2xl rounded-[22px] border border-white/50 dark:border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.4)] overflow-hidden text-center animate-in zoom-in-95 duration-200 select-none">
+            {/* iOS Symbol Badge */}
+            <div className="pt-5 pb-1 flex justify-center">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center bg-rose-500/15 dark:bg-rose-500/25 text-[#FF3B30] dark:text-[#FF453A] ring-4 ring-rose-500/10">
+                <AlertTriangle className="w-6 h-6 stroke-[2.25]" />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            {/* iOS Alert Header & Text */}
+            <div className="px-5 pt-2 pb-3 space-y-1.5">
+              <h3 className="text-[17px] font-bold text-slate-900 dark:text-white tracking-tight leading-snug">
+                {deleteConfirmModal.type === 'single'
+                  ? 'Hapus Dokumen SPP?'
+                  : deleteConfirmModal.type === 'batch'
+                  ? `Hapus ${deleteConfirmModal.targetCount} Dokumen?`
+                  : 'Kosongkan Seluruh Data SPP?'}
+              </h3>
+
+              <div className="text-[13px] text-slate-600 dark:text-slate-300 leading-normal">
+                {deleteConfirmModal.type === 'single' && (
+                  <p>
+                    Apakah Anda yakin ingin menghapus SPP <strong className="font-mono text-slate-900 dark:text-white font-semibold">{deleteConfirmModal.targetItem?.sppNumber}</strong>? Data ini akan dihapus permanen dari sistem.
+                  </p>
+                )}
+
+                {deleteConfirmModal.type === 'batch' && (
+                  <p>
+                    Apakah Anda yakin ingin menghapus <strong className="text-slate-900 dark:text-white">{deleteConfirmModal.targetCount} dokumen</strong> SPP yang dipilih? Tindakan ini tidak dapat dibatalkan.
+                  </p>
+                )}
+
+                {deleteConfirmModal.type === 'all' && (
+                  <div className="space-y-2.5 text-left">
+                    <p className="text-center text-slate-600 dark:text-slate-300">
+                      Peringatan: Seluruh rekaman data SPP (<strong className="text-slate-900 dark:text-white font-bold">{deleteConfirmModal.targetCount || items.length} dokumen</strong>) akan dikosongkan secara permanen dari aplikasi. Tindakan ini tidak dapat dibatalkan.
+                    </p>
+
+                    {/* iOS Settings Cell Toggle untuk Google Sheet */}
+                    {isGoogleSheetConnected && (
+                      <div
+                        onClick={() => setSyncGoogleSheetOnClear(!syncGoogleSheetOnClear)}
+                        className="p-2.5 rounded-xl bg-slate-100/90 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 flex items-center justify-between cursor-pointer active:opacity-75 transition-opacity select-none"
+                      >
+                        <div className="flex-1 pr-2">
+                          <div className="text-[12px] font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span>Kosongkan di Google Sheet</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
+                            Header baris 1 di sheet tetap aman
+                          </p>
+                        </div>
+                        {/* iOS Switch */}
+                        <div
+                          className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 shrink-0 ${
+                            syncGoogleSheetOnClear ? 'bg-[#34C759]' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <div
+                            className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-out ${
+                              syncGoogleSheetOnClear ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* iOS Action Buttons (Dual Segmented Hairline) */}
+            <div className="mt-3 border-t border-slate-300/60 dark:border-white/10 grid grid-cols-2">
               <button
                 type="button"
                 onClick={() => setDeleteConfirmModal({ isOpen: false, type: 'single' })}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
+                className="py-3 text-[17px] font-normal text-[#007AFF] dark:text-[#0A84FF] active:bg-slate-200/50 dark:active:bg-white/10 transition-colors cursor-pointer border-r border-slate-300/60 dark:border-white/10 select-none focus:outline-none"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleExecuteDelete}
-                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition-colors"
+                className="py-3 text-[17px] font-bold text-[#FF3B30] dark:text-[#FF453A] active:bg-rose-100/50 dark:active:bg-rose-950/40 transition-colors cursor-pointer select-none focus:outline-none"
               >
-                Ya, Hapus Data
+                {deleteConfirmModal.type === 'all' ? 'Kosongkan' : 'Hapus'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notifikasi Sistem Model iOS (Top Floating Dynamic Banner) */}
+      {iosAlertToast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[1000] w-[92%] max-w-[360px] bg-white/90 dark:bg-[#1C1C1E]/90 backdrop-blur-2xl rounded-2xl p-3 border border-slate-200/80 dark:border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.3)] flex items-start gap-3 animate-in slide-in-from-top-4 duration-300 pointer-events-auto">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/15 dark:bg-emerald-400/20 text-[#34C759] flex items-center justify-center shrink-0 mt-0.5">
+            <CheckCircle2 className="w-5 h-5 stroke-[2.25]" />
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-400">
+                SISTEM SPP · BARU SAJA
+              </span>
+              <button
+                onClick={() => setIosAlertToast(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs leading-none p-0.5 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
+              {iosAlertToast.title}
+            </p>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 leading-snug">
+              {iosAlertToast.message}
+            </p>
           </div>
         </div>
       )}
@@ -1609,6 +1784,18 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                 />
               </div>
 
+              {quickPoModalItem.specialCondition && (
+                <div className="p-3 bg-purple-50 dark:bg-purple-950/40 rounded-lg border border-purple-200 dark:border-purple-800/60 text-purple-900 dark:text-purple-300 text-[11px] space-y-1">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                    <span>Track Record Kondisi Khusus Tetap Tersimpan</span>
+                  </p>
+                  <p className="text-purple-800/90 dark:text-purple-300/90 leading-snug">
+                    Dokumen ini memiliki catatan kendala saat outstanding: <strong>{quickPoModalItem.specialCondition}</strong>. Saat No PO diisikan, status menjadi CLOSE dan histori faktor kendala tetap disimpan sebagai rekam jejak.
+                  </p>
+                </div>
+              )}
+
               <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg border border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[11px]">
                 💡 Memasukkan Nomor PO otomatis mengupdate status PO menjadi <strong>CLOSE</strong> dan menghentikan perhitungan hari kerja SLA.
               </div>
@@ -1629,6 +1816,262 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL POPUP: DETAIL KONDISI KHUSUS & TRACK RECORD PENGADAAN */}
+      {selectedSpecialConditionItem && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header Modal */}
+            <div className={`p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between ${
+              selectedSpecialConditionItem.statusPO === 'CLOSE'
+                ? 'bg-indigo-50/60 dark:bg-indigo-950/40'
+                : 'bg-purple-50/50 dark:bg-purple-950/30'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl ${
+                  selectedSpecialConditionItem.statusPO === 'CLOSE'
+                    ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+                    : 'bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300'
+                }`}>
+                  {selectedSpecialConditionItem.statusPO === 'CLOSE' ? (
+                    <History className="w-5 h-5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>
+                      {selectedSpecialConditionItem.statusPO === 'CLOSE'
+                        ? 'Track Record Riwayat Kondisi Khusus'
+                        : 'Rincian Detail Kondisi Khusus'}
+                    </span>
+                    {selectedSpecialConditionItem.statusPO === 'CLOSE' && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 font-mono">
+                        Historis
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Dokumen: <strong className="font-mono text-slate-850 dark:text-slate-200">{selectedSpecialConditionItem.sppNumber}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedSpecialConditionItem(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Tutup dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Konten Modal */}
+            <div className="p-5 space-y-4 text-xs font-sans overflow-y-auto">
+              {/* Info Banner Track Record vs Active Condition */}
+              {selectedSpecialConditionItem.statusPO === 'CLOSE' ? (
+                <div className="p-3 bg-indigo-50/80 dark:bg-indigo-950/40 rounded-xl border border-indigo-200/90 dark:border-indigo-800/60 text-indigo-950 dark:text-indigo-200 flex items-start gap-2.5">
+                  <History className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <p className="font-bold text-indigo-900 dark:text-indigo-100">
+                      Track Record Historis Faktor Kendala (PO Selesai: {selectedSpecialConditionItem.poNumber})
+                    </p>
+                    <p className="text-[11px] text-indigo-800/90 dark:text-indigo-300/90 mt-0.5">
+                      Meskipun Nomor PO telah diisikan dan status menjadi CLOSE, data kondisi khusus ini tetap ditampilkan agar riwayat faktor penyebab kendala saat posisi dokumen masih outstanding dapat selalu diketahui dan diaudit.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 rounded-xl border border-amber-200/90 dark:border-amber-800/60 text-amber-950 dark:text-amber-200 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <p className="font-bold text-amber-900 dark:text-amber-100">
+                      Kendala Khusus Aktif (Posisi: Outstanding / Belum Terbit PO)
+                    </p>
+                    <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 mt-0.5">
+                      Dokumen ini sedang mengalami kendala yang menyebabkan nomor PO belum dapat diterbitkan. Rincian faktor penyebab tercantum di bawah.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Meta Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800">
+                <div>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Cabang</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {AREA_METADATA[selectedSpecialConditionItem.area]?.name || selectedSpecialConditionItem.area}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">PIC Pengadaan</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    👤 {selectedSpecialConditionItem.pic}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Status PO</span>
+                  <span
+                    className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      selectedSpecialConditionItem.statusPO === 'CLOSE'
+                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                    }`}
+                  >
+                    {selectedSpecialConditionItem.statusPO === 'CLOSE' ? 'CLOSE (Selesai)' : 'OPEN (Menunggu PO)'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Tgl Terima Budget</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300">
+                    {selectedSpecialConditionItem.budgetReceivedDate}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Hari Kerja Proses</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    {selectedSpecialConditionItem.processDays} hari (SLA: {selectedSpecialConditionItem.slaLimit} hr)
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Kepatuhan SLA</span>
+                  <span
+                    className={`font-bold ${
+                      selectedSpecialConditionItem.statusOntime === 'ONTIME'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-rose-600 dark:text-rose-400'
+                    }`}
+                  >
+                    {selectedSpecialConditionItem.statusOntime}
+                  </span>
+                </div>
+                {selectedSpecialConditionItem.poNumber && (
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Nomor PO Terbit</span>
+                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                      {selectedSpecialConditionItem.poNumber}
+                    </span>
+                  </div>
+                )}
+                {selectedSpecialConditionItem.poDate && (
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Tanggal PO Realisasi</span>
+                    <span className="font-mono text-slate-700 dark:text-slate-300">
+                      {selectedSpecialConditionItem.poDate}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Kategori / Judul Kondisi Khusus (Faktor Penyebab) */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Faktor / Kategori Kendala Penyebab
+                </label>
+                <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs shadow-2xs border ${
+                  selectedSpecialConditionItem.statusPO === 'CLOSE'
+                    ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-800'
+                    : 'bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-800'
+                }`}>
+                  {selectedSpecialConditionItem.statusPO === 'CLOSE' ? (
+                    <History className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                  )}
+                  <span>{selectedSpecialConditionItem.specialCondition}</span>
+                </div>
+              </div>
+
+              {/* Penjelasan Detail Kasus Manual */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    Rincian Penjelasan / Alasan Faktor Penyebab Detail
+                  </label>
+                  {selectedSpecialConditionItem.specialConditionReason && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedSpecialConditionItem.specialConditionReason || '');
+                        setCopiedConditionToast(true);
+                        setTimeout(() => setCopiedConditionToast(false), 2000);
+                      }}
+                      className="text-[10px] text-purple-600 dark:text-purple-400 hover:underline cursor-pointer"
+                    >
+                      {copiedConditionToast ? '✓ Tersalin!' : 'Salin Teks'}
+                    </button>
+                  )}
+                </div>
+                <div className={`p-3.5 rounded-xl border text-slate-800 dark:text-slate-100 leading-relaxed font-sans text-xs ${
+                  selectedSpecialConditionItem.statusPO === 'CLOSE'
+                    ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/60'
+                    : 'bg-purple-50/70 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60'
+                }`}>
+                  {selectedSpecialConditionItem.specialConditionReason ? (
+                    <p className="whitespace-pre-wrap">{selectedSpecialConditionItem.specialConditionReason}</p>
+                  ) : (
+                    <p className="text-slate-400 italic">Belum ada rincian penjelasan detail yang diketik.</p>
+                  )}
+                </div>
+              </div>
+
+              {selectedSpecialConditionItem.notes &&
+                selectedSpecialConditionItem.notes !== selectedSpecialConditionItem.specialConditionReason && (
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      Catatan Dokumen Lainnya
+                    </label>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-200 dark:border-slate-800">
+                      {selectedSpecialConditionItem.notes}
+                    </p>
+                  </div>
+                )}
+            </div>
+
+            {/* Footer Modal */}
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itemToEdit = selectedSpecialConditionItem;
+                    setSelectedSpecialConditionItem(null);
+                    onEdit(itemToEdit);
+                  }}
+                  className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 rounded-lg font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Kondisi / Dokumen</span>
+                </button>
+                {selectedSpecialConditionItem.statusPO === 'OPEN' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const itemToClose = selectedSpecialConditionItem;
+                      setSelectedSpecialConditionItem(null);
+                      setQuickPoModalItem(itemToClose);
+                      setInputPoNumber('');
+                      setInputPoDate(new Date().toISOString().split('T')[0]);
+                    }}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Input Nomor PO</span>
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedSpecialConditionItem(null)}
+                className="px-4 py-1.5 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg font-medium text-xs transition-colors cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}

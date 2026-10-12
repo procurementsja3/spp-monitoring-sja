@@ -1,3 +1,4 @@
+import http from 'http';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
@@ -40,7 +41,7 @@ const DEFAULT_AREA_CONFIGS = {
   },
   SUKODONO: {
     webAppUrl: 'https://script.google.com/macros/s/AKfycbx2ZMN-kHDzoa5ZP3lODQTDF-sPt2vIMuXWb5NuodG7IrUmUQqHr6YDby0azMYHc5GE/exec',
-    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM/edit?usp=sharing',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/u/0/?q=SPP_Sukodono',
     sheetName: 'SPP_Sukodono',
     autoSync: true,
     syncStatus: 'connected',
@@ -61,12 +62,17 @@ function mergeWithDefaults(parsed: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
   for (const [key, def] of Object.entries(DEFAULT_AREA_CONFIGS)) {
     const p = parsed?.[key] || {};
+    let sUrl = (typeof p.spreadsheetUrl === 'string' && p.spreadsheetUrl.trim() !== '') ? p.spreadsheetUrl.trim() : def.spreadsheetUrl;
+    // Bersihkan ID 404 lama Sukodono jika masih ada
+    if (key === 'SUKODONO' && sUrl.includes('1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM')) {
+      sUrl = def.spreadsheetUrl;
+    }
     result[key] = {
       ...def,
       ...p,
       // Jika URL kosong atau blank, selalu gunakan default resmi terlampir agar tidak pernah kosong
       webAppUrl: (typeof p.webAppUrl === 'string' && p.webAppUrl.trim() !== '') ? p.webAppUrl.trim() : def.webAppUrl,
-      spreadsheetUrl: (typeof p.spreadsheetUrl === 'string' && p.spreadsheetUrl.trim() !== '') ? p.spreadsheetUrl.trim() : def.spreadsheetUrl,
+      spreadsheetUrl: sUrl,
       sheetName: (typeof p.sheetName === 'string' && p.sheetName.trim() !== '') ? p.sheetName.trim() : def.sheetName,
       syncStatus: (p.syncStatus && p.syncStatus !== 'idle') ? p.syncStatus : 'connected',
       autoSync: true,
@@ -134,6 +140,7 @@ readAreaConfigs();
 
 async function bootstrapServer() {
   const app = express();
+  const server = http.createServer(app);
 
   // Parsing body JSON
   app.use(express.json({ limit: '20mb' }));
@@ -477,7 +484,12 @@ async function bootstrapServer() {
   if (!isProduction) {
     console.log('[Server] Menjalankan Vite dalam Middleware Mode (Dev Server)...');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: {
+          server,
+        },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -504,7 +516,7 @@ async function bootstrapServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 SJA Monitoring Server & Cloud Storage aktif di http://0.0.0.0:${PORT}`);
   });
 }

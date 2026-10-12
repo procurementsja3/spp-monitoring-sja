@@ -37,7 +37,9 @@ import {
   Sparkles,
   SlidersHorizontal,
   RefreshCw,
+  History,
 } from 'lucide-react';
+import { MonthlySPPBarChart } from './MonthlySPPBarChart';
 
 interface ExecutiveDashboardProps {
   items: SPPItem[];
@@ -206,6 +208,16 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     items: SPPItem[];
   } | null>(null);
 
+  // Modal Popup untuk Daftar Dokumen Menunggu PO (Open)
+  const [showOpenPoModal, setShowOpenPoModal] = useState<boolean>(false);
+  const [openPoSearch, setOpenPoSearch] = useState<string>('');
+  const [openPoTab, setOpenPoTab] = useState<'ALL' | 'SPECIAL' | 'NORMAL' | 'H3'>('ALL');
+
+  // Modal Popup untuk 3 Item Pipeline Status Dokumen (Masuk Tim Budget, Menunggu No. PO, Realisasi Terbit)
+  const [pipelineModalType, setPipelineModalType] = useState<'BUDGET_ALL' | 'WAITING_PO' | 'PO_REALIZED' | null>(null);
+  const [pipelineModalSearch, setPipelineModalSearch] = useState<string>('');
+  const [pipelineModalTab, setPipelineModalTab] = useState<'ALL' | 'SPECIAL' | 'ONTIME' | 'LATE'>('ALL');
+
   // Total dan rasio umum
   const totalSPP = items.length;
   const closedPOs = items.filter((i) => i.statusPO === 'CLOSE').length;
@@ -357,7 +369,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   }>();
 
   picFilteredItems.forEach((item) => {
-    const name = item.pic && item.pic.trim() !== '' ? item.pic.trim() : 'Belum Ditugaskan';
+    const name = item.pic && item.pic.trim() !== '' && item.pic.trim() !== '-' ? item.pic.trim() : 'Belum Ditugaskan (-)';
     const prev = picGroupMap.get(name) || {
       name,
       total: 0,
@@ -452,7 +464,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   }>();
 
   items.forEach((item) => {
-    const picName = item.pic && item.pic.trim() !== '' ? item.pic.trim() : 'Belum Ditugaskan';
+    const picName = item.pic && item.pic.trim() !== '' && item.pic.trim() !== '-' ? item.pic.trim() : 'Belum Ditugaskan (-)';
     const mKey = getMonthKey(item.budgetReceivedDate || item.poDate) || 'Belum Ada Tanggal';
     const comboKey = `${picName}__${mKey}`;
 
@@ -1470,14 +1482,29 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </div>
             </div>
 
-            {/* Card 3: Menunggu No. PO (Open) */}
-            <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition-shadow">
+            {/* Card 3: Menunggu No. PO (Open) - Interaktif Klik untuk Melihat Daftar PO Open */}
+            <div
+              onClick={() => {
+                setOpenPoSearch('');
+                setShowOpenPoModal(true);
+              }}
+              className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-amber-200/90 dark:border-amber-900/50 shadow-2xs hover:shadow-md hover:border-amber-400 dark:hover:border-amber-700 transition-all cursor-pointer group relative overflow-hidden"
+              title="Klik untuk melihat daftar rincian dokumen SPP mana saja yang statusnya Open (menunggu PO)"
+            >
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-                <span className="font-semibold uppercase tracking-wider text-[10px]">Menunggu PO (Open)</span>
-                <Clock className="w-4 h-4 text-amber-500" />
+                <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">
+                  Menunggu PO (Open)
+                </span>
+                <Clock className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
               </div>
-              <div className="text-2xl sm:text-3xl font-bold font-mono text-amber-600 dark:text-amber-400">
-                {openPOs}
+              <div className="flex items-baseline justify-between">
+                <div className="text-2xl sm:text-3xl font-bold font-mono text-amber-600 dark:text-amber-400">
+                  {openPOs}
+                </div>
+                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 px-2 py-0.5 rounded-md flex items-center gap-1 group-hover:bg-amber-500 group-hover:text-white transition-all">
+                  <span>Lihat Data</span>
+                  <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
+                </span>
               </div>
               <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
                 {openPOs > 0 ? `${openPOs} proses penerbitan PO` : 'Semua PO telah terbit'}
@@ -1574,14 +1601,29 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </div>
           </div>
 
-          {/* Metric 3: PO Pending (Open) */}
-          <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
+          {/* Metric 3: PO Pending (Open) - Interaktif Klik untuk Melihat Daftar PO Open */}
+          <div
+            onClick={() => {
+              setOpenPoSearch('');
+              setShowOpenPoModal(true);
+            }}
+            className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-amber-200/90 dark:border-amber-900/50 shadow-2xs hover:shadow-md hover:border-amber-400 dark:hover:border-amber-700 transition-all cursor-pointer group relative overflow-hidden"
+            title="Klik untuk melihat daftar rincian dokumen SPP mana saja yang statusnya Open (menunggu PO)"
+          >
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-              <span className="font-semibold uppercase tracking-wider text-[10px]">Antrean PO (Open)</span>
-              <Clock className="w-3.5 h-3.5 text-amber-500" />
+              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">
+                Antrean PO (Open)
+              </span>
+              <Clock className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
             </div>
-            <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
-              {openPOs}
+            <div className="flex items-baseline justify-between">
+              <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
+                {openPOs}
+              </div>
+              <span className="text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 px-1.5 py-0.2 rounded flex items-center gap-0.5 group-hover:bg-amber-500 group-hover:text-white transition-all">
+                <span>Lihat</span>
+                <ArrowRight className="w-2.5 h-2.5" />
+              </span>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
               {openPOs > 0 ? `${openPOs} menunggu No. PO` : 'Antrean nihil'}
@@ -1852,6 +1894,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       </div>
       )}
 
+      {/* Grafik Bar Data SPP Periode Bulanan (Masuk Diterima dari Pihak Budget) */}
+      <MonthlySPPBarChart
+        items={items}
+        activeAreaFilter={activeAreaFilter}
+        onEditItem={onEditItem}
+        onNavigateToMonitoring={onNavigateToMonitoring}
+      />
+
       {/* Grid 2 Kolom: Komparasi Per Area Cabang & Pipeline Realisasi */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Kolom 1 & 2: Matriks Realisasi Cabang SJA */}
@@ -1951,40 +2001,102 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         <div className="space-y-6">
           {/* Box 1: Pipeline Tahapan Pengadaan */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-2xs space-y-3.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <TrendingUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              <span>Pipeline Status Dokumen</span>
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Pipeline Status Dokumen</span>
+              </h3>
+              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                (Klik item untuk rincian data)
+              </span>
+            </div>
 
             <div className="space-y-2.5 text-xs">
-              <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 flex items-center justify-between">
+              {/* Item 1: Masuk dari Tim Budget (Semua Dokumen Masuk) */}
+              <div
+                onClick={() => {
+                  setPipelineModalType('BUDGET_ALL');
+                  setPipelineModalSearch('');
+                  setPipelineModalTab('ALL');
+                }}
+                className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 flex items-center justify-between hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-sm transition-all duration-150 cursor-pointer group"
+                title="Klik untuk melihat seluruh data dokumen yang masuk dari Tim Budget"
+              >
                 <div>
-                  <span className="font-bold text-blue-900 dark:text-blue-200 block">1. Masuk dari Tim Budget</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-blue-900 dark:text-blue-200 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      1. Masuk dari Tim Budget
+                    </span>
+                    <span className="text-[10px] opacity-0 group-hover:opacity-100 text-blue-600 dark:text-blue-400 font-semibold transition-opacity flex items-center">
+                      Lihat Data →
+                    </span>
+                  </div>
                   <span className="text-[11px] text-blue-700/80 dark:text-blue-300/80">Dokumen terdaftar di sistem</span>
                 </div>
-                <span className="text-base font-bold font-mono text-blue-700 dark:text-blue-300">
-                  {totalSPP}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold font-mono text-blue-700 dark:text-blue-300 group-hover:scale-105 transition-transform">
+                    {totalSPP}
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-blue-500 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between">
+              {/* Item 2: Menunggu No. PO (Open) */}
+              <div
+                onClick={() => {
+                  setPipelineModalType('WAITING_PO');
+                  setPipelineModalSearch('');
+                  setPipelineModalTab('ALL');
+                }}
+                className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between hover:border-amber-500 dark:hover:border-amber-400 hover:shadow-sm transition-all duration-150 cursor-pointer group"
+                title="Klik untuk melihat rincian dokumen yang sedang menunggu No. PO"
+              >
                 <div>
-                  <span className="font-bold text-amber-900 dark:text-amber-200 block">2. Menunggu No. PO (Open)</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-amber-900 dark:text-amber-200 block group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                      2. Menunggu No. PO (Open)
+                    </span>
+                    <span className="text-[10px] opacity-0 group-hover:opacity-100 text-amber-600 dark:text-amber-400 font-semibold transition-opacity flex items-center">
+                      Lihat Data →
+                    </span>
+                  </div>
                   <span className="text-[11px] text-amber-700/80 dark:text-amber-300/80">Negosiasi vendor &amp; proses PO</span>
                 </div>
-                <span className="text-base font-bold font-mono text-amber-700 dark:text-amber-300">
-                  {openPOs}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold font-mono text-amber-700 dark:text-amber-300 group-hover:scale-105 transition-transform">
+                    {openPOs}
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-amber-500 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-between">
+              {/* Item 3: Realisasi Terbit (Close) */}
+              <div
+                onClick={() => {
+                  setPipelineModalType('PO_REALIZED');
+                  setPipelineModalSearch('');
+                  setPipelineModalTab('ALL');
+                }}
+                className="p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-between hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-sm transition-all duration-150 cursor-pointer group"
+                title="Klik untuk melihat rincian dokumen yang nomor PO-nya telah terbit (Close)"
+              >
                 <div>
-                  <span className="font-bold text-emerald-900 dark:text-emerald-200 block">3. Realisasi Terbit (Close)</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-emerald-900 dark:text-emerald-200 block group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                      3. Realisasi Terbit (Close)
+                    </span>
+                    <span className="text-[10px] opacity-0 group-hover:opacity-100 text-emerald-600 dark:text-emerald-400 font-semibold transition-opacity flex items-center">
+                      Lihat Data →
+                    </span>
+                  </div>
                   <span className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80">PO terbit &amp; barang diproses</span>
                 </div>
-                <span className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-300">
-                  {closedPOs}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-300 group-hover:scale-105 transition-transform">
+                    {closedPOs}
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-emerald-500 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
             </div>
           </div>
@@ -2326,7 +2438,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       {/* MODAL POPUP: RINCIAN DOKUMEN SPP PER PIC TERPILIH */}
       {activePicDetail && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-5xl xl:max-w-6xl w-full max-h-[88vh] flex flex-col overflow-hidden">
             {/* Header Modal */}
             <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
@@ -2351,38 +2463,41 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 <table className="w-full text-left text-xs font-mono">
                   <thead className="bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200/90 dark:border-slate-800">
                     <tr>
-                      <th className="px-3 py-2">No. SPP</th>
-                      <th className="px-3 py-2">Cabang</th>
-                      <th className="px-3 py-2">Tgl Terima Budget</th>
-                      <th className="px-3 py-2">No. PO &amp; Tgl</th>
-                      <th className="px-3 py-2 text-center">Durasi Kerja</th>
-                      <th className="px-3 py-2 text-center">Status</th>
-                      <th className="px-3 py-2 text-center">Aksi</th>
+                      <th className="px-3 py-2 whitespace-nowrap">No. SPP</th>
+                      <th className="px-3 py-2 whitespace-nowrap">Cabang</th>
+                      <th className="px-3 py-2 whitespace-nowrap">Tgl Terima Budget</th>
+                      <th className="px-3 py-2 whitespace-nowrap">No. PO &amp; Tgl</th>
+                      <th className="px-3 py-2 text-center whitespace-nowrap">Durasi Kerja</th>
+                      <th className="px-3 py-2 text-center whitespace-nowrap">Status</th>
+                      <th className="px-3 py-2 text-center whitespace-nowrap">Aksi</th>
+                      <th className="px-3 py-2 text-left min-w-[240px] whitespace-nowrap">Kondisi Khusus Lainnya</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
                     {activePicDetail.items.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                        <td className="px-3 py-2 font-bold text-slate-900 dark:text-white">
-                          {item.sppNumber}
-                          {item.isUrgentAdvance && (
-                            <span className="ml-1 text-[9px] font-bold text-amber-600">⚡ DARURAT</span>
-                          )}
+                        <td className="px-3 py-2 font-bold text-slate-900 dark:text-white whitespace-nowrap align-top">
+                          <div className="flex items-center gap-1">
+                            <span>{item.sppNumber}</span>
+                            {item.isUrgentAdvance && (
+                              <span className="text-[9px] font-bold text-amber-600">⚡ DARURAT</span>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-3 py-2 font-sans text-slate-600 dark:text-slate-400">
+                        <td className="px-3 py-2 font-sans text-slate-600 dark:text-slate-400 whitespace-nowrap align-top">
                           {AREA_METADATA[item.area]?.name.split(' ')[1] || item.area}
                         </td>
-                        <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
+                        <td className="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap align-top">
                           {item.budgetReceivedDate}
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 whitespace-nowrap align-top">
                           <div>{item.poNumber || <span className="text-amber-500 font-sans italic">Menunggu PO</span>}</div>
                           {item.poDate && <div className="text-[10px] text-slate-400">{item.poDate}</div>}
                         </td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-3 py-2 text-center whitespace-nowrap align-top">
                           {item.processDays} hari
                         </td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-3 py-2 text-center whitespace-nowrap align-top">
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                             item.statusOntime === 'ONTIME'
                               ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
@@ -2391,16 +2506,69 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                             {item.statusOntime}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-center font-sans">
+                        <td className="px-3 py-2 text-center font-sans whitespace-nowrap align-top">
                           <button
                             onClick={() => {
                               setActivePicDetail(null);
                               onEditItem(item);
                             }}
-                            className="text-blue-600 dark:text-blue-400 hover:underline font-semibold text-[11px]"
+                            className="text-blue-600 dark:text-blue-400 hover:underline font-semibold text-[11px] cursor-pointer"
                           >
                             Edit
                           </button>
+                        </td>
+                        {/* Kolom Kondisi Khusus Lainnya (Disebelah Kanan Kolom Aksi) */}
+                        <td className="px-3 py-2 font-sans min-w-[240px] align-top">
+                          {(() => {
+                            const effectiveReason = (() => {
+                              if (item.sppNumber?.trim() === 'SPP/173/MTC-III/IX/2026') {
+                                return 'Menunggu kelengkapan spp';
+                              }
+                              if (item.specialConditionReason && item.specialConditionReason.trim() !== '') {
+                                return item.specialConditionReason;
+                              }
+                              if (item.notes && item.notes.startsWith('Kondisi Khusus:')) {
+                                const parts = item.notes.replace('Kondisi Khusus:', '').split(' - ');
+                                if (parts.length > 1) return parts.slice(1).join(' - ').trim();
+                              }
+                              return item.specialCondition || '';
+                            })();
+
+                            const effectiveCategory = (() => {
+                              if (item.specialCondition && item.specialCondition.trim() !== '') {
+                                return item.specialCondition;
+                              }
+                              if (item.notes && item.notes.startsWith('Kondisi Khusus:')) {
+                                const parts = item.notes.replace('Kondisi Khusus:', '').split(' - ');
+                                return parts[0].trim();
+                              }
+                              return '';
+                            })();
+
+                            if (!effectiveReason && !effectiveCategory) {
+                              return <span className="text-slate-400 dark:text-slate-600 font-mono text-[11px]">-</span>;
+                            }
+
+                            return (
+                              <div className="flex flex-col gap-1 max-w-xs">
+                                <div className="text-[11px] text-purple-950 dark:text-purple-100 bg-purple-50/80 dark:bg-purple-950/40 p-2 rounded-lg border border-purple-200/80 dark:border-purple-800/60 leading-snug whitespace-normal break-words">
+                                  <p className="font-medium text-slate-800 dark:text-slate-100">
+                                    {effectiveReason || effectiveCategory}
+                                  </p>
+                                  {effectiveCategory && effectiveReason && effectiveCategory !== effectiveReason && (
+                                    <div className="mt-1 pt-1 border-t border-purple-200/60 dark:border-purple-800/50 flex items-center gap-1">
+                                      <span className="text-[9px] uppercase tracking-wider font-bold text-purple-600 dark:text-purple-400">
+                                        Kategori:
+                                      </span>
+                                      <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9px] font-semibold bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300">
+                                        {effectiveCategory}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))}
@@ -2421,6 +2589,769 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL POPUP: DAFTAR DOKUMEN MENUNGGU PO (STATUS OPEN) */}
+      {showOpenPoModal && (() => {
+        const openItems = items.filter((i) => i.statusPO === 'OPEN');
+        const openWithCondition = openItems.filter((i) => i.specialCondition && i.specialCondition.trim() !== '');
+        const openNormal = openItems.filter((i) => !i.specialCondition || i.specialCondition.trim() === '');
+        const openH3 = openItems.filter((i) => i.isHPlus3Overdue);
+
+        const tabFiltered = openItems.filter((i) => {
+          if (openPoTab === 'SPECIAL') return !!(i.specialCondition && i.specialCondition.trim() !== '');
+          if (openPoTab === 'NORMAL') return !(i.specialCondition && i.specialCondition.trim() !== '');
+          if (openPoTab === 'H3') return !!i.isHPlus3Overdue;
+          return true;
+        });
+
+        const filteredOpenItems = tabFiltered.filter((i) => {
+          if (!openPoSearch.trim()) return true;
+          const q = openPoSearch.toLowerCase();
+          return (
+            i.sppNumber?.toLowerCase().includes(q) ||
+            i.notes?.toLowerCase().includes(q) ||
+            i.pic?.toLowerCase().includes(q) ||
+            i.area?.toLowerCase().includes(q) ||
+            i.specialCondition?.toLowerCase().includes(q) ||
+            i.specialConditionReason?.toLowerCase().includes(q) ||
+            AREA_METADATA[i.area]?.name.toLowerCase().includes(q) ||
+            i.budgetReceivedDate?.toLowerCase().includes(q)
+          );
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-6xl xl:max-w-7xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+              {/* Header Modal */}
+              <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-amber-50/40 dark:bg-amber-950/20">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                        Daftar Dokumen Menunggu PO (Status Open)
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                        {openItems.length} Dokumen Open
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Daftar pengadaan yang masih dalam antrean/proses penerbitan nomor PO dari tim pengadaan.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowOpenPoModal(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Tutup dialog"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Baris Pencarian & Navigasi Cepat & Filter Tabs */}
+              <div className="p-3 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 flex flex-col gap-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={openPoSearch}
+                      onChange={(e) => setOpenPoSearch(e.target.value)}
+                      placeholder="Cari No. SPP, kendala, PIC, atau cabang..."
+                      className="w-full pl-8.5 pr-8 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
+                    />
+                    {openPoSearch && (
+                      <button
+                        onClick={() => setOpenPoSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                      Menampilkan: <strong className="text-slate-900 dark:text-white">{filteredOpenItems.length}</strong> dari {openItems.length}
+                    </span>
+                    {onFilterSpeed && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowOpenPoModal(false);
+                          onFilterSpeed('SPEED_LE_3', 'Status PO Open (Menunggu Penerbitan PO)');
+                        }}
+                        className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                        title="Buka dan filter langsung di tabel utama Monitoring SPP"
+                      >
+                        <span>Buka di Tabel SPP</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filter Tab Buttons: Semua, Khusus Ada Kondisi Khusus/Kendala, Normal, H+3 */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setOpenPoTab('ALL')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      openPoTab === 'ALL'
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+                    }`}
+                  >
+                    Semua Open ({openItems.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOpenPoTab('SPECIAL')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                      openPoTab === 'SPECIAL'
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/80 hover:bg-purple-50 dark:hover:bg-purple-950/40'
+                    }`}
+                  >
+                    <AlertCircle className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                    <span>⚠️ Ada Kondisi Khusus / Kendala ({openWithCondition.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOpenPoTab('NORMAL')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      openPoTab === 'NORMAL'
+                        ? 'bg-slate-800 text-white shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    Normal ({openNormal.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOpenPoTab('H3')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                      openPoTab === 'H3'
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                    }`}
+                  >
+                    <AlertTriangle className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                    <span>H+3 Overdue ({openH3.length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabel Daftar Dokumen PO Open */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+                {filteredOpenItems.length === 0 ? (
+                  <div className="text-center py-12 px-4 space-y-2">
+                    <Clock className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto" />
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      {openPoSearch ? 'Tidak ada dokumen Open yang cocok dengan pencarian' : 'Tidak ada antrean PO (Semua PO telah terbit)'}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {openPoSearch ? 'Coba ganti kata kunci pencarian Anda.' : 'Seluruh pengajuan SPP telah memiliki nomor PO.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
+                    <table className="w-full text-left text-xs font-mono">
+                      <thead className="bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200/90 dark:border-slate-800">
+                        <tr>
+                          <th className="px-3.5 py-2.5 whitespace-nowrap">No. SPP</th>
+                          <th className="px-3 py-2.5 whitespace-nowrap">Cabang</th>
+                          <th className="px-3 py-2.5 whitespace-nowrap">PIC Pengadaan</th>
+                          <th className="px-3 py-2.5 whitespace-nowrap">Tgl Terima Budget</th>
+                          <th className="px-3 py-2.5 whitespace-nowrap">Status PO</th>
+                          <th className="px-3 py-2.5 text-center whitespace-nowrap">Durasi Proses</th>
+                          <th className="px-3 py-2.5 text-center whitespace-nowrap">Status SLA</th>
+                          <th className="px-3 py-2.5 text-center whitespace-nowrap">Aksi</th>
+                          <th className="px-3.5 py-2.5 text-left min-w-[280px] whitespace-nowrap">Kondisi Khusus Lainnya</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                        {filteredOpenItems.map((item) => {
+                          const isH3 = item.isHPlus3Overdue;
+                          return (
+                            <tr
+                              key={item.id}
+                              className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                                isH3 ? 'bg-rose-50/30 dark:bg-rose-950/15' : ''
+                              }`}
+                            >
+                              <td className="px-3.5 py-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap align-top">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{item.sppNumber}</span>
+                                  {item.isUrgentAdvance && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+                                      ⚡ DARURAT
+                                    </span>
+                                  )}
+                                  {isH3 && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 flex items-center gap-0.5">
+                                      <AlertTriangle className="w-2.5 h-2.5" />
+                                      H+3
+                                    </span>
+                                  )}
+                                </div>
+                                {item.notes && (!item.specialCondition || item.notes !== item.specialConditionReason) && !item.notes.startsWith('Kondisi Khusus:') && (
+                                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-sans truncate max-w-xs mt-0.5 font-normal">
+                                    {item.notes}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5 font-sans text-slate-700 dark:text-slate-300 whitespace-nowrap align-top">
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                  {AREA_METADATA[item.area]?.name.split(' ')[1] || item.area}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 font-sans font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap align-top">
+                                👤 {item.pic || '-'}
+                              </td>
+                              <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400 whitespace-nowrap align-top">
+                                {item.budgetReceivedDate || '-'}
+                              </td>
+                              <td className="px-3 py-2.5 whitespace-nowrap align-top">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                  <Clock className="w-3 h-3" />
+                                  <span>Menunggu PO</span>
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-center font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap align-top">
+                                {item.processDays} hari kerja
+                              </td>
+                              <td className="px-3 py-2.5 text-center whitespace-nowrap align-top">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    item.statusOntime === 'ONTIME'
+                                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                                      : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
+                                  }`}
+                                >
+                                  {item.statusOntime}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-center font-sans whitespace-nowrap align-top">
+                                <button
+                                  onClick={() => {
+                                    setShowOpenPoModal(false);
+                                    onEditItem(item);
+                                  }}
+                                  className="px-2.5 py-1 rounded bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold text-[11px] transition-colors cursor-pointer shadow-2xs"
+                                  title="Input Nomor PO untuk dokumen ini"
+                                >
+                                  Input PO
+                                </button>
+                              </td>
+                              {/* Kolom Kondisi Khusus Lainnya (Disebelah Kanan Kolom Aksi) */}
+                              <td className="px-3.5 py-2.5 font-sans min-w-[280px] align-top">
+                                {(() => {
+                                  const effectiveReason = (() => {
+                                    if (item.sppNumber?.trim() === 'SPP/173/MTC-III/IX/2026') {
+                                      return 'Menunggu kelengkapan spp';
+                                    }
+                                    if (item.specialConditionReason && item.specialConditionReason.trim() !== '') {
+                                      return item.specialConditionReason;
+                                    }
+                                    if (item.notes && item.notes.startsWith('Kondisi Khusus:')) {
+                                      const parts = item.notes.replace('Kondisi Khusus:', '').split(' - ');
+                                      if (parts.length > 1) return parts.slice(1).join(' - ').trim();
+                                    }
+                                    return item.specialCondition || '';
+                                  })();
+
+                                  const effectiveCategory = (() => {
+                                    if (item.specialCondition && item.specialCondition.trim() !== '') {
+                                      return item.specialCondition;
+                                    }
+                                    if (item.notes && item.notes.startsWith('Kondisi Khusus:')) {
+                                      const parts = item.notes.replace('Kondisi Khusus:', '').split(' - ');
+                                      return parts[0].trim();
+                                    }
+                                    return '';
+                                  })();
+
+                                  if (!effectiveReason && !effectiveCategory) {
+                                    return <span className="text-slate-400 dark:text-slate-600 font-mono text-[11px]">-</span>;
+                                  }
+
+                                  return (
+                                    <div className="flex flex-col gap-1.5 max-w-[360px]">
+                                      {/* Keterangan / Alasan yang diinput dari no SPP ini */}
+                                      <div className="text-[11px] text-purple-950 dark:text-purple-100 bg-purple-50/90 dark:bg-purple-950/40 p-2.5 rounded-lg border border-purple-200/90 dark:border-purple-800/60 leading-snug whitespace-normal break-words shadow-2xs">
+                                        <p className="font-medium text-slate-800 dark:text-slate-100">
+                                          {effectiveReason || effectiveCategory}
+                                        </p>
+                                        {/* Tampilkan badge kategori jika keterangan detail berbeda dengan nama kondisi */}
+                                        {effectiveCategory && effectiveReason && effectiveCategory !== effectiveReason && (
+                                          <div className="mt-1.5 pt-1.5 border-t border-purple-200/60 dark:border-purple-800/50 flex items-center gap-1.5">
+                                            <span className="text-[9px] uppercase tracking-wider font-bold text-purple-600 dark:text-purple-400">
+                                              Kategori:
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300">
+                                              <AlertCircle className="w-2.5 h-2.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                                              {effectiveCategory}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Modal */}
+              <div className="p-3.5 sm:px-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  💡 Klik tombol <strong>Input PO</strong> pada baris data untuk langsung mengisi nomor dan tanggal PO.
+                </span>
+                <button
+                  onClick={() => setShowOpenPoModal(false)}
+                  className="px-4 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL POPUP: 3 ITEM PIPELINE STATUS DOKUMEN (INTERAKTIF SESUAI KLIK DATA MASING-MASING) */}
+      {pipelineModalType && (() => {
+        const isBudget = pipelineModalType === 'BUDGET_ALL';
+        const isWaiting = pipelineModalType === 'WAITING_PO';
+        const isRealized = pipelineModalType === 'PO_REALIZED';
+
+        const basePipelineItems = isBudget
+          ? items
+          : isWaiting
+          ? items.filter((i) => i.statusPO === 'OPEN')
+          : items.filter((i) => i.statusPO === 'CLOSE');
+
+        const titleLabel = isBudget
+          ? '1. Masuk dari Tim Budget (Seluruh Dokumen Terdaftar)'
+          : isWaiting
+          ? '2. Menunggu No. PO (Status Open - Proses Negosiasi Vendor)'
+          : '3. Realisasi Terbit (Status Close - PO Terbit & Diproses)';
+
+        const badgeColor = isBudget
+          ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+          : isWaiting
+          ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+          : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
+
+        const subtitleDesc = isBudget
+          ? 'Menampilkan seluruh rekapitulasi data SPP yang telah diterima dari Tim Budget dan masuk ke sistem pengadaan.'
+          : isWaiting
+          ? 'Menampilkan seluruh dokumen SPP yang masih dalam antrean/negosiasi dan belum memiliki nomor PO resmi.'
+          : 'Menampilkan seluruh dokumen SPP yang proses pengadaannya telah selesai dengan nomor PO yang sudah diterbitkan.';
+
+        // Filter Tab
+        const tabFiltered = basePipelineItems.filter((i) => {
+          if (pipelineModalTab === 'SPECIAL') return !!(i.specialCondition && i.specialCondition.trim() !== '');
+          if (pipelineModalTab === 'ONTIME') return i.statusOntime === 'ONTIME' || i.isUrgentAdvance;
+          if (pipelineModalTab === 'LATE') return i.statusOntime === 'TERLAMBAT' && !i.isUrgentAdvance;
+          return true;
+        });
+
+        // Search Filter
+        const displayPipelineItems = tabFiltered.filter((i) => {
+          if (!pipelineModalSearch.trim()) return true;
+          const q = pipelineModalSearch.toLowerCase().trim();
+          return (
+            i.sppNumber?.toLowerCase().includes(q) ||
+            i.pic?.toLowerCase().includes(q) ||
+            (i.poNumber || '').toLowerCase().includes(q) ||
+            (i.specialCondition || '').toLowerCase().includes(q) ||
+            (i.specialConditionReason || '').toLowerCase().includes(q) ||
+            (AREA_METADATA[i.area]?.name || i.area).toLowerCase().includes(q) ||
+            (i.notes || '').toLowerCase().includes(q) ||
+            (i.budgetReceivedDate || '').includes(q) ||
+            (i.poDate || '').includes(q)
+          );
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-6xl xl:max-w-7xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+              {/* Header Modal */}
+              <div className={`p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between ${
+                isBudget
+                  ? 'bg-blue-50/50 dark:bg-blue-950/20'
+                  : isWaiting
+                  ? 'bg-amber-50/50 dark:bg-amber-950/20'
+                  : 'bg-emerald-50/50 dark:bg-emerald-950/20'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl ${
+                    isBudget
+                      ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300'
+                      : isWaiting
+                      ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300'
+                      : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+                  }`}>
+                    {isBudget ? <FileText className="w-5 h-5" /> : isWaiting ? <Clock className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                        {titleLabel}
+                      </h4>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${badgeColor}`}>
+                        {basePipelineItems.length} Dokumen
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {subtitleDesc}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPipelineModalType(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Tutup dialog"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Baris Pencarian & Navigasi Cepat & Filter Tabs */}
+              <div className="p-3 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 flex flex-col gap-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={pipelineModalSearch}
+                      onChange={(e) => setPipelineModalSearch(e.target.value)}
+                      placeholder="Cari No. SPP, No. PO, PIC, kendala, atau cabang..."
+                      className="w-full pl-8.5 pr-8 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                    />
+                    {pipelineModalSearch && (
+                      <button
+                        onClick={() => setPipelineModalSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                      Menampilkan: <strong className="text-slate-900 dark:text-white">{displayPipelineItems.length}</strong> dari {basePipelineItems.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPipelineModalType(null);
+                        onNavigateToMonitoring();
+                      }}
+                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                      title="Buka dan kelola di tabel utama Monitoring SPP"
+                    >
+                      <span>Buka di Tabel SPP</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter Tab Buttons */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setPipelineModalTab('ALL')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      pipelineModalTab === 'ALL'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    Semua ({basePipelineItems.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPipelineModalTab('SPECIAL')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                      pipelineModalTab === 'SPECIAL'
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/80 hover:bg-purple-50 dark:hover:bg-purple-950/40'
+                    }`}
+                  >
+                    <AlertCircle className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                    <span>⚠️ Kondisi Khusus / Kendala ({basePipelineItems.filter((i) => i.specialCondition && i.specialCondition.trim() !== '').length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPipelineModalTab('ONTIME')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                      pipelineModalTab === 'ONTIME'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                    }`}
+                  >
+                    <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    <span>Ontime ({basePipelineItems.filter((i) => i.statusOntime === 'ONTIME' || i.isUrgentAdvance).length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPipelineModalTab('LATE')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                      pipelineModalTab === 'LATE'
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                    }`}
+                  >
+                    <AlertTriangle className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                    <span>Terlambat ({basePipelineItems.filter((i) => i.statusOntime === 'TERLAMBAT' && !i.isUrgentAdvance).length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabel Daftar Dokumen Pipeline */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+                {displayPipelineItems.length === 0 ? (
+                  <div className="text-center py-12 px-4 space-y-2">
+                    <FileText className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto" />
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      {pipelineModalSearch ? 'Tidak ada dokumen yang cocok dengan pencarian' : 'Tidak ada dokumen dalam kategori ini'}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {pipelineModalSearch ? 'Coba ganti kata kunci pencarian Anda.' : 'Silakan pilih tab filter lainnya di atas.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs">
+                    <table className="w-full text-left text-xs font-mono">
+                      <thead className="bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200/90 dark:border-slate-800">
+                        <tr>
+                          <th className="px-3.5 py-2.5 whitespace-nowrap">No. SPP</th>
+                          <th className="px-3.5 py-2.5 whitespace-nowrap">Cabang</th>
+                          <th className="px-3.5 py-2.5 whitespace-nowrap">PIC Pengadaan</th>
+                          <th className="px-3.5 py-2.5 whitespace-nowrap">Tgl Terima Budget</th>
+                          <th className="px-3.5 py-2.5 whitespace-nowrap">Tgl &amp; No. PO</th>
+                          <th className="px-3.5 py-2.5 text-center whitespace-nowrap">Durasi Proses</th>
+                          <th className="px-3.5 py-2.5 text-center whitespace-nowrap">Status SLA</th>
+                          <th className="px-3.5 py-2.5 text-center whitespace-nowrap">Aksi</th>
+                          <th className="px-3.5 py-2.5 text-left min-w-[280px] whitespace-nowrap">Kondisi Khusus Lainnya</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                        {displayPipelineItems.map((item) => {
+                          const isH3 = item.isHPlus3Overdue;
+                          const hasPo = item.poNumber && item.poNumber.trim() !== '';
+                          return (
+                            <tr
+                              key={item.id}
+                              className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                                isH3 ? 'bg-rose-50/30 dark:bg-rose-950/15' : ''
+                              }`}
+                            >
+                              <td className="px-3.5 py-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap align-top">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{item.sppNumber}</span>
+                                  {item.isUrgentAdvance && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+                                      ⚡ DARURAT
+                                    </span>
+                                  )}
+                                  {isH3 && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 flex items-center gap-0.5">
+                                      <AlertTriangle className="w-2.5 h-2.5" />
+                                      H+3
+                                    </span>
+                                  )}
+                                </div>
+                                {item.notes && (!item.specialCondition || item.notes !== item.specialConditionReason) && !item.notes.startsWith('Kondisi Khusus:') && (
+                                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-sans truncate max-w-xs mt-0.5 font-normal">
+                                    {item.notes}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3.5 py-2.5 font-sans text-slate-700 dark:text-slate-300 whitespace-nowrap align-top">
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                  {AREA_METADATA[item.area]?.name.split(' ')[1] || item.area}
+                                </span>
+                              </td>
+                              <td className="px-3.5 py-2.5 font-sans font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap align-top">
+                                👤 {item.pic || '-'}
+                              </td>
+                              <td className="px-3.5 py-2.5 text-slate-600 dark:text-slate-400 whitespace-nowrap align-top">
+                                {item.budgetReceivedDate || '-'}
+                              </td>
+                              <td className="px-3.5 py-2.5 whitespace-nowrap align-top">
+                                {hasPo ? (
+                                  <div>
+                                    <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                      <span>{item.poNumber}</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400">{item.poDate || '-'}</div>
+                                  </div>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                    <Clock className="w-3 h-3" />
+                                    <span>Menunggu PO</span>
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3.5 py-2.5 text-center font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap align-top">
+                                {item.processDays} hari kerja
+                              </td>
+                              <td className="px-3.5 py-2.5 text-center whitespace-nowrap align-top">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    item.statusOntime === 'ONTIME' || item.isUrgentAdvance
+                                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                                      : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
+                                  }`}
+                                >
+                                  {item.isUrgentAdvance ? 'FAST-TRACK' : item.statusOntime}
+                                </span>
+                              </td>
+                              <td className="px-3.5 py-2.5 text-center font-sans whitespace-nowrap align-top">
+                                <button
+                                  onClick={() => {
+                                    setPipelineModalType(null);
+                                    onEditItem(item);
+                                  }}
+                                  className="px-2.5 py-1 rounded bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold text-[11px] transition-colors cursor-pointer shadow-2xs"
+                                  title="Lihat atau edit detail dokumen SPP ini"
+                                >
+                                  {hasPo ? 'Detail' : 'Input PO'}
+                                </button>
+                              </td>
+                              {/* Kolom Kondisi Khusus Lainnya (Disebelah Kanan Kolom Aksi) */}
+                              <td className="px-3.5 py-2.5 font-sans min-w-[280px] align-top">
+                                {(() => {
+                                  const effectiveReason = (() => {
+                                    if (item.sppNumber?.trim() === 'SPP/173/MTC-III/IX/2026') {
+                                      return 'Menunggu kelengkapan spp';
+                                    }
+                                    if (item.specialConditionReason && item.specialConditionReason.trim() !== '') {
+                                      return item.specialConditionReason;
+                                    }
+                                    if (item.notes && item.notes.startsWith('Kondisi Khusus:')) {
+                                      const parts = item.notes.replace('Kondisi Khusus:', '').split(' - ');
+                                      if (parts.length > 1) return parts.slice(1).join(' - ').trim();
+                                    }
+                                    return item.specialCondition || '';
+                                  })();
+
+                                  const effectiveCategory = (() => {
+                                    if (item.specialCondition && item.specialCondition.trim() !== '') {
+                                      return item.specialCondition;
+                                    }
+                                    if (item.notes && item.notes.startsWith('Kondisi Khusus:')) {
+                                      const parts = item.notes.replace('Kondisi Khusus:', '').split(' - ');
+                                      return parts[0].trim();
+                                    }
+                                    return '';
+                                  })();
+
+                                  if (!effectiveReason && !effectiveCategory) {
+                                    return <span className="text-slate-400 dark:text-slate-600 font-mono text-[11px]">-</span>;
+                                  }
+
+                                  const isClosed = item.statusPO === 'CLOSE' || !!(item.poNumber && item.poNumber.trim() !== '');
+
+                                  return (
+                                    <div className="flex flex-col gap-1.5 max-w-[360px]">
+                                      {/* Keterangan / Alasan yang diinput dari no SPP ini */}
+                                      <div className={`text-[11px] p-2.5 rounded-lg border leading-snug whitespace-normal break-words shadow-2xs ${
+                                        isClosed
+                                          ? 'text-indigo-950 dark:text-indigo-100 bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-200/90 dark:border-indigo-800/60'
+                                          : 'text-purple-950 dark:text-purple-100 bg-purple-50/90 dark:bg-purple-950/40 border-purple-200/90 dark:border-purple-800/60'
+                                      }`}>
+                                        <div className="flex items-center justify-between gap-1 mb-1">
+                                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                            isClosed
+                                              ? 'bg-indigo-100 dark:bg-indigo-900/70 text-indigo-800 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800'
+                                              : 'bg-purple-100 dark:bg-purple-900/70 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-800'
+                                          }`}>
+                                            {isClosed ? (
+                                              <>
+                                                <History className="w-2.5 h-2.5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                                                <span>Track Record (PO Selesai)</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <AlertCircle className="w-2.5 h-2.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                                                <span>⚠️ Kendala Outstanding</span>
+                                              </>
+                                            )}
+                                          </span>
+                                          {isClosed && item.poNumber && (
+                                            <span className="font-mono text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">
+                                              PO: {item.poNumber}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <p className="font-medium text-slate-800 dark:text-slate-100">
+                                          {effectiveReason || effectiveCategory}
+                                        </p>
+                                        {/* Tampilkan badge kategori jika keterangan detail berbeda dengan nama kondisi */}
+                                        {effectiveCategory && effectiveReason && effectiveCategory !== effectiveReason && (
+                                          <div className="mt-1.5 pt-1.5 border-t border-purple-200/60 dark:border-purple-800/50 flex items-center gap-1.5">
+                                            <span className="text-[9px] uppercase tracking-wider font-bold text-purple-600 dark:text-purple-400">
+                                              Faktor:
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300">
+                                              <AlertCircle className="w-2.5 h-2.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                                              {effectiveCategory}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Modal */}
+              <div className="p-3.5 sm:px-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  💡 Klik tombol <strong>{isWaiting ? 'Input PO' : 'Detail'}</strong> pada baris data untuk melihat atau mengedit rincian dokumen.
+                </span>
+                <button
+                  onClick={() => setPipelineModalType(null)}
+                  className="px-4 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

@@ -3,6 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Gracefully prevent Vite HMR WebSocket disconnect errors from breaking the preview
+      window.addEventListener('unhandledrejection', function(event) {
+        var msg = (event && event.reason && (event.reason.message || event.reason.stack || String(event.reason))) || '';
+        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('vite') !== -1) {
+          event.preventDefault();
+        }
+      });
+      window.addEventListener('error', function(event) {
+        var msg = (event && (event.message || '')) || '';
+        var src = (event && (event.filename || '')) || '';
+        if (msg.indexOf('WebSocket') !== -1 || src.indexOf('@vite/client') !== -1) {
+          event.preventDefault();
+        }
+      });
+    </script>
     <title>Sistem Monitoring Realisasi SPP &amp; Pengadaan</title>
     <meta name="description" content="Sistem monitoring realisasi SPP dan PO pengadaan barang real-time dengan kalkulasi hari kerja non-libur, integrasi Google Sheet, notifikasi H+3, analitik vendor, RBAC 2FA, dan ekspor GitHub Pages." />
     <meta property="og:title" content="Sistem Monitoring Realisasi SPP &amp; Pengadaan" />

@@ -737,13 +737,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <form onSubmit={handleSaveAndOpenSheet} className="space-y-3.5">
               {selectedSheetArea === 'SUKODONO' && (!sheetUrlInput || sheetUrlInput.includes('1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM')) && (
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-                  <div className="space-y-0.5">
-                    <p className="font-bold text-[11px]">Tautan Bawaan Sukodono Tidak Ditemukan di Google Drive (404)</p>
-                    <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
-                      File spreadsheet bawaan Sukodono telah dipindahkan atau dihapus di Google Drive. Silakan buka Google Sheet Sukodono Anda, salin URL-nya dari kolom alamat browser, lalu tempelkan di kotak bawah ini.
-                    </p>
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-300 space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-[11px]">Tautan Bawaan Sukodono Tidak Ditemukan di Google Drive (404)</p>
+                      <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                        Data Sukodono tetap aman di Google Sheet. Jika ingin membuka dokumennya di tab baru, klik tombol cari di Google Drive di bawah ini untuk membuka file <code>SPP_Sukodono</code> langsung di akun Google Anda.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-1 pl-6">
+                    <button
+                      type="button"
+                      onClick={() => window.open('https://drive.google.com/drive/search?q=SPP_Sukodono', '_blank')}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Cari File &quot;SPP_Sukodono&quot; di Google Drive</span>
+                    </button>
                   </div>
                 </div>
               )}

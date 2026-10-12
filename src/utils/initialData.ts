@@ -96,7 +96,7 @@ export const DEFAULT_AREA_SHEET_CONFIGS: AreaSheetConfigMap = {
   },
   SUKODONO: {
     webAppUrl: 'https://script.google.com/macros/s/AKfycbx2ZMN-kHDzoa5ZP3lODQTDF-sPt2vIMuXWb5NuodG7IrUmUQqHr6YDby0azMYHc5GE/exec',
-    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM/edit?usp=sharing',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/u/0/?q=SPP_Sukodono',
     sheetName: 'SPP_Sukodono',
     autoSync: true,
     syncStatus: 'connected',
@@ -123,6 +123,8 @@ export interface RawSPPItem {
   urgentReason?: string;
   urgentApprovedBy?: string;
   budgetStatus?: 'APPROVED' | 'PENDING_ACC' | 'REJECTED';
+  specialCondition?: string;
+  specialConditionReason?: string;
   notes?: string;
 }
 
@@ -151,6 +153,8 @@ export const SAMPLE_DEMO_ITEMS: RawSPPItem[] = [
     poDate: '',
     poNumber: '',
     slaLimit: 10,
+    specialCondition: 'Pending Konfirmasi User / Budget',
+    specialConditionReason: 'Menunggu persetujuan revisi anggaran dari bagian user pemohon',
   },
   // KARAWANG
   {
@@ -172,6 +176,8 @@ export const SAMPLE_DEMO_ITEMS: RawSPPItem[] = [
     poDate: '',
     poNumber: '',
     slaLimit: 10,
+    specialCondition: 'Menunggu Kelengkapan Dokumen Vendor',
+    specialConditionReason: 'Menunggu kelengkapan dokumen vendor (surat garansi resmi & izin edar terbaru dari supplier)',
   },
   // SUKODONO
   {

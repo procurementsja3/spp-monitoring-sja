@@ -7,6 +7,7 @@ import {
   Clock,
   Users,
   AlertTriangle,
+  AlertCircle,
   Search,
   SlidersHorizontal,
   Box,
@@ -29,6 +30,9 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  LayoutGrid,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { IsometricPicBarChart, PICMetricData } from './IsometricPicBarChart';
 
@@ -61,8 +65,37 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
       ? (currentUser.area as SJAArea)
       : 'SEPANJANG';
 
-  // Mode tampilan: 'ALL' (Lengkap), 'CHART_3D' (Hanya Grafik 3D), 'TABLE' (Tabel Scorecard)
-  const [viewMode, setViewMode] = useState<'ALL' | 'CHART_3D' | 'TABLE'>('ALL');
+  // Mode tampilan: 'ALL' (Lengkap), 'CARDS' (Grid Kartu PIC Sesuai Foto), 'TABLE' (Tabel Scorecard), 'CHART_3D' (Hanya Grafik 3D)
+  const [viewMode, setViewMode] = useState<'ALL' | 'CARDS' | 'TABLE' | 'CHART_3D'>(() => {
+    const saved = localStorage.getItem('sja_pic_view_mode');
+    if (saved === 'ALL' || saved === 'CARDS' || saved === 'TABLE' || saved === 'CHART_3D') {
+      return saved as 'ALL' | 'CARDS' | 'TABLE' | 'CHART_3D';
+    }
+    const hideChart = localStorage.getItem('sja_pic_hide_chart') === 'true';
+    return hideChart ? 'TABLE' : 'ALL';
+  });
+
+  // Kontrol Sembunyikan/Tampilkan Gambar/Grafik 3D (Tersimpan di localStorage)
+  const [showChart, setShowChart] = useState<boolean>(() => {
+    return localStorage.getItem('sja_pic_hide_chart') !== 'true';
+  });
+
+  const handleToggleChart = () => {
+    setShowChart((prev) => {
+      const nextVal = !prev;
+      localStorage.setItem('sja_pic_hide_chart', nextVal ? 'false' : 'true');
+      return nextVal;
+    });
+  };
+
+  const handleSetViewMode = (mode: 'ALL' | 'CARDS' | 'TABLE' | 'CHART_3D') => {
+    setViewMode(mode);
+    localStorage.setItem('sja_pic_view_mode', mode);
+    if (mode === 'CHART_3D') {
+      setShowChart(true);
+      localStorage.setItem('sja_pic_hide_chart', 'false');
+    }
+  };
 
   // Metrik yang ditampilkan pada pilar 3D Isometrik
   const [selected3DMetric, setSelected3DMetric] = useState<'MULTI' | 'ONTIME' | 'DURATION'>('MULTI');
@@ -340,20 +373,7 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
       {/* Header Analitik Kinerja PIC */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200/90 dark:border-slate-800/90 pb-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
-              Analisa Kinerja &amp; Produktivitas
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 flex items-center gap-1">
-              <Sparkles className="w-3 h-3" />
-              <span>Grafik 3D Isometrik</span>
-            </span>
-            {!isSuperadmin && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-900">
-                Mode Cabang: {AREA_METADATA[userArea]?.name || userArea}
-              </span>
-            )}
-          </div>
+
           <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             <span>
@@ -370,6 +390,30 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start lg:self-center">
+          {/* Tombol Cepat Sembunyikan/Tampilkan Gambar Grafik 3D */}
+          <button
+            type="button"
+            onClick={handleToggleChart}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-2xs cursor-pointer ${
+              showChart
+                ? 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                : 'border-blue-400 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+            }`}
+            title={showChart ? "Klik untuk menyembunyikan gambar grafik 3D pada analisa kinerja PIC" : "Klik untuk menampilkan gambar grafik 3D pada analisa kinerja PIC"}
+          >
+            {showChart ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                <span>Sembunyikan Grafik</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Tampilkan Grafik 3D</span>
+              </>
+            )}
+          </button>
+
           {/* Tombol Sinkronisasi 2 Arah Google Sheet */}
           {onSyncGoogleSheet && (
             <button
@@ -386,7 +430,7 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
           {/* Tab Pengalih Mode Tampilan */}
           <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-900/90 p-1 border border-slate-200/90 dark:border-slate-800">
             <button
-              onClick={() => setViewMode('ALL')}
+              onClick={() => handleSetViewMode('ALL')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 viewMode === 'ALL'
                   ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
@@ -396,7 +440,28 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
               Lengkap
             </button>
             <button
-              onClick={() => setViewMode('CHART_3D')}
+              onClick={() => handleSetViewMode('CARDS')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                viewMode === 'CARDS'
+                  ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Kartu PIC</span>
+            </button>
+            <button
+              onClick={() => handleSetViewMode('TABLE')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === 'TABLE'
+                  ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Tabel Scorecard
+            </button>
+            <button
+              onClick={() => handleSetViewMode('CHART_3D')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                 viewMode === 'CHART_3D'
                   ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
@@ -405,16 +470,6 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
             >
               <Box className="w-3.5 h-3.5" />
               <span>Grafik 3D</span>
-            </button>
-            <button
-              onClick={() => setViewMode('TABLE')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                viewMode === 'TABLE'
-                  ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Tabel Scorecard
             </button>
           </div>
         </div>
@@ -929,17 +984,154 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
         </div>
       )}
 
-      {/* 1. SEKSI GRAFIK 3D ISOMETRIK */}
-      {(viewMode === 'ALL' || viewMode === 'CHART_3D') && (
+      {/* 1. SEKSI GRID KARTU KINERJA PIC (SESUAI DESAIN FOTO PENGGUNA) */}
+      {(viewMode === 'ALL' || viewMode === 'CARDS') && (
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between text-xs px-1">
+            <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <LayoutGrid className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span>Grid Kartu Kinerja PIC (Desain Sesuai Foto):</span>
+            </span>
+            <span className="text-[11px] text-slate-500 font-mono">
+              Menampilkan {filteredMetrics.length} Personil PIC
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5">
+            {filteredMetrics.length === 0 ? (
+              <div className="col-span-full p-8 text-center rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500">
+                Tidak ada data personil PIC yang cocok dengan kriteria filter atau pencarian.
+              </div>
+            ) : (
+              filteredMetrics.map((p) => {
+                const isSelected = selectedPicDetail?.pic === p.pic;
+                return (
+                  <div
+                    key={p.pic}
+                    onClick={() => setSelectedPicDetail(p)}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer group relative space-y-2 ${
+                      isSelected
+                        ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 shadow-md ring-2 ring-blue-500/20'
+                        : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-xs'
+                    }`}
+                    title={`Klik untuk melihat ${p.total} rincian dokumen SPP ${p.pic}`}
+                  >
+                    {/* Baris Atas: Nama & Cabang + Persentase Ontime */}
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {p.pic.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="truncate">
+                          <span className="font-bold text-xs text-slate-900 dark:text-white truncate block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                            {p.pic}
+                          </span>
+                          {p.area && (
+                            <span className="text-[9px] font-mono text-slate-500 dark:text-slate-400 block truncate">
+                              {AREA_METADATA[p.area]?.name || p.area}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <span
+                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold shrink-0 ${
+                          p.ontimeRate >= 80
+                            ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                            : p.ontimeRate >= 65
+                            ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900'
+                            : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+                        }`}
+                      >
+                        {p.ontimeRate}% Ontime
+                      </span>
+                    </div>
+
+                    {/* Baris Tengah: Volume Dokumen SPP, Close, Open */}
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 font-mono pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <span>
+                        <strong className="text-slate-900 dark:text-white">{p.total}</strong> SPP
+                      </span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                        <strong>{p.closed}</strong> Close
+                      </span>
+                      <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                        <strong>{p.open}</strong> Open
+                      </span>
+                    </div>
+
+                    {/* Baris Bawah: Rata-rata Hari & Status Performa */}
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 flex justify-between items-center pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <span className="flex items-center gap-1">
+                        <span>Rata-rata:</span>
+                        <strong className="font-mono text-slate-800 dark:text-slate-200">{p.avgDays} hr</strong>
+                      </span>
+                      <span
+                        className={`text-[9px] font-semibold px-1.5 py-0.2 rounded ${
+                          p.tier === 'Sangat Efisien'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                            : p.tier === 'Perlu Perhatian'
+                            ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {p.tier}
+                      </span>
+                    </div>
+
+                    {/* Indikator Tombol Rincian Dokumen */}
+                    <div className="pt-0.5 flex items-center justify-between text-[10px] text-blue-600 dark:text-blue-400 font-medium">
+                      <span>Rincian Dokumen</span>
+                      <span className="group-hover:translate-x-0.5 transition-transform">→</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* BANNER KETIKA GRAFIK 3D SEDANG DISEMBUNYIKAN PADA MODE LENGKAP */}
+      {viewMode === 'ALL' && !showChart && (
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
+          <div className="flex items-center gap-2">
+            <EyeOff className="w-4 h-4 text-slate-400 shrink-0" />
+            <span>Gambar grafik 3D sedang disembunyikan (tampilan mode bersih: kartu &amp; tabel aktif).</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleChart}
+            className="text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer flex items-center gap-1"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Tampilkan Grafik 3D</span>
+          </button>
+        </div>
+      )}
+
+      {/* 2. SEKSI GRAFIK 3D ISOMETRIK */}
+      {((viewMode === 'ALL' && showChart) || viewMode === 'CHART_3D') && (
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs px-1">
             <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
               <Box className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               <span>Grafik Batang 3D Isometrik Kinerja Personil PIC:</span>
             </span>
-            <span className="text-[11px] text-slate-500 font-mono">
-              Menampilkan {filteredMetrics.length} Personil PIC
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-500 font-mono">
+                Menampilkan {filteredMetrics.length} Personil PIC
+              </span>
+              <button
+                type="button"
+                onClick={handleToggleChart}
+                className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer ml-1"
+                title="Sembunyikan grafik ini"
+              >
+                <EyeOff className="w-3 h-3" />
+                <span>Sembunyikan</span>
+              </button>
+            </div>
           </div>
 
           <IsometricPicBarChart
@@ -954,7 +1146,7 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
         </div>
       )}
 
-      {/* 2. SEKSI TABEL SCORECARD LENGKAP */}
+      {/* 3. SEKSI TABEL SCORECARD LENGKAP */}
       {(viewMode === 'ALL' || viewMode === 'TABLE') && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl overflow-hidden shadow-2xs">
           <div className="p-4 border-b border-slate-200/90 dark:border-slate-800/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1198,9 +1390,24 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
                               className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
                             >
                               <td className="px-3 py-2.5 font-bold text-slate-900 dark:text-white">
-                                {item.sppNumber}
-                                {item.isUrgentAdvance && (
-                                  <span className="ml-1 text-[9px] font-bold text-amber-600">⚡ DARURAT</span>
+                                <div className="flex items-center gap-1">
+                                  <span>{item.sppNumber}</span>
+                                  {item.isUrgentAdvance && (
+                                    <span className="text-[9px] font-bold text-amber-600">⚡ DARURAT</span>
+                                  )}
+                                </div>
+                                {item.specialCondition && (
+                                  <div className="mt-1 p-1 rounded bg-purple-50 dark:bg-purple-950/50 border border-purple-200/80 dark:border-purple-800/60 font-sans text-[10px] max-w-xs">
+                                    <span className="font-bold text-purple-800 dark:text-purple-300 flex items-center gap-0.5">
+                                      <AlertCircle className="w-2.5 h-2.5 shrink-0 text-purple-600" />
+                                      {item.specialCondition}
+                                    </span>
+                                    {item.specialConditionReason && (
+                                      <p className="text-slate-600 dark:text-slate-300 line-clamp-2 mt-0.5">
+                                        {item.specialConditionReason}
+                                      </p>
+                                    )}
+                                  </div>
                                 )}
                               </td>
                               <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">

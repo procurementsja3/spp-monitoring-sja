@@ -22,7 +22,7 @@ export const OFFICIAL_4_PLANTS_CONFIGS: AreaSheetConfigMap = {
   },
   SUKODONO: {
     webAppUrl: 'https://script.google.com/macros/s/AKfycbx2ZMN-kHDzoa5ZP3lODQTDF-sPt2vIMuXWb5NuodG7IrUmUQqHr6YDby0azMYHc5GE/exec',
-    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM/edit?usp=sharing',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/u/0/?q=SPP_Sukodono',
     sheetName: 'SPP_Sukodono',
     autoSync: true,
     syncStatus: 'connected',
@@ -37,6 +37,14 @@ export const OFFICIAL_4_PLANTS_CONFIGS: AreaSheetConfigMap = {
 };
 
 export const PHOTO_SUKODONO_CONFIG: GoogleSheetConfig = OFFICIAL_4_PLANTS_CONFIGS.SUKODONO;
+
+// Helper untuk menyaring URL Sukodono agar tidak mengarah ke 404 lama
+export function sanitizeSukodonoUrl(url?: string): string {
+  if (!url || url.trim() === '' || url.includes('1a2xdnsX1QlKIyifygmMZnX0VkKnf-dXyX-iCb6XnHtM')) {
+    return OFFICIAL_4_PLANTS_CONFIGS.SUKODONO.spreadsheetUrl || 'https://docs.google.com/spreadsheets/u/0/?q=SPP_Sukodono';
+  }
+  return url.trim();
+}
 
 /**
  * Mendapatkan konfigurasi default dengan fallback lokal
@@ -65,7 +73,7 @@ export function getFallbackAreaConfigs(): AreaSheetConfigMap {
             ...OFFICIAL_4_PLANTS_CONFIGS.SUKODONO,
             ...parsed.SUKODONO,
             webAppUrl: parsed.SUKODONO?.webAppUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SUKODONO.webAppUrl,
-            spreadsheetUrl: parsed.SUKODONO?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SUKODONO.spreadsheetUrl,
+            spreadsheetUrl: sanitizeSukodonoUrl(parsed.SUKODONO?.spreadsheetUrl),
           },
           SEMARANG: {
             ...OFFICIAL_4_PLANTS_CONFIGS.SEMARANG,
@@ -114,7 +122,7 @@ export async function fetchCloudAreaConfigs(): Promise<AreaSheetConfigMap> {
             ...OFFICIAL_4_PLANTS_CONFIGS.SUKODONO,
             ...data.configs.SUKODONO,
             webAppUrl: data.configs.SUKODONO?.webAppUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SUKODONO.webAppUrl,
-            spreadsheetUrl: data.configs.SUKODONO?.spreadsheetUrl?.trim() || OFFICIAL_4_PLANTS_CONFIGS.SUKODONO.spreadsheetUrl,
+            spreadsheetUrl: sanitizeSukodonoUrl(data.configs.SUKODONO?.spreadsheetUrl),
           },
           SEMARANG: {
             ...OFFICIAL_4_PLANTS_CONFIGS.SEMARANG,
