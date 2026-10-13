@@ -50,6 +50,7 @@ interface DraftRow {
 }
 
 export const PRESET_SPECIAL_CONDITIONS = [
+  'Menunggu Pembanding / Penawaran Harga',
   'Menunggu Kelengkapan Dokumen Vendor',
   'Kendala Vendor / Stok Kosong',
   'Pending Konfirmasi User / Budget',
@@ -60,6 +61,7 @@ export const PRESET_SPECIAL_CONDITIONS = [
 ];
 
 export const QUICK_SPECIAL_SUGGESTIONS = [
+  'Menunggu Pembanding / Penawaran Harga',
   'Menunggu Kelengkapan Dokumen Vendor',
   'Menunggu Surat Garansi / Izin Edar',
   'Revisi Penawaran & Spek',
@@ -208,6 +210,7 @@ export const isLikelyPic = (val: string): boolean => {
   const nonPicKeywords = [
     'spp', 'budget', 'terima', 'cabang', 'area', 'sla', 'kondisi', 'khusus',
     'normal', 'close', 'open', 'ontime', 'terlambat', 'waiting', 'kendala',
+    'pembanding', 'dokumen', 'vendor', 'hold', 'batal', 'tunda', 'spek',
     'sepanjang', 'karawang', 'sukodono', 'semarang', 'sby', 'krw', 'skd', 'smg',
     'realisasi', 'pending', 'selesai'
   ];
@@ -218,17 +221,65 @@ export const isLikelyPic = (val: string): boolean => {
 export const isLikelyPoNumber = (val: string): boolean => {
   if (!val) return false;
   const t = val.trim();
-  if (t === '-' || t === '') return false;
-  if (t.toUpperCase().startsWith('PO/') || t.toUpperCase().startsWith('PO-') || t.toUpperCase().startsWith('PO.')) return true;
-  return /^[0-9A-Za-z\/\-_]{4,25}$/.test(t) && /\d/.test(t) && !parseRawDateToISO(t) && !t.toUpperCase().startsWith('SPP');
+  if (t === '-' || t === '' || t === '.') return false;
+  if (parseRawDateToISO(t) || t.toUpperCase().startsWith('SPP')) return false;
+
+  // Jangan pernah anggap kata kunci kendala / kondisi khusus sebagai nomor PO
+  if (/^(waiting|menunggu|pending|hold|batal|kendala|pembanding|spek|stok|user|sampel|sample)/i.test(t)) {
+    return false;
+  }
+
+  // Single PO dengan awalan standar PO
+  if (
+    t.toUpperCase().startsWith('PO/') ||
+    t.toUpperCase().startsWith('PO-') ||
+    t.toUpperCase().startsWith('PO.') ||
+    t.toUpperCase().startsWith('PO ')
+  ) {
+    return true;
+  }
+
+  // Single PO standar (alphanumeric 4-25 karakter, misal: 4M261269, 4T260647)
+  if (/^[0-9A-Za-z\/\-_]{4,25}$/.test(t) && /\d/.test(t)) {
+    return true;
+  }
+
+  // Multi-PO (penulisan lebih dari 1 PO dalam 1 nomor SPP)
+  // Contoh: "4M261264; 1276; 1283", "4M261264, 1276, 1283", "4M261264 / 1276 / 1283"
+  if (t.includes(';') || t.includes(',') || t.includes('&')) {
+    const segments = t.split(/[;,&]/).map((s) => s.trim()).filter(Boolean);
+    if (segments.length >= 2) {
+      const hasValidPoCode = segments.some(
+        (seg) =>
+          (/\d/.test(seg) && /[A-Za-z]/.test(seg) && seg.length >= 4) ||
+          seg.toUpperCase().startsWith('PO') ||
+          /^\d{6,}$/.test(seg)
+      );
+      const allSegmentsLookLikePo = segments.every(
+        (seg) =>
+          /^[0-9A-Za-z\/\-_ ]+$/.test(seg) &&
+          (/\d/.test(seg) || seg.length >= 3) &&
+          !/^(waiting|kelengkapan|dokumen|kendala|pending|hold|batal|spek|vendor|pembanding)/i.test(seg)
+      );
+      if (hasValidPoCode && allSegmentsLookLikePo) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 };
 
-// Ekstraktor cerdas pola: [PIC] [Tanggal PO] [No. PO]
-// Sesuai foto 1: "IDA 09 October 2026 4M261269" atau variasi tanggalnya
+// Ekstraktor cerdas pola: [PIC] [Tanggal PO] [No. PO (Single maupun Multi-PO) / Jeda Spasi Kosong / Kondisi Khusus]
+// Sesuai foto:
+// - "IDA 09 October 2026 4M261269" (Single PO)
+// - "IDA 13 October 2026 4M261264; 1276; 1283" (Multi PO)
+// - "IDA 13 October 2026   Waiting pembanding" (PO kosong/belum ada, Kondisi Khusus: Waiting pembanding)
 export interface ExtractedPicPo {
   pic: string;
   poDate: string;
   poNumber: string;
+  specialConditionText?: string;
   matched: boolean;
 }
 
@@ -236,42 +287,70 @@ export const extractPicAndPoFromText = (text: string): ExtractedPicPo => {
   if (!text) return { pic: '', poDate: '', poNumber: '', matched: false };
   const trimmed = text.trim();
 
-  // Pola 1: [PIC] [Tanggal PO dengan Tahun] [No. PO]
-  // Contoh: "IDA 09 October 2026 4M261269" atau "Ida 09/10/2026 4M261269"
-  const pattern1 = /\b([A-Za-z]{2,20})\s+(\d{1,2}\s+(?:jan(?:uari)?|feb(?:ruari)?|mar(?:et)?|apr(?:il)?|mei|may|jun(?:i)?|jul(?:i)?|agu(?:stus)?|aug(?:ust)?|sep(?:tember)?|okt(?:ober)?|oct(?:ober)?|nov(?:ember)?|nop(?:ember)?|des(?:ember)?|dec(?:ember)?)\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})\s+([A-Za-z0-9\/\-_]{4,25})\b/i;
-  const match1 = trimmed.match(pattern1);
-  if (match1) {
-    const rawPic = match1[1].trim();
-    const rawDate = match1[2].trim();
-    const rawPo = match1[3].trim();
-    return {
-      pic: normalizePicName(rawPic),
-      poDate: parseRawDateToISO(rawDate) || rawDate,
-      poNumber: rawPo,
-      matched: true,
-    };
+  // Pola Tanggal PO: dengan tahun maupun tanpa tahun
+  const dateWithYear = '(\\d{1,2}\\s+(?:jan(?:uari)?|feb(?:ruari)?|mar(?:et)?|apr(?:il)?|mei|may|jun(?:i)?|jul(?:i)?|agu(?:stus)?|aug(?:ust)?|sep(?:tember)?|okt(?:ober)?|oct(?:ober)?|nov(?:ember)?|nop(?:ember)?|des(?:ember)?|dec(?:ember)?)\\s+\\d{4}|\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{4}[/-]\\d{1,2}[/-]\\d{1,2})';
+  const dateWithoutYear = '(\\d{1,2}\\s+(?:jan(?:uari)?|feb(?:ruari)?|mar(?:et)?|apr(?:il)?|mei|may|jun(?:i)?|jul(?:i)?|agu(?:stus)?|aug(?:ust)?|sep(?:tember)?|okt(?:ober)?|oct(?:ober)?|nov(?:ember)?|nop(?:ember)?|des(?:ember)?|dec(?:ember)?))';
+
+  // Pola 1: [PIC] [Tanggal PO dengan Tahun] [Sisa Teks (No PO / Spasi Kosong / Kondisi Khusus)]
+  const regex1 = new RegExp('\\b([A-Za-z]{2,20})\\s+' + dateWithYear + '(?:\\s+(.*))?$', 'i');
+  // Pola 2: [PIC] [Tanggal PO tanpa Tahun] [Sisa Teks]
+  const regex2 = new RegExp('\\b([A-Za-z]{2,20})\\s+' + dateWithoutYear + '(?:\\s+(.*))?$', 'i');
+
+  let match = trimmed.match(regex1);
+  if (!match) match = trimmed.match(regex2);
+  if (!match) return { pic: '', poDate: '', poNumber: '', matched: false };
+
+  const rawPic = match[1].trim();
+  const rawDate = match[2].trim();
+  let remainder = match[3] ? match[3].trim() : '';
+
+  let poNumber = '';
+  let specialConditionText = '';
+
+  if (remainder) {
+    if (remainder.startsWith('-') && remainder.length > 1) {
+      remainder = remainder.replace(/^-\s*/, '');
+    }
+
+    // Deteksi jika sisa teks langsung diawali kata kunci kondisi khusus (misal: "Waiting pembanding", "Waiting kelengkapan dokumen")
+    const isConditionWord = /^(waiting|menunggu|pending|hold|batal|kendala|pembanding|spek|stok|user|sampel|sample)\b/i.test(remainder);
+
+    if (isConditionWord) {
+      poNumber = '';
+      specialConditionText = remainder;
+    } else {
+      // Periksa apakah diawali nomor PO (baik single PO "4M261269" maupun multi-PO "4M261264; 1276; 1283")
+      const poPattern = /^([A-Za-z0-9\/\-_]{3,25}(?:\s*[,;]\s*[A-Za-z0-9\/\-_]+)*)(?:\s+(.*))?$/;
+      const poMatch = remainder.match(poPattern);
+      if (poMatch) {
+        const candidatePo = poMatch[1].trim();
+        const afterPo = poMatch[2] ? poMatch[2].trim() : '';
+        // Validasi candidate PO harus memiliki angka atau format PO resmi, bukan kata teks biasa
+        const hasDigits = /\d/.test(candidatePo);
+        const isNotPureWord = !/^[A-Za-z]+$/.test(candidatePo);
+        if (hasDigits && isNotPureWord) {
+          poNumber = candidatePo;
+          specialConditionText = afterPo;
+        } else {
+          poNumber = '';
+          specialConditionText = remainder;
+        }
+      } else {
+        specialConditionText = remainder;
+      }
+    }
   }
 
-  // Pola 2: [PIC] [Tanggal PO tanpa Tahun] [No. PO]
-  // Contoh: "IDA 09 October 4M261269" atau "IDA 09 Oktober 4M261269"
-  const pattern2 = /\b([A-Za-z]{2,20})\s+(\d{1,2}\s+(?:jan(?:uari)?|feb(?:ruari)?|mar(?:et)?|apr(?:il)?|mei|may|jun(?:i)?|jul(?:i)?|agu(?:stus)?|aug(?:ust)?|sep(?:tember)?|okt(?:ober)?|oct(?:ober)?|nov(?:ember)?|nop(?:ember)?|des(?:ember)?|dec(?:ember)?))\s+([A-Za-z0-9\/\-_]{4,25})\b/i;
-  const match2 = trimmed.match(pattern2);
-  if (match2) {
-    const rawPic = match2[1].trim();
-    const rawDate = match2[2].trim();
-    const rawPo = match2[3].trim();
-    return {
-      pic: normalizePicName(rawPic),
-      poDate: parseRawDateToISO(rawDate) || rawDate,
-      poNumber: rawPo,
-      matched: true,
-    };
-  }
-
-  return { pic: '', poDate: '', poNumber: '', matched: false };
+  return {
+    pic: normalizePicName(rawPic),
+    poDate: parseRawDateToISO(rawDate) || rawDate,
+    poNumber,
+    specialConditionText,
+    matched: true,
+  };
 };
 
-// Helper deteksi kondisi khusus dari teks bebas atau keterangan (misal: "Waiting kelengkapan dokumen Vendor by email")
+// Helper deteksi kondisi khusus dari teks bebas atau keterangan (misal: "Waiting pembanding", "Waiting kelengkapan dokumen Vendor")
 export const detectSpecialConditionFromText = (raw: string): {
   hasCondition: boolean;
   category: string;
@@ -281,10 +360,18 @@ export const detectSpecialConditionFromText = (raw: string): {
   const text = raw.trim();
   if (!text || text === '-' || text === '.' || text === '0') return { hasCondition: false, category: '', reason: '' };
 
-  // Jangan deteksi jika ini adalah format tanggal, nomor PO, atau murni angka SLA
+  // Jangan deteksi jika ini adalah nama PIC, nomor SPP, nama cabang, format tanggal, nomor PO, atau murni angka SLA
   if (
+    isLikelyPic(text) ||
+    ALL_KNOWN_PICS.some((p) => p.toLowerCase() === text.toLowerCase()) ||
+    text.toUpperCase().startsWith('SPP') ||
+    text.includes('/PROD') ||
+    text.includes('/MTC') ||
+    text.includes('/ENG') ||
+    ['sukodono', 'karawang', 'sepanjang', 'semarang', 'skd', 'krw', 'spj', 'smg', 'sja'].includes(text.toLowerCase()) ||
     parseRawDateToISO(text) ||
     /^\d+$/.test(text) ||
+    isLikelyPoNumber(text) ||
     (/^[0-9A-Za-z\/\-_]{4,25}$/.test(text) && /\d/.test(text) && /[A-Za-z]/.test(text) && !text.includes(' '))
   ) {
     return { hasCondition: false, category: '', reason: '' };
@@ -301,13 +388,31 @@ export const detectSpecialConditionFromText = (raw: string): {
     !lower.includes('batal') &&
     !lower.includes('revisi') &&
     !lower.includes('tunggu') &&
-    !lower.includes('kelengkapan');
+    !lower.includes('kelengkapan') &&
+    !lower.includes('pembanding');
 
   if (isExplicitlyNormal) {
     return { hasCondition: false, category: '', reason: '' };
   }
 
-  // 1. Dokumen vendor (misal: "Waiting kelengkapan dokumen Vendor by email")
+  // 1. Pembanding / Penawaran Harga (misal: "Waiting pembanding", "Menunggu pembanding", "Pembanding harga vendor", "Waiting penawaran", "Quotation")
+  if (
+    lower.includes('pembanding') ||
+    lower.includes('komparasi') ||
+    lower.includes('penawaran') ||
+    lower.includes('quotation') ||
+    lower.includes('quote') ||
+    lower.includes('nego') ||
+    lower.includes('tender')
+  ) {
+    return {
+      hasCondition: true,
+      category: 'Menunggu Pembanding / Penawaran Harga',
+      reason: text,
+    };
+  }
+
+  // 2. Dokumen vendor (misal: "Waiting kelengkapan dokumen Vendor by email")
   if (
     lower.includes('waiting kelengkapan') ||
     lower.includes('kelengkapan dokumen') ||
@@ -327,7 +432,7 @@ export const detectSpecialConditionFromText = (raw: string): {
     };
   }
 
-  // 2. Vendor / Stok Kosong
+  // 3. Vendor / Stok Kosong
   if (
     lower.includes('stok') ||
     lower.includes('stock') ||
@@ -344,14 +449,14 @@ export const detectSpecialConditionFromText = (raw: string): {
     };
   }
 
-  // 3. User / Budget
+  // 4. User / Budget
   if (
     lower.includes('budget') ||
     lower.includes('anggaran') ||
     lower.includes('user') ||
     lower.includes('acc') ||
     lower.includes('konfirmasi') ||
-    lower.includes('approval user')
+    lower.includes('approval')
   ) {
     return {
       hasCondition: true,
@@ -360,7 +465,7 @@ export const detectSpecialConditionFromText = (raw: string): {
     };
   }
 
-  // 4. Spek / Perubahan
+  // 5. Spek / Perubahan
   if (
     lower.includes('spek') ||
     lower.includes('spesifikasi') ||
@@ -374,7 +479,7 @@ export const detectSpecialConditionFromText = (raw: string): {
     };
   }
 
-  // 5. Sampel / Approval teknis
+  // 6. Sampel / Approval teknis
   if (
     lower.includes('sampel') ||
     lower.includes('sample') ||
@@ -389,7 +494,7 @@ export const detectSpecialConditionFromText = (raw: string): {
     };
   }
 
-  // 6. Hold PO / Penundaan Manajemen
+  // 7. Hold PO / Penundaan Manajemen
   if (
     lower.includes('hold') ||
     lower.includes('tunda') ||
@@ -404,7 +509,7 @@ export const detectSpecialConditionFromText = (raw: string): {
     };
   }
 
-  // 7. Batal Realisasi PO
+  // 8. Batal Realisasi PO
   if (lower.includes('batal') || lower.includes('cancel')) {
     return {
       hasCondition: true,
@@ -413,12 +518,32 @@ export const detectSpecialConditionFromText = (raw: string): {
     };
   }
 
-  // 8. Jika mengandung kata kunci kendala / masalah umum
+  // 9. Jika mengandung kata kunci kendala / masalah umum atau awalan waiting/menunggu/pending
   const generalConstraintKeywords = [
-    'kendala', 'masalah', 'trouble', 'rusak', 'pending', 'tunggu',
-    'khusus', 'hambatan', 'delay', 'urgent', 'darurat', 'retur', 'komplain', 'alasan'
+    'waiting', 'menunggu', 'pending', 'tunggu', 'kendala', 'masalah',
+    'trouble', 'rusak', 'khusus', 'hambatan', 'delay', 'urgent',
+    'darurat', 'retur', 'komplain', 'alasan', 'proses', 'follow up', 'cek'
   ];
   if (generalConstraintKeywords.some((kw) => lower.includes(kw))) {
+    return {
+      hasCondition: true,
+      category: 'Kendala Khusus Lainnya',
+      reason: text,
+    };
+  }
+
+  // 10. Jika ada teks keterangan apapun di samping kanan jeda spasi atau kolom kondisi khusus
+  // Sesuai permintaan pengguna: "dan lain sebagainya tergantung tulisan lainnya, maka masuk ke kolom Kondisi khusus pada Preview Data Hasil Paste"
+  // Pastikan BUKAN nama PIC, bukan cabang, bukan nomor SPP, bukan tanggal
+  if (
+    text.length >= 2 &&
+    !/^\d+$/.test(text) &&
+    !isLikelyPic(text) &&
+    !ALL_KNOWN_PICS.some((p) => p.toLowerCase() === text.toLowerCase()) &&
+    !['sukodono', 'karawang', 'sepanjang', 'semarang', 'skd', 'krw', 'spj', 'smg', 'sja'].includes(text.toLowerCase()) &&
+    !text.toUpperCase().startsWith('SPP') &&
+    !parseRawDateToISO(text)
+  ) {
     return {
       hasCondition: true,
       category: 'Kendala Khusus Lainnya',
@@ -622,16 +747,17 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     const todayISO = new Date().toISOString().split('T')[0];
 
     return contentLines.map((line, idx): ParsedExcelItem => {
-      // Split separator: prioritas Tab (Excel standard \t), titik koma, koma, atau 2+ spasi
+      // Split separator: prioritas Tab (Excel standard \t), 2+ spasi, atau delimiter CSV
+      // HATI-HATI: Jangan split pada ';' atau ',' jika itu adalah pemisah antar nomor PO (misal: "4M261264; 1276; 1283")
       let parts: string[] = [];
       if (line.includes('\t')) {
         parts = line.split('\t').map((p) => p.trim());
-      } else if (line.includes(';')) {
-        parts = line.split(';').map((p) => p.trim());
-      } else if (line.includes(',')) {
-        parts = line.split(',').map((p) => p.trim());
       } else if (/\s{2,}/.test(line)) {
         parts = line.split(/\s{2,}/).map((p) => p.trim());
+      } else if (line.includes(';') && !(/4[A-Za-z0-9]|\bPO\b/i.test(line) && /;\s*\d+/.test(line))) {
+        parts = line.split(';').map((p) => p.trim());
+      } else if (line.includes(',') && !(/4[A-Za-z0-9]|\bPO\b/i.test(line) && /,\s*\d+/.test(line))) {
+        parts = line.split(',').map((p) => p.trim());
       } else {
         parts = [line];
       }
@@ -662,11 +788,16 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
       let rawNotes = '';
 
       // 1. Pre-deteksi Kondisi Khusus di dalam parts atau line
-      // Memastikan keterangan seperti "Waiting Kelengkapan dokumen" selalu tertangkap
+      // Memastikan keterangan seperti "Waiting Kelengkapan dokumen" selalu tertangkap, tapi jangan deteksi nama PIC
       let conditionPartIdx = -1;
       for (let i = 0; i < parts.length; i++) {
         const p = parts[i].trim();
-        if (p && detectSpecialConditionFromText(p).hasCondition) {
+        if (
+          p &&
+          !isLikelyPic(p) &&
+          !ALL_KNOWN_PICS.some((pic) => pic.toLowerCase() === p.toLowerCase()) &&
+          detectSpecialConditionFromText(p).hasCondition
+        ) {
           conditionPartIdx = i;
           rawNotes = p;
           break;
@@ -676,18 +807,21 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
       // Jika belum ketemu di parts atau jika parts panjangnya 1, deteksi pola frase kondisi di teks baris
       if (!rawNotes || (parts.length === 1 && conditionPartIdx === 0)) {
         const conditionPhrases = [
+          /waiting\s+pembanding[^\t\r\n,]*/i,
+          /pembanding[^\t\r\n,]*/i,
           /waiting\s+(?:kelengkapan\s+)?dokumen[^\t\r\n,]*/i,
           /kelengkapan\s+dokumen[^\t\r\n,]*/i,
           /dokumen\s+vendor[^\t\r\n,]*/i,
           /waiting\s+dokumen[^\t\r\n,]*/i,
+          /waiting\s+[^\t\r\n,]*/i,
           /menunggu\s+(?:kelengkapan\s+)?dokumen[^\t\r\n,]*/i,
-          /menunggu\s+dokumen[^\t\r\n,]*/i,
+          /menunggu\s+pembanding[^\t\r\n,]*/i,
+          /menunggu\s+[^\t\r\n,]*/i,
           /kendala\s+[^\t\r\n,]*/i,
           /(?:stok|stock)\s+kosong[^\t\r\n,]*/i,
           /pending\s+[^\t\r\n,]*/i,
           /hold\s+po[^\t\r\n,]*/i,
           /batal\s+(?:realisasi|po)?[^\t\r\n,]*/i,
-          /menunggu\s+[^\t\r\n,]*/i,
         ];
         for (const rg of conditionPhrases) {
           const m = line.match(rg);
@@ -753,6 +887,8 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
           if (!trimmed) continue;
           if (/^\d+$/.test(trimmed)) {
             rawSla = trimmed;
+          } else if (isLikelyPic(trimmed) || ALL_KNOWN_PICS.some((p) => p.toLowerCase() === trimmed.toLowerCase())) {
+            continue;
           } else if (!rawNotes || rawNotes === trimmed) {
             rawNotes = trimmed;
           }
@@ -814,7 +950,14 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
           rawPic = normalizePicName(parts[2]);
           rawDatePo = parts[3] || '';
           rawPoNumber = isLikelyPoNumber(parts[4]) ? parts[4] : '';
-          if (!rawNotes && parts[5] && !/^\d+$/.test(parts[5].trim()) && !isLikelyPoNumber(parts[5])) {
+          if (
+            !rawNotes &&
+            parts[5] &&
+            !/^\d+$/.test(parts[5].trim()) &&
+            !isLikelyPoNumber(parts[5]) &&
+            !isLikelyPic(parts[5]) &&
+            !ALL_KNOWN_PICS.some((p) => p.toLowerCase() === parts[5].trim().toLowerCase())
+          ) {
             rawNotes = parts[5];
           }
           if (parts[6] && /^\d+$/.test(parts[6].trim())) {
@@ -828,7 +971,14 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
           rawPic = isLikelyPic(parts[3]) ? normalizePicName(parts[3]) : (parts[3] || '-');
           rawDatePo = parts[4] || '';
           rawPoNumber = isLikelyPoNumber(parts[5]) ? parts[5] : '';
-          if (!rawNotes && parts[6] && !/^\d+$/.test(parts[6].trim()) && !isLikelyPoNumber(parts[6])) {
+          if (
+            !rawNotes &&
+            parts[6] &&
+            !/^\d+$/.test(parts[6].trim()) &&
+            !isLikelyPoNumber(parts[6]) &&
+            !isLikelyPic(parts[6]) &&
+            !ALL_KNOWN_PICS.some((p) => p.toLowerCase() === parts[6].trim().toLowerCase())
+          ) {
             rawNotes = parts[6];
           }
           if (parts[7] && /^\d+$/.test(parts[7].trim())) {
@@ -839,8 +989,8 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
         }
       }
 
-      // Sanitasi jika rawPoNumber, rawArea, atau rawPic tertukar dengan kondisi khusus
-      if (rawPoNumber && detectSpecialConditionFromText(rawPoNumber).hasCondition) {
+      // Sanitasi jika rawPoNumber, rawArea, atau rawPic tertukar dengan kondisi khusus atau bukan format PO
+      if (rawPoNumber && (!isLikelyPoNumber(rawPoNumber) || detectSpecialConditionFromText(rawPoNumber).hasCondition)) {
         if (!rawNotes) rawNotes = rawPoNumber;
         rawPoNumber = '';
       }
@@ -848,21 +998,50 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
         if (!rawNotes) rawNotes = rawArea;
         rawArea = '';
       }
-      if (rawPic && detectSpecialConditionFromText(rawPic).hasCondition) {
-        if (!rawNotes) rawNotes = rawPic;
-        rawPic = '-';
-      }
 
       // Pastikan jika ada snippet PIC/PO yang terdeteksi di baris, nilainya tidak terlewat
       if (picPoInLine.matched) {
         if (!rawPic || rawPic === '-') rawPic = picPoInLine.pic;
         if (!rawDatePo) rawDatePo = picPoInLine.poDate;
-        if (!rawPoNumber) rawPoNumber = picPoInLine.poNumber;
+        // Prioritaskan nomor PO jika picPoInLine memiliki nomor PO yang valid
+        if (picPoInLine.poNumber) {
+          if (!rawPoNumber || (picPoInLine.poNumber.includes(';') && !rawPoNumber.includes(';'))) {
+            rawPoNumber = picPoInLine.poNumber;
+          }
+        }
+        // Jika ada keterangan kondisi khusus dari picPoInLine (misal: "Waiting pembanding") dan bukan nama PIC
+        if (
+          picPoInLine.specialConditionText &&
+          !rawNotes &&
+          !isLikelyPic(picPoInLine.specialConditionText) &&
+          !ALL_KNOWN_PICS.some((p) => p.toLowerCase() === picPoInLine.specialConditionText!.toLowerCase())
+        ) {
+          rawNotes = picPoInLine.specialConditionText;
+        }
+      }
+
+      // Jika rawNotes memiliki angka SLA di bagian akhir (misal: "Waiting pembanding 10")
+      if (rawNotes) {
+        const slaSuffix = rawNotes.match(/^(.*?)(?:\s+(\d{1,3}))$/);
+        if (slaSuffix && !/^\d+$/.test(rawNotes) && !rawSla) {
+          rawNotes = slaSuffix[1].trim();
+          rawSla = slaSuffix[2];
+        }
+      }
+
+      // Jika rawNotes ternyata berisi nomor PO (misal multi-PO "4M261264; 1276; 1283"):
+      // Alihkan ke rawPoNumber dan kosongkan rawNotes!
+      if (rawNotes && isLikelyPoNumber(rawNotes)) {
+        if (!rawPoNumber || rawNotes.length > rawPoNumber.length) {
+          rawPoNumber = rawNotes;
+        }
+        rawNotes = '';
       }
 
       // Bersihkan rawNotes:
       // Sesuai instruksi user: jika saat ditempel tidak ada keterangan kondisi khusus,
       // maka kolom kondisi khusus posisi kosong datanya ('').
+      // Jangan pernah masukkan nama PIC, cabang, atau nomor PO ke rawNotes!
       if (
         !rawNotes ||
         rawNotes.trim() === '-' ||
@@ -870,8 +1049,21 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
         rawNotes.trim().toLowerCase() === 'normal' ||
         rawNotes.trim().toLowerCase() === 'same-day' ||
         rawNotes.trim().toLowerCase() === 'tanpa kendala' ||
+        isLikelyPic(rawNotes) ||
+        ALL_KNOWN_PICS.some((p) => p.toLowerCase() === rawNotes.trim().toLowerCase()) ||
+        (rawPic && rawPic !== '-' && (
+          rawNotes.trim().toLowerCase() === rawPic.trim().toLowerCase() ||
+          rawPic.toLowerCase().includes(rawNotes.trim().toLowerCase())
+        )) ||
+        ['sukodono', 'karawang', 'sepanjang', 'semarang', 'skd', 'krw', 'spj', 'smg', 'sja'].includes(rawNotes.trim().toLowerCase()) ||
+        rawNotes.trim().toUpperCase().startsWith('SPP') ||
         parseRawDateToISO(rawNotes) ||
-        (rawPoNumber && rawNotes.trim() === rawPoNumber.trim())
+        isLikelyPoNumber(rawNotes) ||
+        (rawPoNumber && (
+          rawNotes.trim() === rawPoNumber.trim() ||
+          rawPoNumber.includes(rawNotes.trim()) ||
+          rawNotes.includes(rawPoNumber.trim())
+        ))
       ) {
         rawNotes = '';
       }
@@ -1783,6 +1975,19 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => {
+                                          const text = 'Waiting pembanding';
+                                          handleUpdateRow(row.tempId, 'notes', text);
+                                          const det = detectSpecialConditionFromText(text);
+                                          handleUpdateRow(row.tempId, 'specialCondition', det.category);
+                                          handleUpdateRow(row.tempId, 'specialConditionReason', text);
+                                        }}
+                                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/60 dark:hover:bg-purple-800 text-purple-900 dark:text-purple-200 border border-purple-300 dark:border-purple-700 transition-colors cursor-pointer"
+                                      >
+                                        📊 Waiting pembanding
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
                                           const text = 'Waiting kelengkapan dokumen';
                                           handleUpdateRow(row.tempId, 'notes', text);
                                           const det = detectSpecialConditionFromText(text);
@@ -1844,6 +2049,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                                       className="w-full px-2.5 py-1.5 border rounded-lg text-xs font-semibold bg-white dark:bg-slate-900 border-purple-300 dark:border-purple-700 text-purple-900 dark:text-purple-200 focus:outline-none"
                                     >
                                       <option value="">Tidak Ada (Hapus Track Record)</option>
+                                      <option value="Menunggu Pembanding / Penawaran Harga">📊 Menunggu Pembanding / Penawaran Harga</option>
                                       <option value="Menunggu Kelengkapan Dokumen Vendor">📋 Menunggu Kelengkapan Dokumen Vendor</option>
                                       <option value="Kendala Vendor / Stok Kosong">📦 Kendala Vendor / Stok Kosong</option>
                                       <option value="Pending Konfirmasi User / Budget">⏳ Pending Konfirmasi User / Budget</option>
@@ -2051,6 +2257,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                                     }`}
                                   >
                                     <option value="">Tidak Ada (Normal - Berjalan Sesuai SLA)</option>
+                                    <option value="Menunggu Pembanding / Penawaran Harga">📊 Menunggu Pembanding / Penawaran Harga</option>
                                     <option value="Menunggu Kelengkapan Dokumen Vendor">📋 Menunggu Kelengkapan Dokumen Vendor</option>
                                     <option value="Kendala Vendor / Stok Kosong">📦 Kendala Vendor / Stok Kosong</option>
                                     <option value="Pending Konfirmasi User / Budget">⏳ Pending Konfirmasi User / Budget</option>
@@ -2413,7 +2620,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                       <strong>Paste 2 Kolom (Tanggal Terima &amp; No SPP):</strong> Jika hanya 2 kolom, cabang otomatis mengikuti user login dan kolom PIC otomatis diisi <strong>(-)</strong>.
                     </li>
                     <li>
-                      <strong>Kondisi Khusus di Samping Kanan No. PO:</strong> Kolom ke-7 khusus untuk catatan kendala/kondisi (misal <em>"Waiting kelengkapan dokumen"</em>). Jika tidak ada keterangan kendala khusus atau dikosongkan, kolom Kondisi Khusus otomatis <strong>kosong (-)</strong>.
+                      <strong>Kondisi Khusus di Samping Kanan No. PO / Jeda Kosong:</strong> Kolom ke-7 khusus untuk catatan kendala/kondisi (misal <em>"Waiting pembanding"</em>, <em>"Waiting kelengkapan dokumen"</em>). Jika No PO belum ada (berupa jeda spasi/kosong), No PO akan menampilkan <strong>PO belum ada</strong> dan catatan otomatis masuk ke <strong>Kondisi Khusus</strong>. Jika tidak ada kendala, kolom Kondisi Khusus posisi <strong>kosong (-)</strong>.
                     </li>
                   </ul>
                 </div>
@@ -2436,7 +2643,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                 rows={6}
                 value={pastedText}
                 onChange={(e) => setPastedText(e.target.value)}
-                placeholder={`Salin baris tabel dari Excel Anda (Ctrl+C), lalu paste (Ctrl+V) di sini... (Bisa minimal 1 data maupun banyak data sekaligus)\nUrutan Kolom Sesuai Format:\n1. Tanggal Terima Budget\t2. Nomor SPP\t3. Cabang / Area (Oto Login)\t4. PIC\t5. Tanggal PO\t6. No. PO\t7. Kondisi Khusus\t8. SLA\n\nContoh Paste Lengkap Tanpa Kondisi Khusus (Kolom Kondisi Khusus Kosong):\n08 October 2026\tSPP/014/PROD-III/IX/2026\tSukodono\tIDA\t09 Oktober\t4M261269\t\t10\n(PIC: IDA, Tanggal PO: 09 Oktober, No. PO: 4M261269, Kondisi Khusus: -)\n\nContoh Paste dengan Kondisi Khusus:\n07/10/2026\tSPP/KRW/2026/10/0102\tKarawang\tDevi\t\t\tWaiting kelengkapan dokumen\t10\n\nContoh Paste 2 Kolom (Tanggal Terima & Nomor SPP Saja):\n08 October 2026\tSPP/014/PROD-III/IX/2026\n(Cabang otomatis login, PIC otomatis diisi '-')`}
+                placeholder={`Salin baris tabel dari Excel Anda (Ctrl+C), lalu paste (Ctrl+V) di sini... (Bisa minimal 1 data maupun banyak data sekaligus)\nUrutan Kolom Sesuai Format:\n1. Tanggal Terima Budget\t2. Nomor SPP\t3. Cabang / Area (Oto Login)\t4. PIC\t5. Tanggal PO\t6. No. PO\t7. Kondisi Khusus\t8. SLA\n\nContoh Paste Lengkap Tanpa Kondisi Khusus:\n08 October 2026\tSPP/014/PROD-III/IX/2026\tSukodono\tIDA\t09 Oktober\t4M261269\t\t10\n(PIC: IDA, Tanggal PO: 09 Oktober, No. PO: 4M261269, Kondisi Khusus: -)\n\nContoh Paste dengan Kondisi Khusus (PO Belum Ada / Jeda Kosong):\n13 October 2026\tSPP/031/MTC-III/X/2026\tSukodono\tIDA\t13 October 2026\t\tWaiting pembanding\t10\n(No PO belum ada, Kondisi Khusus: Waiting pembanding)\n\nContoh Paste 2 Kolom (Tanggal Terima & Nomor SPP Saja):\n08 October 2026\tSPP/014/PROD-III/IX/2026\n(Cabang otomatis login, PIC otomatis diisi '-')`}
                 className="w-full p-3 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl font-mono text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white dark:focus:bg-slate-900 transition-all leading-relaxed"
               />
             </div>
@@ -2522,16 +2729,23 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                               {item.poDate || '-'}
                             </td>
                             <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                              {item.poNumber || <span className="text-slate-400 italic">Belum Ada</span>}
+                              {item.poNumber ? (
+                                <span className="font-semibold text-slate-900 dark:text-slate-100">{item.poNumber}</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-slate-400 dark:text-slate-500 italic text-[10px]">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                                  PO belum ada
+                                </span>
+                              )}
                             </td>
                             <td className="py-2 px-3 whitespace-nowrap">
                               {item.specialCondition || (item.notes && item.notes.trim() !== '' && item.notes.trim() !== '-' && item.notes.trim().toLowerCase() !== 'normal') ? (
                                 <div className="flex flex-col gap-0.5">
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                                     <AlertCircle className="w-2.5 h-2.5 shrink-0 text-purple-600 dark:text-purple-400" />
-                                    <span>{item.notes || item.specialCondition}</span>
+                                    <span>{item.specialConditionReason || item.notes || item.specialCondition}</span>
                                   </span>
-                                  {item.specialCondition && item.notes && item.notes.toLowerCase() !== item.specialCondition.toLowerCase() && (
+                                  {item.specialCondition && (
                                     <span className="text-[10px] text-slate-500 dark:text-slate-400 font-sans max-w-[220px] truncate" title={item.specialCondition}>
                                       Kategori: {item.specialCondition}
                                     </span>
