@@ -28,6 +28,7 @@ import {
   RotateCcw,
   HelpCircle,
   Columns,
+  Table,
   History,
 } from 'lucide-react';
 
@@ -632,6 +633,8 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
   const [pastedText, setPastedText] = useState<string>('');
   const [copiedHeaderToast, setCopiedHeaderToast] = useState(false);
   const [showColumnHelp, setShowColumnHelp] = useState(false);
+  const [pasteViewMode, setPasteViewMode] = useState<'TABLE_GRID' | 'TEXTAREA'>('TABLE_GRID');
+  const [pasteToast, setPasteToast] = useState<string | null>(null);
 
   const handleAutoGenerateSppNumber = (tempId: string, area: SJAArea, idx: number = 0) => {
     const areaCode = AREA_METADATA[area]?.code || 'SJA';
@@ -1162,6 +1165,114 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
   // Handler Muat Contoh Data Template
   const handleLoadSampleData = () => {
     setPastedText(SAMPLE_EXCEL_DATA);
+    setPasteToast('✨ Contoh data 5 baris berhasil dimuat ke dalam tabel!');
+    setTimeout(() => setPasteToast(null), 3500);
+  };
+
+  // Helper memproses teks tempelan dari clipboard / file Excel
+  const processIncomingPasteText = (text: string, mode: 'REPLACE' | 'APPEND' = 'REPLACE') => {
+    const clean = text.trim();
+    if (!clean) return;
+    const lines = clean.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (mode === 'APPEND' && pastedText.trim()) {
+      setPastedText((prev) => `${prev.trim()}\n${clean}`);
+    } else {
+      setPastedText(clean);
+    }
+    setPasteToast(`✅ ${lines.length} baris data berhasil ditempel sesuai urutan 8 kolom Excel!`);
+    setTimeout(() => setPasteToast(null), 4000);
+  };
+
+  // Handler Tempel Langsung dari Clipboard Browser (Ctrl + V atau Tombol)
+  const handlePasteClipboardDirectly = async (mode: 'REPLACE' | 'APPEND' = 'REPLACE') => {
+    try {
+      if (navigator?.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          processIncomingPasteText(text, mode);
+          return;
+        }
+      }
+    } catch {
+      // Browser permission prompt or fallback
+    }
+    const userText = prompt('Salin baris dari Excel (Ctrl+C), lalu paste di kotak berikut:');
+    if (userText) {
+      processIncomingPasteText(userText, mode);
+    }
+  };
+
+  // Handler Paste Event pada Container Tabel Grid
+  const handleTableContainerPaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text');
+    if (text && text.trim()) {
+      e.preventDefault();
+      processIncomingPasteText(text, 'REPLACE');
+    }
+  };
+
+  // Handler Update Nilai Sel Baris pada Format Tabel Excel
+  const handleUpdateParsedRow = (rowIdx: number, field: string, val: any) => {
+    const updated = parsedExcelData.map((item, idx) => {
+      if (idx !== rowIdx) return item;
+      return { ...item, [field]: val };
+    });
+
+    const tsv = updated
+      .map((r) => {
+        const col1 = r.budgetReceivedDate;
+        const col2 = r.sppNumber;
+        const col3 = r.area;
+        const col4 = r.pic === '-' ? '' : r.pic;
+        const col5 = r.poDate || '';
+        const col6 = r.poNumber || '';
+        const col7 = r.specialConditionReason || r.notes || r.specialCondition || '';
+        const col8 = r.slaLimit;
+        return `${col1}\t${col2}\t${col3}\t${col4}\t${col5}\t${col6}\t${col7}\t${col8}`;
+      })
+      .join('\n');
+    setPastedText(tsv);
+  };
+
+  // Handler Hapus 1 Baris pada Format Tabel Excel
+  const handleRemoveParsedRow = (rowIdx: number) => {
+    const remaining = parsedExcelData.filter((_, idx) => idx !== rowIdx);
+    if (remaining.length === 0) {
+      setPastedText('');
+      return;
+    }
+    const tsv = remaining
+      .map((r) => {
+        const col1 = r.budgetReceivedDate;
+        const col2 = r.sppNumber;
+        const col3 = r.area;
+        const col4 = r.pic === '-' ? '' : r.pic;
+        const col5 = r.poDate || '';
+        const col6 = r.poNumber || '';
+        const col7 = r.specialConditionReason || r.notes || r.specialCondition || '';
+        const col8 = r.slaLimit;
+        return `${col1}\t${col2}\t${col3}\t${col4}\t${col5}\t${col6}\t${col7}\t${col8}`;
+      })
+      .join('\n');
+    setPastedText(tsv);
+  };
+
+  // Handler Tambah 1 Baris Kosong pada Tabel Excel
+  const handleAddBlankParsedRow = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const newRow = `${today}\t\t${initialArea}\t-\t\t\t\t10`;
+    setPastedText((prev) => (prev.trim() ? `${prev.trim()}\n${newRow}` : newRow));
+  };
+
+  // Handler Tambah 5 Baris Kosong pada Tabel Excel
+  const handleAdd5BlankParsedRows = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const lines: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      lines.push(`${today}\t\t${initialArea}\t-\t\t\t\t10`);
+    }
+    const newText = lines.join('\n');
+    setPastedText((prev) => (prev.trim() ? `${prev.trim()}\n${newText}` : newText));
   };
 
   // Handler Pindahkan Hasil Paste ke Metode 1 (Form Manual) untuk di-edit lebih detail
@@ -2533,16 +2644,6 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                     )}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={handleLoadSampleData}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-                    title="Muat contoh data 4 baris valid untuk pengujian langsung"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Muat Contoh Data</span>
-                  </button>
-
                   {pastedText && (
                     <button
                       type="button"
@@ -2627,25 +2728,409 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
               )}
             </div>
 
-            {/* Kotak Textarea Copy-Paste */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <label className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Clipboard className="w-4 h-4 text-emerald-600" />
-                  <span>Area Tempel / Paste Data Excel (Ctrl+V):</span>
-                </label>
-                <span className="text-[11px] text-slate-500 font-mono">
-                  {pastedText ? `${pastedText.split('\n').filter((l) => l.trim()).length} baris teks terdeteksi` : 'Kotak masih kosong'}
-                </span>
+            {/* Switcher & Header Area Tempel Data Excel */}
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+                    <Table className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <label className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <span>Area Tempel / Paste Data Excel (Sesuai Urutan Kolom):</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Format tabel interaktif berurutan 8 kolom Excel: data otomatis terpetakan ke kolom masing-masing saat di-paste.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tab Switcher: Format Tabel Excel vs Kotak Teks */}
+                <div className="flex items-center bg-slate-200/80 dark:bg-slate-800 p-1 rounded-xl text-xs shrink-0 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setPasteViewMode('TABLE_GRID')}
+                    className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      pasteViewMode === 'TABLE_GRID'
+                        ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Table className="w-3.5 h-3.5" />
+                    <span>Format Tabel Excel</span>
+                    <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded font-bold uppercase tracking-wider">
+                      Utama
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPasteViewMode('TEXTAREA')}
+                    className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      pasteViewMode === 'TEXTAREA'
+                        ? 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-400 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Kotak Teks Raw</span>
+                  </button>
+                </div>
               </div>
 
-              <textarea
-                rows={6}
-                value={pastedText}
-                onChange={(e) => setPastedText(e.target.value)}
-                placeholder={`Salin baris tabel dari Excel Anda (Ctrl+C), lalu paste (Ctrl+V) di sini... (Bisa minimal 1 data maupun banyak data sekaligus)\nUrutan Kolom Sesuai Format:\n1. Tanggal Terima Budget\t2. Nomor SPP\t3. Cabang / Area (Oto Login)\t4. PIC\t5. Tanggal PO\t6. No. PO\t7. Kondisi Khusus\t8. SLA\n\nContoh Paste Lengkap Tanpa Kondisi Khusus:\n08 October 2026\tSPP/014/PROD-III/IX/2026\tSukodono\tIDA\t09 Oktober\t4M261269\t\t10\n(PIC: IDA, Tanggal PO: 09 Oktober, No. PO: 4M261269, Kondisi Khusus: -)\n\nContoh Paste dengan Kondisi Khusus (PO Belum Ada / Jeda Kosong):\n13 October 2026\tSPP/031/MTC-III/X/2026\tSukodono\tIDA\t13 October 2026\t\tWaiting pembanding\t10\n(No PO belum ada, Kondisi Khusus: Waiting pembanding)\n\nContoh Paste 2 Kolom (Tanggal Terima & Nomor SPP Saja):\n08 October 2026\tSPP/014/PROD-III/IX/2026\n(Cabang otomatis login, PIC otomatis diisi '-')`}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl font-mono text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white dark:focus:bg-slate-900 transition-all leading-relaxed"
-              />
+              {/* TAMPILAN 1: FORMAT TABEL EXCEL (SPREADSHEET GRID INTERAKTIF) */}
+              {pasteViewMode === 'TABLE_GRID' ? (
+                <div
+                  onPaste={handleTableContainerPaste}
+                  tabIndex={0}
+                  className="border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 overflow-hidden shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                >
+                  {/* Grid Toolbar & Paste Action Bar */}
+                  <div className="p-2.5 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => handlePasteClipboardDirectly('REPLACE')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                        title="Tempel teks tabel dari clipboard Anda langsung ke tabel ini"
+                      >
+                        <Clipboard className="w-3.5 h-3.5" />
+                        <span>Tempel dari Clipboard (Ctrl + V)</span>
+                      </button>
+
+                      {parsedExcelData.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handlePasteClipboardDirectly('APPEND')}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                          title="Tempel data tambahan di baris bawah"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>+ Tempel Tambahan ke Bawah</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleAddBlankParsedRow}
+                        className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium cursor-pointer"
+                        title="Tambah 1 baris kosong pada tabel"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-blue-600" />
+                        <span>+ 1 Baris</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleAdd5BlankParsedRows}
+                        className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium cursor-pointer"
+                        title="Tambah 5 baris kosong pada tabel"
+                      >
+                        <Plus className="w-3 h-3 text-blue-600" />
+                        <span>+5</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                        {parsedExcelData.length} Baris Tabel
+                      </span>
+                      {pastedText && (
+                        <button
+                          type="button"
+                          onClick={() => setPastedText('')}
+                          className="px-2 py-1 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md text-xs font-semibold cursor-pointer transition-colors"
+                          title="Kosongkan semua data tabel"
+                        >
+                          Kosongkan Tabel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Toast Notifikasi Sukses Paste */}
+                  {pasteToast && (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/80 border-b border-emerald-200 dark:border-emerald-800 px-3 py-1.5 text-xs text-emerald-800 dark:text-emerald-200 font-semibold flex items-center justify-between animate-in fade-in">
+                      <span className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>{pasteToast}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPasteToast(null)}
+                        className="text-emerald-600 hover:text-emerald-900 font-bold ml-2 cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Konten Tabel Grid Sesuai Urutan Kolom Excel */}
+                  {parsedExcelData.length === 0 ? (
+                    <div className="p-8 text-center space-y-4">
+                      <div className="max-w-md mx-auto space-y-2">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto border border-emerald-200 dark:border-emerald-800">
+                          <Table className="w-6 h-6" />
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                          Format Tabel Siap Menerima Paste dari Excel
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                          Salin baris tabel dari Excel Anda (<strong>Ctrl+C</strong>), lalu klik area tabel ini dan tekan <strong>Ctrl + V</strong> pada keyboard, atau klik tombol hijau <strong>"Tempel dari Clipboard"</strong>.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-center gap-2.5 pt-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handlePasteClipboardDirectly('REPLACE')}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow-md flex items-center gap-2 cursor-pointer transition-colors"
+                        >
+                          <Clipboard className="w-4 h-4" />
+                          <span>Tempel dari Clipboard (Ctrl + V)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAddBlankParsedRow}
+                          className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Tambah Baris Manual</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto max-h-80">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 sticky top-0 z-10 text-[10px] font-bold uppercase tracking-wider">
+                          <tr>
+                            <th className="py-2 px-2 border-b border-slate-200 dark:border-slate-700 text-center w-10">#</th>
+                            <th className="py-2 px-2.5 border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                              <span className="inline-block px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 font-mono text-[9px] mr-1">
+                                A
+                              </span>
+                              1. Tgl Terima Budget
+                            </th>
+                            <th className="py-2 px-2.5 border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                              <span className="inline-block px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 font-mono text-[9px] mr-1">
+                                B
+                              </span>
+                              2. Nomor SPP
+                            </th>
+                            <th className="py-2 px-2.5 border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                              <span className="inline-block px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 font-mono text-[9px] mr-1">
+                                C
+                              </span>
+                              3. Cabang / Area
+                            </th>
+                            <th className="py-2 px-2.5 border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                              <span className="inline-block px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 font-mono text-[9px] mr-1">
+                                D
+                              </span>
+                              4. PIC
+                            </th>
+                            <th className="py-2 px-2.5 border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                              <span className="inline-block px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-mono text-[9px] mr-1">
+                                E
+                              </span>
+                              5. Tanggal PO
+                            </th>
+                            <th className="py-2 px-2.5 border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                              <span className="inline-block px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-mono text-[9px] mr-1">
+                                F
+                              </span>
+                              6. No. PO
+                            </th>
+                            <th className="py-2 px-2.5 border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                              <span className="inline-block px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-mono text-[9px] mr-1">
+                                G
+                              </span>
+                              7. Kondisi Khusus
+                            </th>
+                            <th className="py-2 px-2 border-b border-slate-200 dark:border-slate-700 text-center whitespace-nowrap">
+                              <span className="inline-block px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono text-[9px] mr-1">
+                                H
+                              </span>
+                              8. SLA
+                            </th>
+                            <th className="py-2 px-2 border-b border-slate-200 dark:border-slate-700 text-center w-12">
+                              Aksi
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-[11px] bg-white dark:bg-slate-900">
+                          {parsedExcelData.map((item, idx) => (
+                            <tr
+                              key={item.id}
+                              className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                            >
+                              <td className="py-1.5 px-2 text-center text-slate-400 font-bold">{idx + 1}</td>
+
+                              {/* Col 1 (A): Tanggal Terima Budget */}
+                              <td className="py-1.5 px-2">
+                                <input
+                                  type="text"
+                                  value={item.budgetReceivedDate}
+                                  onChange={(e) => handleUpdateParsedRow(idx, 'budgetReceivedDate', e.target.value)}
+                                  onPaste={handleTableContainerPaste}
+                                  placeholder="YYYY-MM-DD"
+                                  className="w-28 px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                                />
+                              </td>
+
+                              {/* Col 2 (B): Nomor SPP */}
+                              <td className="py-1.5 px-2">
+                                <input
+                                  type="text"
+                                  value={item.sppNumber}
+                                  onChange={(e) => handleUpdateParsedRow(idx, 'sppNumber', e.target.value)}
+                                  onPaste={handleTableContainerPaste}
+                                  placeholder="SPP/..."
+                                  className="w-44 px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                                />
+                              </td>
+
+                              {/* Col 3 (C): Cabang / Area */}
+                              <td className="py-1.5 px-2">
+                                <select
+                                  value={item.area}
+                                  onChange={(e) => handleUpdateParsedRow(idx, 'area', e.target.value)}
+                                  className="w-28 px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                >
+                                  <option value="SEPANJANG">Sepanjang</option>
+                                  <option value="KARAWANG">Karawang</option>
+                                  <option value="SUKODONO">Sukodono</option>
+                                  <option value="SEMARANG">Semarang</option>
+                                </select>
+                              </td>
+
+                              {/* Col 4 (D): PIC */}
+                              <td className="py-1.5 px-2">
+                                <input
+                                  type="text"
+                                  value={item.pic === '-' ? '' : item.pic}
+                                  onChange={(e) => handleUpdateParsedRow(idx, 'pic', e.target.value)}
+                                  onPaste={handleTableContainerPaste}
+                                  placeholder="-"
+                                  className="w-20 px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500 text-center"
+                                />
+                              </td>
+
+                              {/* Col 5 (E): Tanggal PO */}
+                              <td className="py-1.5 px-2">
+                                <input
+                                  type="text"
+                                  value={item.poDate || ''}
+                                  onChange={(e) => handleUpdateParsedRow(idx, 'poDate', e.target.value)}
+                                  onPaste={handleTableContainerPaste}
+                                  placeholder="-"
+                                  className="w-28 px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                                />
+                              </td>
+
+                              {/* Col 6 (F): No. PO */}
+                              <td className="py-1.5 px-2">
+                                <input
+                                  type="text"
+                                  value={item.poNumber || ''}
+                                  onChange={(e) => handleUpdateParsedRow(idx, 'poNumber', e.target.value)}
+                                  onPaste={handleTableContainerPaste}
+                                  placeholder="PO belum ada"
+                                  className={`w-36 px-2 py-1 rounded text-xs font-mono font-medium focus:outline-none transition-all ${
+                                    item.poNumber
+                                      ? 'bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-1 focus:ring-emerald-500 font-bold'
+                                      : 'bg-amber-50/60 dark:bg-amber-950/20 border border-amber-300/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-300 italic placeholder:text-amber-500/80'
+                                  }`}
+                                />
+                              </td>
+
+                              {/* Col 7 (G): Kondisi Khusus */}
+                              <td className="py-1.5 px-2">
+                                <input
+                                  type="text"
+                                  value={item.specialConditionReason || item.notes || item.specialCondition || ''}
+                                  onChange={(e) => handleUpdateParsedRow(idx, 'notes', e.target.value)}
+                                  onPaste={handleTableContainerPaste}
+                                  placeholder="Kosong (-)"
+                                  className={`w-44 px-2 py-1 rounded text-xs focus:outline-none transition-all ${
+                                    item.specialCondition || item.notes
+                                      ? 'bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-700 text-purple-950 dark:text-purple-200 font-semibold focus:ring-1 focus:ring-purple-500'
+                                      : 'bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 focus:ring-1 focus:ring-blue-500'
+                                  }`}
+                                />
+                              </td>
+
+                              {/* Col 8 (H): SLA */}
+                              <td className="py-1.5 px-2 text-center">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="99"
+                                  value={item.slaLimit || 10}
+                                  onChange={(e) => handleUpdateParsedRow(idx, 'slaLimit', parseInt(e.target.value) || 10)}
+                                  className="w-14 px-1 py-1 text-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              </td>
+
+                              {/* Aksi Hapus */}
+                              <td className="py-1.5 px-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveParsedRow(idx)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                  title="Hapus baris ini dari tabel"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Footer Tabel Grid */}
+                  {parsedExcelData.length > 0 && (
+                    <div className="p-2.5 bg-slate-50 dark:bg-slate-950/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        <span className="text-[11px]">
+                          Data pada tabel di atas otomatis tersinkron dan dihitung hari kerjanya secara real-time.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddBlankParsedRow}
+                        className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer text-xs"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>+ Tambah Baris</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* TAMPILAN 2: KOTAK TEKS TEMPEL CEPAT (RAW TEXTAREA) */
+                <div className="space-y-1.5 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[11px] text-slate-500">
+                      Mode teks raw: salin baris teks (tab-separated) dari Excel lalu tempel (Ctrl+V) langsung ke kotak di bawah.
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono font-semibold">
+                      {pastedText ? `${pastedText.split('\n').filter((l) => l.trim()).length} baris teks terdeteksi` : 'Kotak masih kosong'}
+                    </span>
+                  </div>
+
+                  <textarea
+                    rows={6}
+                    value={pastedText}
+                    onChange={(e) => setPastedText(e.target.value)}
+                    placeholder={`Salin baris tabel dari Excel Anda (Ctrl+C), lalu paste (Ctrl+V) di sini...\nUrutan Kolom Sesuai Format:\n1. Tanggal Terima Budget\t2. Nomor SPP\t3. Cabang / Area (Oto Login)\t4. PIC\t5. Tanggal PO\t6. No. PO\t7. Kondisi Khusus\t8. SLA\n\nContoh Paste Lengkap Tanpa Kondisi Khusus:\n08 October 2026\tSPP/014/PROD-III/IX/2026\tSukodono\tIDA\t09 Oktober\t4M261269\t\t10\n\nContoh Paste dengan Kondisi Khusus (PO Belum Ada / Jeda Kosong):\n13 October 2026\tSPP/031/MTC-III/X/2026\tSukodono\tIDA\t13 October 2026\t\tWaiting pembanding\t10\n(No PO belum ada, Kondisi Khusus: Waiting pembanding)`}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl font-mono text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white dark:focus:bg-slate-900 transition-all leading-relaxed"
+                  />
+                </div>
+              )}
             </div>
 
             {/* ============================================================== */}
@@ -2838,7 +3323,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                   Belum Ada Data yang Di-paste
                 </h4>
                 <p className="text-[11px] text-slate-400 max-w-md mx-auto">
-                  Silakan salin baris tabel dari Excel Anda (minimal 1 data sudah bisa langsung terdeteksi) lalu tekan <strong>Ctrl + V</strong> pada kotak teks di atas, atau klik tombol <strong>"Muat Contoh Data"</strong>.
+                  Silakan salin baris tabel dari Excel Anda (minimal 1 data sudah bisa langsung terdeteksi) lalu tekan <strong>Ctrl + V</strong> pada tabel di atas atau klik tombol <strong>"Tempel dari Clipboard"</strong>.
                 </p>
               </div>
             )}
