@@ -93,9 +93,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
   const [showLeadTimeDetail, setShowLeadTimeDetail] = useState<boolean>(false);
 
-  // Pagination & Sorting Data Realisasi PO (Default 15 data per halaman & input terbaru di paling atas)
+  // Pagination & Sorting Data Realisasi PO (Dibatasi default 10 data per halaman sesuai revisi)
   const [realizationPage, setRealizationPage] = useState<number>(1);
-  const [realizationPageSize, setRealizationPageSize] = useState<number>(15);
+  const [realizationPageSize, setRealizationPageSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('sja_realization_page_size');
+      if (saved) {
+        const val = Number(saved);
+        if ([10, 20, 25, 50].includes(val) || val > 0) return val;
+      }
+    } catch {}
+    return 10; // Default 10 data per halaman
+  });
 
   // Helper mendeteksi timestamp input terbaru (dari createdAt, ID timestamp, updatedAt, poDate, atau budgetReceivedDate)
   const getItemInputTimestamp = (item: SPPItem): number => {
@@ -1232,16 +1241,20 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     <select
                       value={realizationPageSize}
                       onChange={(e) => {
-                        setRealizationPageSize(Number(e.target.value));
+                        const newSize = Number(e.target.value);
+                        setRealizationPageSize(newSize);
                         setRealizationPage(1);
+                        try {
+                          localStorage.setItem('sja_realization_page_size', String(newSize));
+                        } catch {}
                       }}
                       className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
                       title="Pilih jumlah baris yang ditampilkan per halaman"
                     >
-                      <option value={15}>15 baris</option>
-                      <option value={25}>25 baris</option>
-                      <option value={50}>50 baris</option>
-                      <option value={sortedDisplayRecords.length}>Semua data</option>
+                      <option value={10}>10 data (Default)</option>
+                      <option value={20}>20 data</option>
+                      <option value={50}>50 data</option>
+                      <option value={sortedDisplayRecords.length}>Semua data ({sortedDisplayRecords.length})</option>
                     </select>
                   </div>
 
