@@ -230,16 +230,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
 
-      {/* Sidebar Container */}
+      {/* Sidebar Container (Liquid Glass Model) */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 border-r border-slate-200/90 dark:border-slate-800/90 flex flex-col transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 bottom-0 left-0 z-50 bg-white/70 dark:bg-slate-950/75 backdrop-blur-2xl backdrop-saturate-200 text-slate-800 dark:text-slate-100 border-r border-white/70 dark:border-white/10 shadow-[4px_0_36px_rgba(37,99,235,0.07)] dark:shadow-[4px_0_40px_rgba(0,0,0,0.65)] flex flex-col transition-all duration-300 ease-in-out overflow-hidden ${
           isCollapsed ? 'lg:w-20' : 'lg:w-64'
         } ${
           isMobileOpen ? 'translate-x-0 w-64 shadow-2xl' : '-translate-x-full lg:translate-x-0'
         }`}
       >
+        {/* Ambient Liquid Glass Glowing Fluid Orbs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+          {/* Liquid Orb 1 (Top Blue/Cyan fluid orb) */}
+          <div className="absolute -top-20 -left-12 w-56 h-56 bg-gradient-to-br from-blue-500/25 via-cyan-400/20 to-transparent dark:from-blue-600/25 dark:via-cyan-500/20 rounded-full blur-3xl animate-liquid-orb-1" />
+          {/* Liquid Orb 2 (Middle Indigo/Purple fluid orb) */}
+          <div className="absolute top-1/3 -right-20 w-60 h-60 bg-gradient-to-tr from-indigo-500/25 via-purple-500/20 to-pink-500/10 dark:from-indigo-600/25 dark:via-purple-600/15 rounded-full blur-3xl animate-liquid-orb-2" />
+          {/* Liquid Orb 3 (Bottom Emerald/Teal fluid orb) */}
+          <div className="absolute -bottom-20 -left-10 w-52 h-52 bg-gradient-to-tr from-emerald-400/25 via-teal-400/20 to-transparent dark:from-emerald-500/20 dark:via-teal-500/15 rounded-full blur-3xl animate-liquid-orb-3" />
+          {/* Specular Inner Glare Line on right border */}
+          <div className="absolute inset-y-0 right-0 w-[1.5px] bg-gradient-to-b from-white/90 via-white/30 to-white/70 dark:from-white/30 dark:via-white/5 dark:to-white/20 shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
+          {/* Subtle horizontal glass sheen overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/35 via-transparent to-white/20 dark:from-white/5 dark:via-transparent dark:to-white/[0.02] pointer-events-none" />
+        </div>
+
         {/* Sidebar Header: Brand Crest, Interactive Logo & Collapse Button */}
-        <div className="h-[4.25rem] px-3.5 flex items-center justify-between border-b border-slate-200/90 dark:border-slate-800/90 shrink-0">
+        <div className="h-[4.25rem] px-3.5 flex items-center justify-between border-b border-white/60 dark:border-white/10 bg-white/40 dark:bg-slate-900/30 backdrop-blur-md shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
             {/* Interactive Logo Wrapper with Auto-Save */}
             <div className="relative group/logo shrink-0">
@@ -258,8 +272,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 title="Klik untuk mengubah & menyimpan logo baru otomatis"
               >
                 {customLogo ? (
-                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700 shadow-md shrink-0 p-0.5 flex items-center justify-center">
-                    <div className="w-full h-full rounded-lg overflow-hidden bg-white flex items-center justify-center p-0.5">
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-white/90 dark:bg-slate-900/90 border border-white/80 dark:border-white/15 shadow-md shadow-blue-500/10 shrink-0 p-0.5 flex items-center justify-center backdrop-blur-xs">
+                    <div className="w-full h-full rounded-lg overflow-hidden bg-white/95 flex items-center justify-center p-0.5">
                       <img
                         src={customLogo}
                         alt="Logo Perusahaan"
@@ -268,7 +282,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm tracking-tight shadow-md shrink-0 ring-1 ring-white/10">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 text-white flex items-center justify-center font-bold text-sm tracking-tight shadow-md shadow-blue-500/25 shrink-0 ring-1 ring-white/30">
                     SJA
                   </div>
                 )}
@@ -286,7 +300,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   title={`Status: Online (${isSuperadmin ? 'Superadmin' : `Area ${currentUser.area}`})`}
                 >
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-white dark:border-slate-950"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-white dark:border-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span>
                 </span>
               )}
             </div>
@@ -304,7 +318,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="relative flex h-2 w-2 shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]"></span>
                   </span>
                   <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 tracking-wide font-sans leading-none">
                     Online
@@ -317,7 +331,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Toggle Button for Desktop */}
           <button
             onClick={onToggleCollapse}
-            className="hidden lg:flex p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+            className="hidden lg:flex p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-white/40 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10 border border-transparent hover:border-white/50 dark:hover:border-white/10 backdrop-blur-xs transition-all shadow-2xs cursor-pointer"
             title={isCollapsed ? 'Perluas Sidebar' : 'Ciutkan Sidebar'}
           >
             {isCollapsed ? (
@@ -330,34 +344,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Close Button for Mobile */}
           <button
             onClick={onCloseMobile}
-            className="lg:hidden p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+            className="lg:hidden p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-white/40 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10 border border-transparent hover:border-white/50 dark:hover:border-white/10 backdrop-blur-xs transition-all cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Action Button: "+ Input SPP" */}
-        <div className="p-3 border-b border-slate-200/90 dark:border-slate-800/80 shrink-0 space-y-2">
+        <div className="p-3 border-b border-white/60 dark:border-white/10 shrink-0 space-y-2 bg-gradient-to-b from-white/30 to-transparent dark:from-white/[0.02] dark:to-transparent">
           <button
             onClick={() => {
               onOpenNewSPP();
               if (isMobileOpen) onCloseMobile();
             }}
-            className={`w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium text-xs py-2.5 rounded-lg shadow-sm hover:shadow transition-all ${
+            className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.97] hover:scale-[1.02] hover:-translate-y-0.5 text-white font-semibold text-xs py-2.5 rounded-2xl shadow-lg shadow-blue-500/30 border border-white/35 hover:border-white/60 transition-all duration-300 ease-out cursor-pointer relative overflow-hidden group/btn ${
               isCollapsed && !isMobileOpen ? 'px-0' : 'px-4'
             }`}
             title={isCollapsed && !isMobileOpen ? 'Tambah SPP Baru' : undefined}
           >
-            <Plus className="w-4 h-4 shrink-0" />
+            {/* iOS 26 Liquid Sheen Sweep */}
+            <div className="absolute inset-0 -translate-x-[150%] group-hover/btn:translate-x-[200%] transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none skew-x-[-20deg]" />
+
+            <div className="p-1 rounded-lg bg-white/20 ring-1 ring-white/30 shrink-0">
+              <Plus className="w-3.5 h-3.5 shrink-0 transition-transform group-hover/btn:rotate-90 duration-300" />
+            </div>
             {(!isCollapsed || isMobileOpen) && (
-              <span className="truncate">Tambah SPP Baru</span>
+              <span className="truncate tracking-wide font-bold">Tambah SPP Baru</span>
             )}
           </button>
         </div>
 
-        {/* Panel Filter Area & PIC Ringkas (Sistem Drop Down List Hemat Ruang agar Menu Utama Terlihat) */}
+        {/* Panel Filter Area & PIC Ringkas (Liquid Glass Dropdown) */}
         {(!isCollapsed || isMobileOpen) && (
-          <div className="px-3 pt-2 pb-2.5 shrink-0 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40 space-y-2">
+          <div className="px-3 pt-2 pb-2.5 shrink-0 border-b border-white/60 dark:border-white/10 bg-white/35 dark:bg-slate-900/35 backdrop-blur-md space-y-2">
             {/* 1. Dropdown List Filter Area Cabang (Khusus Superadmin) */}
             {isSuperadmin ? (
               <div>
@@ -379,7 +398,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <select
                   value={activeAreaFilter}
                   onChange={(e) => onSelectAreaFilter(e.target.value as SJAArea | 'ALL')}
-                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
+                  className="w-full px-2.5 py-1.5 bg-white/75 dark:bg-slate-950/75 backdrop-blur-md border border-white/80 dark:border-white/10 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500/30 cursor-pointer shadow-2xs transition-all"
                 >
                   <option value="ALL">🌐 Semua Area Cabang (4 Area)</option>
                   <option value="SEPANJANG">🏢 SJA Sepanjang (Lampiran 1)</option>
@@ -389,12 +408,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </select>
               </div>
             ) : (
-              <div className="flex items-center justify-between px-2.5 py-1.5 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-900/50 rounded-lg text-xs">
+              <div className="flex items-center justify-between px-2.5 py-1.5 bg-blue-500/10 dark:bg-blue-500/15 border border-blue-500/20 dark:border-blue-400/20 rounded-xl text-xs backdrop-blur-xs">
                 <span className="text-[11px] font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
                   <Building className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                   <span>{AREA_METADATA[currentUser.area as SJAArea]?.name || currentUser.area}</span>
                 </span>
-                <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-blue-200/70 dark:bg-blue-900 text-blue-800 dark:text-blue-200 font-bold">
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-md bg-blue-200/70 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200 font-bold border border-blue-300/40 dark:border-blue-700/40">
                   Cabang Login
                 </span>
               </div>
@@ -427,7 +446,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onSelectPicFilter?.(e.target.value);
                   onSearchPicQuery?.('');
                 }}
-                className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
+                className="w-full px-2.5 py-1.5 bg-white/75 dark:bg-slate-950/75 backdrop-blur-md border border-white/80 dark:border-white/10 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-purple-500/30 cursor-pointer shadow-2xs transition-all"
               >
                 {isSuperadmin ? (
                   <>
@@ -478,13 +497,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Quick Links saat PIC Terpilih */}
             {selectedPicFilter && selectedPicFilter !== 'ALL' && (
-              <div className="flex items-center justify-between text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-1 rounded-md border border-blue-200/60 dark:border-blue-900/40">
+              <div className="flex items-center justify-between text-[10px] text-blue-600 dark:text-blue-400 bg-blue-500/10 dark:bg-blue-500/15 px-2.5 py-1.5 rounded-xl border border-blue-500/20 dark:border-blue-400/20 backdrop-blur-xs">
                 <span className="font-semibold truncate max-w-[85px]">PIC: {selectedPicFilter}</span>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     onClick={() => setActiveTab('dashboard')}
-                    className={`px-1 rounded ${activeTab === 'dashboard' ? 'bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-white font-bold' : 'hover:underline'}`}
+                    className={`px-1.5 py-0.5 rounded-md ${activeTab === 'dashboard' ? 'bg-blue-600 text-white font-bold shadow-2xs' : 'hover:underline'}`}
                     title="Buka Dashboard untuk PIC ini"
                   >
                     Dashboard
@@ -493,7 +512,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveTab('monitoring')}
-                    className={`px-1 rounded ${activeTab === 'monitoring' ? 'bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-white font-bold' : 'hover:underline'}`}
+                    className={`px-1.5 py-0.5 rounded-md ${activeTab === 'monitoring' ? 'bg-blue-600 text-white font-bold shadow-2xs' : 'hover:underline'}`}
                     title="Buka Daftar SPP untuk PIC ini"
                   >
                     Daftar SPP
@@ -502,7 +521,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveTab('analytics')}
-                    className={`px-1 rounded ${activeTab === 'analytics' ? 'bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-white font-bold' : 'hover:underline'}`}
+                    className={`px-1.5 py-0.5 rounded-md ${activeTab === 'analytics' ? 'bg-blue-600 text-white font-bold shadow-2xs' : 'hover:underline'}`}
                     title="Buka Analisa Realisasi untuk PIC ini"
                   >
                     Realisasi
@@ -513,10 +532,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* Navigation Menu Links */}
+        {/* Navigation Menu Links (Liquid Glass Items) */}
         <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
           {(!isCollapsed || isMobileOpen) && (
-            <p className="px-2 pb-1 text-[10px] uppercase font-mono tracking-wider text-slate-400 dark:text-slate-500 font-semibold">
+            <p className="px-2.5 pb-1 text-[10px] uppercase font-mono tracking-wider text-slate-400 dark:text-slate-500 font-semibold">
               Menu Utama
             </p>
           )}
@@ -528,42 +547,78 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div key={item.id} className="space-y-1">
                 <button
                   onClick={() => handleSelectNav(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all group relative ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-medium transition-all duration-300 ease-out group relative cursor-pointer overflow-hidden backdrop-blur-xl ${
                     isActive
-                      ? 'bg-blue-50 dark:bg-slate-900 text-blue-700 dark:text-blue-400 font-semibold border border-blue-200/80 dark:border-slate-800'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/60 hover:text-slate-900 dark:hover:text-slate-200'
+                      ? 'bg-gradient-to-r from-blue-600/18 via-indigo-600/12 to-blue-500/10 dark:from-blue-500/25 dark:via-indigo-500/20 dark:to-blue-900/15 text-blue-800 dark:text-blue-200 font-bold border border-blue-400/50 dark:border-blue-400/40 shadow-[0_4px_20px_rgba(37,99,235,0.18)] dark:shadow-[0_4px_24px_rgba(37,99,235,0.35)] glass-capsule-light dark:glass-capsule-dark scale-[1.01]'
+                      : 'text-slate-600 dark:text-slate-400 border border-transparent hover:border-white/90 dark:hover:border-white/20 hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98] hover:bg-gradient-to-r hover:from-white/90 hover:via-white/70 hover:to-white/85 dark:hover:from-slate-800/85 dark:hover:via-slate-800/60 dark:hover:to-indigo-950/50 hover:text-slate-900 dark:hover:text-white glass-capsule-light dark:glass-capsule-dark shadow-2xs'
                   }`}
                   title={isCollapsed && !isMobileOpen ? item.label : undefined}
                 >
-                  <Icon
-                    className={`w-4 h-4 shrink-0 transition-colors ${
-                      isActive
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300'
-                    }`}
-                  />
+                  {/* iOS 26 Prismatic Liquid Light Sweep on Hover */}
+                  <div className="absolute inset-0 -translate-x-[150%] group-hover:translate-x-[200%] transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/50 dark:via-white/25 to-transparent pointer-events-none skew-x-[-20deg]" />
 
+                  {/* Glowing liquid active indicator on the left */}
+                  {isActive ? (
+                    <span className="absolute left-1.5 top-2.5 bottom-2.5 w-1.5 rounded-full bg-gradient-to-b from-blue-400 via-indigo-500 to-cyan-400 shadow-[0_0_12px_rgba(59,130,246,0.9)] animate-pulse" />
+                  ) : (
+                    <span className="absolute left-1.5 top-3.5 bottom-3.5 w-1 rounded-full bg-gradient-to-b from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-[0_0_8px_rgba(59,130,246,0.7)]" />
+                  )}
+
+                  {/* Gem Glass Icon Pod */}
+                  <div className={`p-2 rounded-xl transition-all duration-300 shrink-0 flex items-center justify-center relative overflow-hidden ${
+                    isActive
+                      ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/35 ring-1 ring-white/40 scale-105'
+                      : 'bg-white/70 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 group-hover:bg-gradient-to-br group-hover:from-blue-500/25 group-hover:to-indigo-600/30 group-hover:text-blue-600 dark:group-hover:text-blue-300 group-hover:scale-110 group-hover:shadow-[0_0_14px_rgba(59,130,246,0.35)] border border-white/80 dark:border-white/10 group-hover:border-blue-400/40 backdrop-blur-md'
+                  }`}>
+                    <Icon className="w-4 h-4 transition-transform group-hover:rotate-3 duration-300" />
+                  </div>
+
+                  {/* Label & Dynamic Subtitle */}
                   {(!isCollapsed || isMobileOpen) && (
-                    <div className="flex-1 text-left truncate flex items-center justify-between">
-                      <span className="block truncate">{item.label}</span>
-                      {item.id === 'googlesheet' && isSuperadmin && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-semibold">
-                          4 Area
+                    <div className="flex-1 text-left min-w-0 flex flex-col justify-center">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className={`block truncate text-xs transition-colors duration-200 ${
+                          isActive
+                            ? 'font-bold text-blue-700 dark:text-blue-300'
+                            : 'font-semibold text-slate-700 dark:text-slate-200 group-hover:text-blue-700 dark:group-hover:text-white'
+                        }`}>
+                          {item.label}
+                        </span>
+                        {item.id === 'googlesheet' && isSuperadmin && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-500/30 font-mono shadow-xs">
+                            4 Area
+                          </span>
+                        )}
+                      </div>
+                      {item.description && (
+                        <span className={`block text-[10px] truncate transition-colors duration-200 ${
+                          isActive
+                            ? 'text-blue-600/80 dark:text-blue-300/80 font-medium'
+                            : 'text-slate-400 dark:text-slate-500 group-hover:text-blue-600/80 dark:group-hover:text-blue-300/80 font-normal'
+                        }`}>
+                          {item.description}
                         </span>
                       )}
                     </div>
                   )}
 
+                  {/* Collapsed Tooltip Bubble with iOS 26 Liquid Glass Style */}
                   {isCollapsed && !isMobileOpen && (
-                    <div className="absolute left-full ml-2 px-2.5 py-1 bg-slate-900 dark:bg-slate-950 text-white text-[11px] rounded-md shadow-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 border border-slate-700">
-                      {item.label}
+                    <div className="absolute left-full ml-3 px-3 py-2 bg-slate-900/90 dark:bg-slate-950/90 backdrop-blur-2xl text-white text-[11px] rounded-xl shadow-2xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0 z-50 border border-white/20 glass-capsule-dark flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
+                      <div className="flex flex-col text-left">
+                        <span className="font-bold">{item.label}</span>
+                        {item.description && (
+                          <span className="text-[9px] text-slate-400 font-normal">{item.description}</span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </button>
 
                 {/* Submenu Khusus Superadmin: Sistem Dropdown List Ringkas untuk Buka & Atur Google Sheet Cabang */}
                 {item.id === 'googlesheet' && isSuperadmin && (!isCollapsed || isMobileOpen) && (
-                  <div className="mt-1 ml-3 pl-2.5 border-l-2 border-emerald-500/40 dark:border-emerald-500/30 space-y-1.5 py-1 animate-in fade-in duration-200">
+                  <div className="mt-1 ml-3 pl-2.5 border-l-2 border-emerald-500/60 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-r-xl border border-white/30 dark:border-white/5 space-y-1.5 p-2 backdrop-blur-xs animate-in fade-in duration-200">
                     <div className="flex items-center justify-between text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
                       <span className="flex items-center gap-1">
                         <FileSpreadsheet className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
@@ -571,12 +626,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </span>
                     </div>
 
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       {/* Dropdown List Pemilihan Cabang */}
                       <select
                         value={selectedSidebarSheetArea}
                         onChange={(e) => setSelectedSidebarSheetArea(e.target.value as SJAArea)}
-                        className="w-full px-2 py-1.5 bg-white dark:bg-slate-950 border border-slate-200/90 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-2xs"
+                        className="w-full px-2.5 py-1.5 bg-white/75 dark:bg-slate-950/75 backdrop-blur-md border border-white/80 dark:border-white/10 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-2xs"
                       >
                         <option value="SEPANJANG">🏢 SJA Sepanjang (Lampiran 1)</option>
                         <option value="KARAWANG">🏢 SJA Karawang (Lampiran 2)</option>
@@ -589,7 +644,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <button
                           type="button"
                           onClick={() => handleOpenAreaSheet(selectedSidebarSheetArea)}
-                          className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-2xs transition-colors cursor-pointer"
+                          className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white text-[11px] font-bold shadow-md shadow-emerald-600/20 border border-white/20 transition-all cursor-pointer"
                           title={`Buka Google Sheet ${AREA_METADATA[selectedSidebarSheetArea]?.name} di Tab Baru`}
                         >
                           <span>Buka Spreadsheet</span>
@@ -598,7 +653,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <button
                           type="button"
                           onClick={(e) => handleEditAreaSheetLink(e, selectedSidebarSheetArea)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer flex items-center gap-1"
+                          className="px-2.5 py-1.5 rounded-lg bg-white/60 hover:bg-white/90 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-white/70 dark:border-white/10 backdrop-blur-xs transition-colors cursor-pointer flex items-center gap-1"
                           title={`Atur tautan URL Google Sheet ${AREA_METADATA[selectedSidebarSheetArea]?.name}`}
                         >
                           <Edit2 className="w-3 h-3" />
@@ -613,10 +668,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
 
-        {/* Sidebar Footer: SLA Info & User Card */}
-        <div className="p-3 border-t border-slate-200/90 dark:border-slate-800/90 bg-slate-50/60 dark:bg-slate-950/50 shrink-0 space-y-2">
+        {/* Sidebar Footer: SLA Info & User Card (Liquid Glass Footer) */}
+        <div className="p-3 border-t border-white/60 dark:border-white/10 bg-white/45 dark:bg-slate-950/50 backdrop-blur-md shrink-0 space-y-2">
           {(!isCollapsed || isMobileOpen) && (
-            <div className="px-2.5 py-2 bg-white dark:bg-slate-900/80 rounded-lg border border-slate-200/80 dark:border-slate-800/80 text-[11px] space-y-1 shadow-2xs">
+            <div className="px-2.5 py-2 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md rounded-xl border border-white/80 dark:border-white/10 text-[11px] space-y-1 shadow-2xs">
               <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                 <span className="flex items-center gap-1 font-mono">
                   <Clock className="w-3 h-3 text-blue-600 dark:text-blue-400" /> SLA Limit:
@@ -630,15 +685,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* User Account Tile */}
-          <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors">
-            <div className="flex items-center gap-2 overflow-hidden">
-              <div className="w-7 h-7 rounded-md bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-200/60 dark:border-blue-800/60">
+          {/* User Account Tile with iOS 26 Liquid Glass Hover */}
+          <div className="flex items-center justify-between gap-2 p-2 rounded-2xl border border-transparent hover:border-white/80 dark:hover:border-white/15 hover:bg-white/70 dark:hover:bg-slate-800/60 backdrop-blur-xl transition-all duration-300 hover:scale-[1.01] hover:shadow-md hover:shadow-blue-500/10 group/user relative overflow-hidden">
+            {/* Liquid shine on hover */}
+            <div className="absolute inset-0 -translate-x-[150%] group-hover/user:translate-x-[200%] transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/40 dark:via-white/20 to-transparent pointer-events-none skew-x-[-20deg]" />
+
+            <div className="flex items-center gap-2.5 overflow-hidden relative">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-md shadow-blue-500/25 ring-1 ring-white/40 transition-transform group-hover/user:scale-105 duration-300">
                 {currentUser.name.charAt(0)}
               </div>
               {(!isCollapsed || isMobileOpen) && (
                 <div className="min-w-0">
-                  <span className="block text-xs font-semibold text-slate-800 dark:text-slate-200 truncate leading-tight">
+                  <span className="block text-xs font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight group-hover/user:text-blue-600 dark:group-hover/user:text-blue-300 transition-colors">
                     {currentUser.name}
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
@@ -649,7 +707,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 leading-none">
                       <span className="relative flex h-1.5 w-1.5 shrink-0">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.7)]"></span>
                       </span>
                       <span>Online</span>
                     </span>
@@ -661,7 +719,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {(!isCollapsed || isMobileOpen) && (
               <button
                 onClick={onLogout}
-                className="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all cursor-pointer hover:scale-105 active:scale-95 relative"
                 title="Keluar Akun"
               >
                 <LogOut className="w-3.5 h-3.5" />
