@@ -2866,42 +2866,8 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                   )}
 
                   {/* Konten Tabel Grid Sesuai Urutan Kolom Excel */}
-                  {parsedExcelData.length === 0 ? (
-                    <div className="p-8 text-center space-y-4">
-                      <div className="max-w-md mx-auto space-y-2">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto border border-emerald-200 dark:border-emerald-800">
-                          <Table className="w-6 h-6" />
-                        </div>
-                        <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                          Format Tabel Siap Menerima Paste dari Excel
-                        </h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                          Salin baris tabel dari Excel Anda (<strong>Ctrl+C</strong>), lalu klik area tabel ini dan tekan <strong>Ctrl + V</strong> pada keyboard, atau klik tombol hijau <strong>"Tempel dari Clipboard"</strong>.
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-center gap-2.5 pt-2 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => handlePasteClipboardDirectly('REPLACE')}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs shadow-md flex items-center gap-2 cursor-pointer transition-colors"
-                        >
-                          <Clipboard className="w-4 h-4" />
-                          <span>Tempel dari Clipboard (Ctrl + V)</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleAddBlankParsedRow}
-                          className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors"
-                        >
-                          <Plus className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Tambah Baris Manual</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto max-h-80">
-                      <table className="w-full text-left text-xs border-collapse">
+                  <div className="overflow-x-auto max-h-80">
+                    <table className="w-full text-left text-xs border-collapse">
                         <thead className="bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 sticky top-0 z-10 text-[10px] font-bold uppercase tracking-wider">
                           <tr>
                             <th className="py-2 px-2 border-b border-slate-200 dark:border-slate-700 text-center w-10">#</th>
@@ -2959,7 +2925,14 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-[11px] bg-white dark:bg-slate-900">
-                          {parsedExcelData.map((item, idx) => (
+                          {parsedExcelData.length === 0 ? (
+                            <tr>
+                              <td colSpan={10} className="py-12 text-center text-slate-400 dark:text-slate-500 font-sans text-xs">
+                                Area tabel siap. Tekan <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono font-bold text-slate-700 dark:text-slate-300">Ctrl + V</kbd> untuk menempel data langsung dari Excel.
+                              </td>
+                            </tr>
+                          ) : (
+                            parsedExcelData.map((item, idx) => (
                             <tr
                               key={item.id}
                               className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
@@ -3084,11 +3057,11 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                                 </button>
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* Footer Tabel Grid */}
                   {parsedExcelData.length > 0 && (
