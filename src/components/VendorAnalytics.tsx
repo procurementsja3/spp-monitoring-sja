@@ -1515,7 +1515,7 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
             {/* Footer Modal */}
             <div className="p-3 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
               <span className="text-slate-400 font-mono text-[11px]">
-                Dokumen resmi pengadaan PT Sinar Jernih Angkasa (SJA)
+                Dokumen resmi pengadaan PT SANTOS JAYA ABADI (SJA)
               </span>
               <button
                 type="button"
