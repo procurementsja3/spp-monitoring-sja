@@ -10,7 +10,43 @@ import {
   ShieldCheck,
   TrendingUp,
   ArrowRight,
+  AlertTriangle,
+  AlertCircle,
+  Calendar,
+  Building,
+  Layers,
+  ChevronRight,
 } from 'lucide-react';
+
+// Helper mengekstrak informasi kondisi khusus dan alasan/keterangan kendala dari SPPItem
+function getSpecialConditionInfo(item: SPPItem): { condition: string; reason: string } {
+  let condition = item.specialCondition?.trim() || '';
+  let reason = item.specialConditionReason?.trim() || '';
+
+  if (!condition && item.notes && typeof item.notes === 'string') {
+    if (item.notes.startsWith('Kondisi Khusus:')) {
+      const content = item.notes.replace('Kondisi Khusus:', '').trim();
+      const splitIdx = content.indexOf(' - ');
+      if (splitIdx !== -1) {
+        condition = content.substring(0, splitIdx).trim();
+        if (!reason) reason = content.substring(splitIdx + 3).trim();
+      } else {
+        condition = content;
+      }
+    } else {
+      if (!reason) reason = item.notes.trim();
+    }
+  }
+
+  if (!reason && item.notes && item.notes !== condition && !item.notes.startsWith('Kondisi Khusus:')) {
+    reason = item.notes.trim();
+  }
+
+  return {
+    condition: condition || '-',
+    reason: reason || '',
+  };
+}
 
 export interface PICMetricData {
   pic: string;
@@ -621,136 +657,249 @@ export const IsometricPicBarChart: React.FC<IsometricPicBarChartProps> = ({
         {/* ========================================================================= */}
         {/* SISTEM SHOW / HIDE KETERANGAN INFORMASI SAAT KURSOR DIARAHKAN KE PILAR 3D */}
         {/* ========================================================================= */}
-        {tooltip && (
-          <div
-            className="absolute z-50 pointer-events-none transition-all duration-75 animate-in fade-in zoom-in-95"
-            style={{
-              left: Math.min(Math.max(tooltip.x - 140, 16), (containerRef.current?.clientWidth || 700) - 290),
-              top: Math.max(tooltip.y - 195, 12),
-            }}
-          >
-            <div className="w-72 rounded-xl bg-slate-900/95 backdrop-blur-md border border-slate-700/90 shadow-2xl p-3.5 text-xs text-white space-y-2.5">
-              {/* Header Tooltip: Nama PIC & Status */}
-              <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
-                    {tooltip.picData.pic.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <span className="font-bold text-sm text-white block">
-                      {tooltip.picData.pic}
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      {tooltip.picData.area ? `PIC ${AREA_METADATA[tooltip.picData.area]?.name || tooltip.picData.area}` : 'Personil PIC Pengadaan SJA'}
-                    </span>
-                  </div>
-                </div>
+        {/* ========================================================================= */}
+        {/* SISTEM SHOW / HIDE KETERANGAN INFORMASI SAAT KURSOR DIARAHKAN KE PILAR 3D */}
+        {/* ========================================================================= */}
+        {tooltip && (() => {
+          const openItems = (tooltip.picData.items || []).filter(
+            (it) => it.statusPO === 'OPEN' || !it.poNumber || it.poNumber.trim() === ''
+          );
+          const tooltipWidth = 380;
+          const containerW = containerRef.current?.clientWidth || 780;
+          const leftPos = Math.min(Math.max(tooltip.x - tooltipWidth / 2, 12), containerW - tooltipWidth - 12);
+          const topPos = tooltip.y > 220 ? Math.max(tooltip.y - 350, 10) : tooltip.y + 24;
 
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    tooltip.picData.tier === 'Sangat Efisien'
-                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                      : tooltip.picData.tier === 'Perlu Perhatian'
-                      ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                      : 'bg-slate-800 text-slate-300 border border-slate-700'
-                  }`}
-                >
-                  {tooltip.picData.tier}
-                </span>
-              </div>
+          return (
+            <div
+              className="absolute z-50 pointer-events-none transition-all duration-100 ease-out animate-in fade-in zoom-in-95"
+              style={{
+                left: leftPos,
+                top: topPos,
+              }}
+            >
+              <div className="w-[360px] sm:w-[380px] max-h-[460px] overflow-y-auto rounded-2xl bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl p-4 text-xs text-white space-y-3">
+                {/* Header Tooltip: Nama PIC & Area & Tier */}
+                <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-md shadow-blue-500/20 shrink-0">
+                      {tooltip.picData.pic && tooltip.picData.pic !== '-'
+                        ? tooltip.picData.pic.slice(0, 2).toUpperCase()
+                        : 'SJA'}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-bold text-sm text-white block truncate leading-tight">
+                        {tooltip.picData.pic && tooltip.picData.pic !== '-' ? tooltip.picData.pic : 'PIC Belum Ditentukan (-)'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block truncate">
+                        {tooltip.picData.area
+                          ? `Area ${AREA_METADATA[tooltip.picData.area]?.name || tooltip.picData.area}`
+                          : 'Personil Pengadaan SJA'}
+                      </span>
+                    </div>
+                  </div>
 
-              {/* Sorotan Metrik Pilar yang Sedang Disorot Kursor */}
-              <div
-                className="p-2 rounded-lg border flex items-center justify-between"
-                style={{
-                  backgroundColor: `${tooltip.barColor}18`,
-                  borderColor: tooltip.barColor,
-                }}
-              >
-                <div className="flex items-center gap-1.5">
                   <span
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: tooltip.barColor }}
-                  />
-                  <span className="text-[11px] font-semibold text-slate-200">
-                    {tooltip.barLabel}:
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                      tooltip.picData.tier === 'Sangat Efisien'
+                        ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
+                        : tooltip.picData.tier === 'Perlu Perhatian'
+                        ? 'bg-rose-950/80 text-rose-300 border border-rose-800'
+                        : 'bg-slate-800 text-slate-300 border border-slate-700'
+                    }`}
+                  >
+                    {tooltip.picData.tier}
                   </span>
                 </div>
-                <span className="font-mono font-bold text-sm" style={{ color: tooltip.barColor }}>
-                  {tooltip.barValue}
-                </span>
-              </div>
 
-              {/* Rincian Komparasi Ketiga Grafik Bar (Total, Close, Open) */}
-              <div className="space-y-1.5 pt-0.5">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                  Komparasi 3 Grafik Bar:
-                </span>
-                <div className="grid grid-cols-3 gap-1.5 text-center font-mono">
-                  {/* Bar 1: Total SPP */}
-                  <div
-                    className={`p-1.5 rounded-md border ${
-                      tooltip.barType === 'TOTAL'
-                        ? 'bg-blue-950/80 border-blue-500 ring-1 ring-blue-500'
-                        : 'bg-slate-950/60 border-slate-800'
-                    }`}
-                  >
-                    <span className="text-[9px] uppercase font-sans text-blue-400 block font-semibold">Total</span>
-                    <span className="text-xs font-bold text-white">{tooltip.picData.total}</span>
+                {/* Sorotan Metrik Pilar yang Sedang Disorot Kursor */}
+                <div
+                  className="p-2.5 rounded-xl border flex items-center justify-between shadow-2xs"
+                  style={{
+                    backgroundColor: `${tooltip.barColor}15`,
+                    borderColor: `${tooltip.barColor}60`,
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
+                      style={{ backgroundColor: tooltip.barColor }}
+                    />
+                    <span className="text-xs font-semibold text-slate-200">
+                      {tooltip.barLabel}:
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-base" style={{ color: tooltip.barColor }}>
+                    {tooltip.barValue}
+                  </span>
+                </div>
+
+                {/* ========================================================================= */}
+                {/* RINCIAN SPP STATUS OPEN & KETERANGAN KONDISI KHUSUS (PERMINTAAN USER) */}
+                {/* ========================================================================= */}
+                <div className="space-y-2 pt-1 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Rincian SPP Status OPEN ({openItems.length} Dokumen):</span>
+                    </span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Antrean PO
+                    </span>
                   </div>
 
-                  {/* Bar 2: PO Close */}
-                  <div
-                    className={`p-1.5 rounded-md border ${
-                      tooltip.barType === 'CLOSED'
-                        ? 'bg-emerald-950/80 border-emerald-500 ring-1 ring-emerald-500'
-                        : 'bg-slate-950/60 border-slate-800'
-                    }`}
-                  >
-                    <span className="text-[9px] uppercase font-sans text-emerald-400 block font-semibold">Close</span>
-                    <span className="text-xs font-bold text-emerald-400">{tooltip.picData.closed}</span>
-                  </div>
+                  {openItems.length === 0 ? (
+                    <div className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-800/50 text-[11px] text-emerald-300 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Semua PO telah terbit (Close 100%, tidak ada antrean).</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-52 overflow-y-auto pr-0.5">
+                      {openItems.map((item, idx) => {
+                        const condInfo = getSpecialConditionInfo(item);
+                        const hasSpecialCondition = condInfo.condition !== '-' || condInfo.reason !== '';
 
-                  {/* Bar 3: PO Open */}
-                  <div
-                    className={`p-1.5 rounded-md border ${
-                      tooltip.barType === 'OPEN'
-                        ? 'bg-amber-950/80 border-amber-500 ring-1 ring-amber-500'
-                        : 'bg-slate-950/60 border-slate-800'
-                    }`}
-                  >
-                    <span className="text-[9px] uppercase font-sans text-amber-400 block font-semibold">Open</span>
-                    <span className="text-xs font-bold text-amber-400">{tooltip.picData.open}</span>
+                        return (
+                          <div
+                            key={item.id || `open-spp-${idx}`}
+                            className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-500/30 hover:border-amber-400/60 transition-colors space-y-1.5 shadow-xs"
+                          >
+                            {/* Baris 1: Nomor SPP & Badge Status */}
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-mono font-bold text-xs text-amber-300 truncate">
+                                {item.sppNumber}
+                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {item.isHPlus3Overdue && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded font-bold font-mono bg-rose-950 text-rose-300 border border-rose-800">
+                                    H+3 Alert
+                                  </span>
+                                )}
+                                <span className="text-[9px] px-1.5 py-0.2 rounded font-bold font-mono bg-amber-950 text-amber-400 border border-amber-800">
+                                  OPEN
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Baris 2: Cabang & Tanggal Terima Budget & Durasi */}
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 flex-wrap gap-1">
+                              <span className="flex items-center gap-1 text-slate-300">
+                                <Building className="w-3 h-3 text-slate-500 shrink-0" />
+                                <span>{AREA_METADATA[item.area]?.name || item.area}</span>
+                              </span>
+                              <span className="flex items-center gap-1 font-mono">
+                                <Calendar className="w-3 h-3 text-slate-500 shrink-0" />
+                                <span>Terima: {item.budgetReceivedDate}</span>
+                              </span>
+                              <span className="font-mono text-amber-400 font-semibold">
+                                Durasi: {item.processDays} hari kerja
+                              </span>
+                            </div>
+
+                            {/* Baris 3: Detail Kondisi Khusus & Keterangan Rinci */}
+                            {hasSpecialCondition ? (
+                              <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/25 space-y-1 text-[11px]">
+                                <div className="flex items-center gap-1.5 text-amber-300 font-semibold">
+                                  <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                  <span>Kondisi Khusus:</span>
+                                  <span className="font-bold underline decoration-amber-500/40">{condInfo.condition}</span>
+                                </div>
+                                {condInfo.reason ? (
+                                  <div className="text-slate-200 text-[10px] pl-5 leading-relaxed bg-slate-950/70 p-1.5 rounded-md border border-amber-500/20">
+                                    <span className="text-amber-400/90 font-semibold">Keterangan:</span> {condInfo.reason}
+                                  </div>
+                                ) : (
+                                  <p className="text-slate-400 text-[10px] pl-5 italic">
+                                    (Tidak ada catatan alasan tambahan)
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 px-2 py-1 rounded-md bg-slate-900/60 border border-slate-800">
+                                <span className="flex items-center gap-1">
+                                  <Info className="w-3 h-3 text-slate-500" />
+                                  <span>Kondisi Khusus:</span>
+                                </span>
+                                <span className="text-slate-300 font-mono">- (Proses Normal Tanpa Kendala)</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Rincian Komparasi 3 Grafik Bar */}
+                <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    Komparasi 3 Grafik Bar:
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5 text-center font-mono">
+                    {/* Bar 1: Total SPP */}
+                    <div
+                      className={`p-1.5 rounded-lg border transition-all ${
+                        tooltip.barType === 'TOTAL'
+                          ? 'bg-blue-950/80 border-blue-500 ring-1 ring-blue-500'
+                          : 'bg-slate-950/60 border-slate-800'
+                      }`}
+                    >
+                      <span className="text-[9px] uppercase font-sans text-blue-400 block font-semibold">Total</span>
+                      <span className="text-xs font-bold text-white">{tooltip.picData.total}</span>
+                    </div>
+
+                    {/* Bar 2: PO Close */}
+                    <div
+                      className={`p-1.5 rounded-lg border transition-all ${
+                        tooltip.barType === 'CLOSED'
+                          ? 'bg-emerald-950/80 border-emerald-500 ring-1 ring-emerald-500'
+                          : 'bg-slate-950/60 border-slate-800'
+                      }`}
+                    >
+                      <span className="text-[9px] uppercase font-sans text-emerald-400 block font-semibold">Close</span>
+                      <span className="text-xs font-bold text-emerald-400">{tooltip.picData.closed}</span>
+                    </div>
+
+                    {/* Bar 3: PO Open */}
+                    <div
+                      className={`p-1.5 rounded-lg border transition-all ${
+                        tooltip.barType === 'OPEN'
+                          ? 'bg-amber-950/80 border-amber-500 ring-1 ring-amber-500'
+                          : 'bg-slate-950/60 border-slate-800'
+                      }`}
+                    >
+                      <span className="text-[9px] uppercase font-sans text-amber-400 block font-semibold">Open</span>
+                      <span className="text-xs font-bold text-amber-400">{tooltip.picData.open}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Rincian Kinerja SLA & Lead Time */}
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800 text-[11px]">
-                <div className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                  <div className="truncate">
-                    <span className="text-slate-400 block text-[9px]">Kepatuhan SLA:</span>
-                    <strong className="text-white font-mono">{tooltip.picData.ontimeRate}% Ontime</strong>
+                {/* Rincian Kinerja SLA & Lead Time */}
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <div className="truncate">
+                      <span className="text-slate-400 block text-[9px]">Kepatuhan SLA:</span>
+                      <strong className="text-white font-mono">{tooltip.picData.ontimeRate}% Ontime</strong>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                    <div className="truncate">
+                      <span className="text-slate-400 block text-[9px]">Rata-rata Durasi:</span>
+                      <strong className="text-white font-mono">{tooltip.picData.avgDays} Hari</strong>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                  <div className="truncate">
-                    <span className="text-slate-400 block text-[9px]">Rata-rata Durasi:</span>
-                    <strong className="text-white font-mono">{tooltip.picData.avgDays} Hari</strong>
-                  </div>
-                </div>
-              </div>
 
-              {/* Petunjuk Aksi Klik */}
-              <div className="pt-1.5 border-t border-slate-800/80 text-[10px] text-blue-400 flex items-center justify-between">
-                <span>Klik pilar untuk rincian dokumen</span>
-                <ArrowRight className="w-3 h-3" />
+                {/* Petunjuk Aksi Klik */}
+                <div className="pt-2 border-t border-slate-800/80 text-[10px] text-blue-400 flex items-center justify-between">
+                  <span>Klik pilar untuk membuka rincian tabel dokumen</span>
+                  <ArrowRight className="w-3 h-3" />
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Petunjuk Interaksi */}
         <div className="mt-3 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400">
