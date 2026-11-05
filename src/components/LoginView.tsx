@@ -375,6 +375,56 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
+
+              {/* Bantuan Akun Login Demo / Quick Fill */}
+              <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 text-left">
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
+                  <span>Daftar Akun Login (Klik untuk Isi Cepat):</span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono">Password: 123</span>
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { setUsername('superadmin'); setPassword('123'); setErrorMsg(''); }}
+                    className="p-1.5 text-left rounded-lg bg-slate-100 hover:bg-blue-50 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] transition-colors col-span-2 cursor-pointer"
+                  >
+                    <div className="font-semibold text-blue-600 dark:text-blue-400">👑 superadmin</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Semua Cabang (Kode 2FA: 123456)</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setUsername('sepanjang'); setPassword('123'); setErrorMsg(''); }}
+                    className="p-1.5 text-left rounded-lg bg-slate-100 hover:bg-blue-50 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] transition-colors cursor-pointer"
+                  >
+                    <div className="font-semibold text-slate-800 dark:text-slate-200">sepanjang</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Area Sepanjang</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setUsername('karawang'); setPassword('123'); setErrorMsg(''); }}
+                    className="p-1.5 text-left rounded-lg bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] transition-colors cursor-pointer"
+                  >
+                    <div className="font-semibold text-emerald-600 dark:text-emerald-400">karawang</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Area Karawang</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setUsername('sukodono'); setPassword('123'); setErrorMsg(''); }}
+                    className="p-1.5 text-left rounded-lg bg-slate-100 hover:bg-purple-50 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] transition-colors cursor-pointer"
+                  >
+                    <div className="font-semibold text-purple-600 dark:text-purple-400">sukodono</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Area Sukodono</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setUsername('semarang'); setPassword('123'); setErrorMsg(''); }}
+                    className="p-1.5 text-left rounded-lg bg-slate-100 hover:bg-amber-50 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] transition-colors cursor-pointer"
+                  >
+                    <div className="font-semibold text-amber-600 dark:text-amber-400">semarang</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Area Semarang</div>
+                  </button>
+                </div>
+              </div>
             </>
           )}
         </div>

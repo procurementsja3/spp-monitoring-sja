@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, SystemNotification } from '../types';
 import { Bell, ShieldCheck, Menu, PanelLeft, Calendar, Clock, LogOut, Sun, Moon, RefreshCw } from 'lucide-react';
+import { LiveSyncControl } from './LiveSyncControl';
 
 interface TopHeaderProps {
   currentUser: UserProfile;
@@ -15,6 +16,14 @@ interface TopHeaderProps {
   onToggleTheme: () => void;
   onSyncGoogleSheet?: () => void | Promise<void>;
   isSyncingSheet?: boolean;
+  isAutoSyncEnabled?: boolean;
+  onToggleAutoSync?: (enabled?: boolean) => void;
+  autoSyncInterval?: number;
+  onChangeAutoSyncInterval?: (seconds: number) => void;
+  autoSyncCountdown?: number;
+  lastSyncTime?: string | null;
+  showLiveBadge?: boolean;
+  onToggleShowLiveBadge?: (show?: boolean) => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -30,6 +39,14 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onToggleTheme,
   onSyncGoogleSheet,
   isSyncingSheet = false,
+  isAutoSyncEnabled = true,
+  onToggleAutoSync,
+  autoSyncInterval = 30,
+  onChangeAutoSyncInterval,
+  autoSyncCountdown = 30,
+  lastSyncTime,
+  showLiveBadge = false,
+  onToggleShowLiveBadge,
 }) => {
   const unreadAlerts = notifications.filter((n) => !n.read).length;
   const urgentCount = notifications.filter((n) => !n.read && n.severity === 'urgent').length;
@@ -155,19 +172,21 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         {/* Right: Theme Toggle (Dark/Light), 2-Way Sync, Security, Notification, Logout */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Tombol Sinkronisasi 2 Arah Google Sheet */}
+          {/* Sinkronkan Data & Auto Live Sync */}
           {onSyncGoogleSheet && (
-            <button
-              onClick={onSyncGoogleSheet}
-              disabled={isSyncingSheet}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50/90 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-              title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus data di aplikasi jika baris di Google Sheet telah dihapus"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingSheet ? 'animate-spin' : ''}`} />
-              <span className="hidden md:inline text-[11px] font-semibold">
-                {isSyncingSheet ? 'Sinkronisasi...' : 'Sinkron 2 Arah'}
-              </span>
-            </button>
+            <LiveSyncControl
+              onManualSync={onSyncGoogleSheet}
+              isSyncing={isSyncingSheet}
+              isAutoSyncEnabled={isAutoSyncEnabled}
+              onToggleAutoSync={onToggleAutoSync}
+              autoSyncInterval={autoSyncInterval}
+              onChangeAutoSyncInterval={onChangeAutoSyncInterval}
+              autoSyncCountdown={autoSyncCountdown}
+              lastSyncTime={lastSyncTime}
+              showLiveBadge={showLiveBadge}
+              onToggleShowLiveBadge={onToggleShowLiveBadge}
+              variant="header"
+            />
           )}
 
           {/* TOMBOL MODE GELAP / TERANG (LUXURY EXECUTIVE TOGGLE) */}

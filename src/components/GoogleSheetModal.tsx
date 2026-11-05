@@ -1096,7 +1096,7 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                   title="Tarik data terbaru dari Google Sheet dan hapus data di aplikasi jika baris di Google Sheet telah dihapus"
                 >
                   <DownloadCloud className={`w-3.5 h-3.5 ${isProcessing ? 'animate-bounce text-blue-600' : 'text-slate-600'}`} />
-                  <span>Sinkron 2 Arah: Tarik Data &amp; Hapus yang Terhapus ({currentSpec.name})</span>
+                  <span>Sinkronkan Data: Tarik Data &amp; Selaraskan ({currentSpec.name})</span>
                 </button>
 
                 <button
@@ -1121,10 +1121,10 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
             <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 rounded-lg border border-blue-200/80 dark:border-blue-900/60 text-[11px] text-blue-900 dark:text-blue-300 flex items-start gap-2">
               <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
               <div className="space-y-0.5 leading-relaxed">
-                <span className="font-bold block">Sistem Komunikasi 2 Arah Google Sheet Aktif:</span>
+                <span className="font-bold block">Sistem Komunikasi 2 Arah &amp; Auto Live Sync Aktif:</span>
                 <span>
-                  1. <strong>Input &amp; Update di Google Sheet:</strong> Saat Anda menambah atau mengubah data di Google Sheet, klik tombol <em>&quot;Sinkron 2 Arah&quot;</em> atau tombol refresh untuk memuat data terbaru ke aplikasi.<br />
-                  2. <strong>Hapus di Google Sheet:</strong> Apabila baris data di Google Sheet dihapus dan Anda melakukan sinkronisasi/refresh di aplikasi, data di aplikasi juga <strong>otomatis ikut terhapus secara permanen</strong>.
+                  1. <strong>Input &amp; Update di Google Sheet:</strong> Saat Anda menambah atau mengubah data di Google Sheet, data akan otomatis ter-refresh secara live oleh <em>Auto Live Sync</em> atau dapat diklik tombol <em>&quot;Sinkronkan Data&quot;</em> untuk memuat seketika.<br />
+                  2. <strong>Hapus di Google Sheet:</strong> Apabila baris data di Google Sheet dihapus, saat sinkronisasi berjalan, data di aplikasi juga <strong>otomatis ikut terhapus secara permanen</strong>.
                 </span>
               </div>
             </div>

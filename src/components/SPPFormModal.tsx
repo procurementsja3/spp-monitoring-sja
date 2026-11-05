@@ -1551,7 +1551,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
               <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800/60">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Otomatis Sinkron 2 Arah ke Google Sheet ({AREA_METADATA[initialArea]?.name || initialArea})</span>
+                <span>Otomatis Sinkronkan Data ke Google Sheet ({AREA_METADATA[initialArea]?.name || initialArea})</span>
               </span>
             </div>
           </div>

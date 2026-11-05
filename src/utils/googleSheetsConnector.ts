@@ -1,4 +1,5 @@
 import { SPPItem, SJAArea } from '../types';
+import { API_BASE_URL } from '../api/client';
 
 export const AREA_CONFIG_SPECS: Record<
   SJAArea,
@@ -411,7 +412,7 @@ export async function testGoogleSheetConnection(
     if (webAppUrl) params.set('webAppUrl', webAppUrl);
     if (area) params.set('area', area);
 
-    const proxyRes = await fetch(`/api/google-sheet/test?${params.toString()}`, {
+    const proxyRes = await fetch(`${API_BASE_URL}/api/google-sheet/test?${params.toString()}`, {
       headers: { Accept: 'application/json' },
     });
     if (proxyRes.ok) {
@@ -474,7 +475,7 @@ export async function fetchFromGoogleSheet(webAppUrl: string, area?: SJAArea): P
     if (webAppUrl) params.set('webAppUrl', webAppUrl);
     if (area) params.set('area', area);
 
-    const proxyRes = await fetch(`/api/google-sheet/pull?${params.toString()}`, {
+    const proxyRes = await fetch(`${API_BASE_URL}/api/google-sheet/pull?${params.toString()}`, {
       headers: { Accept: 'application/json' },
     });
     if (proxyRes.ok) {
@@ -523,7 +524,7 @@ export async function pushToGoogleSheet(
   // 1. Gunakan backend proxy server Express terlebih dahulu
   // Menjamin POST tersampaikan 100% tanpa di-drop oleh browser iframe sandbox / CORS / 302 redirect
   try {
-    const proxyRes = await fetch('/api/google-sheet/push', {
+    const proxyRes = await fetch(`${API_BASE_URL}/api/google-sheet/push`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -588,7 +589,7 @@ export async function pushToGoogleSheet(
 export async function clearGoogleSheet(webAppUrl: string, area?: SJAArea): Promise<boolean> {
   // 1. Coba via backend server proxy
   try {
-    const proxyRes = await fetch('/api/google-sheet/clear', {
+    const proxyRes = await fetch(`${API_BASE_URL}/api/google-sheet/clear`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ webAppUrl, area }),

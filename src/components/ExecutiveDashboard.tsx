@@ -40,6 +40,7 @@ import {
   History,
 } from 'lucide-react';
 import { MonthlySPPBarChart } from './MonthlySPPBarChart';
+import { LiveSyncControl } from './LiveSyncControl';
 
 interface ExecutiveDashboardProps {
   items: SPPItem[];
@@ -57,6 +58,14 @@ interface ExecutiveDashboardProps {
   onSearchPicQuery?: (q: string) => void;
   onSyncGoogleSheet?: () => void | Promise<void>;
   isSyncingGoogleSheet?: boolean;
+  isAutoSyncEnabled?: boolean;
+  onToggleAutoSync?: (enabled?: boolean) => void;
+  autoSyncInterval?: number;
+  onChangeAutoSyncInterval?: (seconds: number) => void;
+  autoSyncCountdown?: number;
+  lastSyncTime?: string | null;
+  showLiveBadge?: boolean;
+  onToggleShowLiveBadge?: (show?: boolean) => void;
 }
 
 export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
@@ -75,6 +84,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   onSearchPicQuery,
   onSyncGoogleSheet,
   isSyncingGoogleSheet = false,
+  isAutoSyncEnabled = true,
+  onToggleAutoSync,
+  autoSyncInterval = 30,
+  onChangeAutoSyncInterval,
+  autoSyncCountdown = 30,
+  lastSyncTime,
+  showLiveBadge = false,
+  onToggleShowLiveBadge,
 }) => {
   const isSuperadmin = currentUser.role === 'SUPERADMIN';
   const allAreas: SJAArea[] = ['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'];
@@ -874,18 +891,21 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </button>
             )}
 
-            {/* Tombol Sinkronisasi 2 Arah Google Sheet */}
+            {/* Tombol Sinkronkan Data & Auto Live */}
             {onSyncGoogleSheet && (
-              <button
-                type="button"
-                onClick={onSyncGoogleSheet}
-                disabled={isSyncingGoogleSheet}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50/90 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold transition-all shadow-2xs cursor-pointer disabled:opacity-50 shrink-0"
-                title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan perbarui kolom hari kerja di Google Sheet"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingGoogleSheet ? 'animate-spin' : ''}`} />
-                <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkron 2 Arah'}</span>
-              </button>
+              <LiveSyncControl
+                onManualSync={onSyncGoogleSheet}
+                isSyncing={isSyncingGoogleSheet}
+                isAutoSyncEnabled={isAutoSyncEnabled}
+                onToggleAutoSync={onToggleAutoSync}
+                autoSyncInterval={autoSyncInterval}
+                onChangeAutoSyncInterval={onChangeAutoSyncInterval}
+                autoSyncCountdown={autoSyncCountdown}
+                lastSyncTime={lastSyncTime}
+                showLiveBadge={showLiveBadge}
+                onToggleShowLiveBadge={onToggleShowLiveBadge}
+                variant="table"
+              />
             )}
 
             <button
@@ -1386,16 +1406,21 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </button>
             </div>
 
+            {/* Sinkronkan Data & Auto Live Sync (Sesuai Foto User) */}
             {onSyncGoogleSheet && (
-              <button
-                onClick={onSyncGoogleSheet}
-                disabled={isSyncingGoogleSheet}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl border border-emerald-400/40 shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-                title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus data di aplikasi jika baris di Google Sheet telah dihapus"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingGoogleSheet ? 'animate-spin' : ''}`} />
-                <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkron 2 Arah'}</span>
-              </button>
+              <LiveSyncControl
+                onManualSync={onSyncGoogleSheet}
+                isSyncing={isSyncingGoogleSheet}
+                isAutoSyncEnabled={isAutoSyncEnabled}
+                onToggleAutoSync={onToggleAutoSync}
+                autoSyncInterval={autoSyncInterval}
+                onChangeAutoSyncInterval={onChangeAutoSyncInterval}
+                autoSyncCountdown={autoSyncCountdown}
+                lastSyncTime={lastSyncTime}
+                showLiveBadge={showLiveBadge}
+                onToggleShowLiveBadge={onToggleShowLiveBadge}
+                variant="banner"
+              />
             )}
 
             <button

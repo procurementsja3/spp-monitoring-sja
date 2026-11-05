@@ -423,7 +423,7 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
               title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus di aplikasi jika data di Google Sheet telah dihapus"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingGoogleSheet ? 'animate-spin' : ''}`} />
-              <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkron 2 Arah'}</span>
+              <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkronkan Data'}</span>
             </button>
           )}
 
@@ -897,7 +897,7 @@ export const VendorAnalytics: React.FC<VendorAnalyticsProps> = ({
               title="Sinkronisasi 2 Arah Google Sheet: Tarik pembaruan dan hapus di aplikasi jika data di Google Sheet telah dihapus"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingGoogleSheet ? 'animate-spin' : ''}`} />
-              <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkron 2 Arah'}</span>
+              <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkronkan Data'}</span>
             </button>
           )}
         </div>

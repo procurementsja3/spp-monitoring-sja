@@ -319,13 +319,53 @@ export default function App() {
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
   const [isPromptGuideOpen, setIsPromptGuideOpen] = useState(false);
 
-  // Status & notifikasi toast sinkronisasi 2 arah Google Sheet
+  // Status & notifikasi toast sinkronisasi data Google Sheet
   const [isSyncingSheet, setIsSyncingSheet] = useState(false);
   const [syncToast, setSyncToast] = useState<{
     type: 'success' | 'warning' | 'error' | 'info';
     title: string;
     description: string;
   } | null>(null);
+
+  // SISTEM AUTO LIVE SINKRONISASI DATA (Real-Time Auto Refresh Background)
+  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('sja_auto_live_sync_active');
+      return saved !== null ? saved === 'true' : true; // Default AKTIF (Otomatis)
+    } catch {
+      return true;
+    }
+  });
+
+  const [autoSyncInterval, setAutoSyncInterval] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('sja_auto_sync_interval');
+      return saved ? Number(saved) : 30; // Default 30 detik
+    } catch {
+      return 30;
+    }
+  });
+
+  const [autoSyncCountdown, setAutoSyncCountdown] = useState<number>(30);
+  const [lastAutoSyncTime, setLastAutoSyncTime] = useState<string | null>(null);
+
+  // Kontrol visibilitas tombol/badge hitung mundur live (Default FALSE / Disembunyikan sesuai permintaan pengguna)
+  const [showLiveBadge, setShowLiveBadge] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('sja_show_live_badge');
+      return saved === 'true'; // Default FALSE (sembunyi rapi)
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleShowLiveBadge = (show?: boolean) => {
+    const nextVal = show !== undefined ? show : !showLiveBadge;
+    setShowLiveBadge(nextVal);
+    try {
+      localStorage.setItem('sja_show_live_badge', String(nextVal));
+    } catch {}
+  };
   
   // 10. Sidebar state (Toggle sistem)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -882,9 +922,11 @@ export default function App() {
     };
   };
 
-  // Handler Sinkronisasi 2 Arah Global (Dipanggil dari TopHeader, SPPTable, dll)
-  const handleSyncGoogleSheet = async () => {
+  // Handler Sinkronisasi Data Google Sheet (Manual maupun Auto Live Background)
+  const handleSyncGoogleSheet = async (isSilent: boolean = false) => {
     if (!currentUser) return;
+    if (isSyncingSheet) return; // hindari duplicate request bersamaan
+
     setIsSyncingSheet(true);
     try {
       const isSuperadminAll = currentUser.role === 'SUPERADMIN' && activeAreaFilter === 'ALL';
@@ -897,14 +939,16 @@ export default function App() {
       );
 
       if (configuredAreas.length === 0) {
-        setSyncToast({
-          type: 'warning',
-          title: 'Google Sheet Belum Terhubung',
-          description: `Web App URL Google Apps Script belum diisi untuk ${
-            areasToSync.map((a) => AREA_METADATA[a]?.name).join(', ')
-          }. Silakan buka tab 'Integrasi Google Sheet' untuk mengatur link.`,
-        });
-        setTimeout(() => setSyncToast(null), 6000);
+        if (!isSilent) {
+          setSyncToast({
+            type: 'warning',
+            title: 'Google Sheet Belum Terhubung',
+            description: `Web App URL Google Apps Script belum diisi untuk ${
+              areasToSync.map((a) => AREA_METADATA[a]?.name).join(', ')
+            }. Silakan buka tab 'Integrasi Google Sheet' untuk mengatur link.`,
+          });
+          setTimeout(() => setSyncToast(null), 6000);
+        }
         return;
       }
 
@@ -925,30 +969,89 @@ export default function App() {
         }
       }
 
-      let desc = `Total ${totalInSheet} data aktif tersinkronisasi (${totalAdded} baru, ${totalUpdated} diperbarui).`;
-      if (totalDeleted > 0) {
-        desc += ` ${totalDeleted} data yang telah dihapus di Google Sheet berhasil ikut dihapus dari aplikasi.`;
-      } else {
-        desc += ` Tidak ada data yang dihapus di Google Sheet. Data 100% selaras.`;
-      }
+      const nowIso = new Date().toISOString();
+      setLastAutoSyncTime(nowIso);
 
-      setSyncToast({
-        type: 'success',
-        title: '✓ Sinkronisasi 2 Arah Google Sheet Berhasil!',
-        description: desc,
-      });
-      setTimeout(() => setSyncToast(null), 7000);
+      if (!isSilent) {
+        let desc = `Total ${totalInSheet} data aktif tersinkronisasi (${totalAdded} baru, ${totalUpdated} diperbarui).`;
+        if (totalDeleted > 0) {
+          desc += ` ${totalDeleted} data yang telah dihapus di Google Sheet berhasil ikut dihapus dari aplikasi.`;
+        } else {
+          desc += ` Tidak ada data yang dihapus di Google Sheet. Data 100% selaras.`;
+        }
+
+        setSyncToast({
+          type: 'success',
+          title: '✓ Sinkronkan Data Berhasil!',
+          description: desc,
+        });
+        setTimeout(() => setSyncToast(null), 7000);
+      }
     } catch (err: any) {
-      setSyncToast({
-        type: 'error',
-        title: 'Gagal Sinkronisasi Google Sheet',
-        description: err.message || 'Terjadi gangguan koneksi saat menarik data dari Google Apps Script.',
-      });
-      setTimeout(() => setSyncToast(null), 6000);
+      if (!isSilent) {
+        setSyncToast({
+          type: 'error',
+          title: 'Gagal Sinkronkan Data',
+          description: err.message || 'Terjadi gangguan koneksi saat menarik data dari Google Apps Script.',
+        });
+        setTimeout(() => setSyncToast(null), 6000);
+      }
     } finally {
       setIsSyncingSheet(false);
+      setAutoSyncCountdown(autoSyncInterval);
     }
   };
+
+  // Toggle & Interval Handler untuk Auto Live Sync
+  const handleToggleAutoSync = (enabled?: boolean) => {
+    const nextVal = enabled !== undefined ? enabled : !isAutoSyncEnabled;
+    setIsAutoSyncEnabled(nextVal);
+    try {
+      localStorage.setItem('sja_auto_live_sync_active', String(nextVal));
+    } catch {}
+    if (nextVal) {
+      setAutoSyncCountdown(autoSyncInterval);
+    }
+  };
+
+  const handleChangeAutoSyncInterval = (newInterval: number) => {
+    setAutoSyncInterval(newInterval);
+    setAutoSyncCountdown(newInterval);
+    try {
+      localStorage.setItem('sja_auto_sync_interval', String(newInterval));
+    } catch {}
+  };
+
+  // Auto Live Timer Effect: Menjalankan sync otomatis di background secara berkala
+  useEffect(() => {
+    if (!currentUser || !isAutoSyncEnabled) return;
+
+    const timer = setInterval(() => {
+      setAutoSyncCountdown((prev) => {
+        if (prev <= 1) {
+          // Trigger sync live background jika tidak sedang sync manual
+          if (!isSyncingSheet) {
+            handleSyncGoogleSheet(true);
+          }
+          return autoSyncInterval;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [currentUser, isAutoSyncEnabled, autoSyncInterval, isSyncingSheet, activeAreaFilter]);
+
+  // Auto Sync saat tab browser kembali aktif (Focus)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isAutoSyncEnabled && currentUser && !isSyncingSheet) {
+        handleSyncGoogleSheet(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAutoSyncEnabled, currentUser, isSyncingSheet, activeAreaFilter]);
 
   const handlePushToSheet = async (area: SJAArea) => {
     const cfg = areaConfigs[area];
@@ -1108,6 +1211,14 @@ export default function App() {
           onToggleTheme={handleToggleTheme}
           onSyncGoogleSheet={handleSyncGoogleSheet}
           isSyncingSheet={isSyncingSheet}
+          isAutoSyncEnabled={isAutoSyncEnabled}
+          onToggleAutoSync={handleToggleAutoSync}
+          autoSyncInterval={autoSyncInterval}
+          onChangeAutoSyncInterval={handleChangeAutoSyncInterval}
+          autoSyncCountdown={autoSyncCountdown}
+          lastSyncTime={lastAutoSyncTime}
+          showLiveBadge={showLiveBadge}
+          onToggleShowLiveBadge={handleToggleShowLiveBadge}
         />
 
         {/* Main Content Viewport */}
@@ -1139,6 +1250,14 @@ export default function App() {
               onSearchPicQuery={setSearchPicQuery}
               onSyncGoogleSheet={handleSyncGoogleSheet}
               isSyncingGoogleSheet={isSyncingSheet}
+              isAutoSyncEnabled={isAutoSyncEnabled}
+              onToggleAutoSync={handleToggleAutoSync}
+              autoSyncInterval={autoSyncInterval}
+              onChangeAutoSyncInterval={handleChangeAutoSyncInterval}
+              autoSyncCountdown={autoSyncCountdown}
+              lastSyncTime={lastAutoSyncTime}
+              showLiveBadge={showLiveBadge}
+              onToggleShowLiveBadge={handleToggleShowLiveBadge}
             />
           )}
 

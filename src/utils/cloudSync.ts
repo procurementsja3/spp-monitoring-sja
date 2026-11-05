@@ -1,5 +1,6 @@
 import { AreaSheetConfigMap, GoogleSheetConfig, SJAArea, SPPItem } from '../types';
 import { DEFAULT_AREA_SHEET_CONFIGS } from './initialData';
+import { API_BASE_URL } from '../api/client';
 
 const STORAGE_KEY = 'sja_area_sheet_configs';
 const ITEMS_STORAGE_KEY = 'spp_monitoring_data';
@@ -98,7 +99,7 @@ export function getFallbackAreaConfigs(): AreaSheetConfigMap {
  */
 export async function fetchCloudAreaConfigs(): Promise<AreaSheetConfigMap> {
   try {
-    const res = await fetch('/api/area-configs', {
+    const res = await fetch(`${API_BASE_URL}/api/area-configs`, {
       headers: { 'Accept': 'application/json' },
     });
 
@@ -169,7 +170,7 @@ export async function saveCloudAreaConfigToServer(
 
   // Kirim ke Cloud Backend Server untuk penyimpanan permanen multi-PC
   try {
-    const res = await fetch('/api/area-configs', {
+    const res = await fetch(`${API_BASE_URL}/api/area-configs`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -201,7 +202,7 @@ export async function saveCloudAreaConfigToServer(
  */
 export async function fetchCloudSPPItems(): Promise<SPPItem[] | null> {
   try {
-    const res = await fetch('/api/spp-items', {
+    const res = await fetch(`${API_BASE_URL}/api/spp-items`, {
       headers: { 'Accept': 'application/json' },
     });
     if (res.ok) {
@@ -221,7 +222,7 @@ export async function fetchCloudSPPItems(): Promise<SPPItem[] | null> {
  */
 export async function saveCloudSPPItemsToServer(items: SPPItem[]): Promise<boolean> {
   try {
-    const res = await fetch('/api/spp-items', {
+    const res = await fetch(`${API_BASE_URL}/api/spp-items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items }),

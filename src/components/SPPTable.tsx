@@ -497,10 +497,10 @@ export const SPPTable: React.FC<SPPTableProps> = ({
                 onClick={onSyncGoogleSheet}
                 disabled={isSyncingGoogleSheet}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-emerald-300 dark:border-emerald-800 bg-emerald-50/90 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shadow-2xs cursor-pointer disabled:opacity-50"
-                title="Tarik data terbaru dari Google Sheet dan hapus dari aplikasi jika data di Google Sheet telah dihapus"
+                title="Tarik data live terbaru dari Google Sheet dan selaraskan pembaruan"
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSyncingGoogleSheet ? 'animate-spin' : ''}`} />
-                <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkron 2 Arah Google Sheet'}</span>
+                <span>{isSyncingGoogleSheet ? 'Menyinkronkan...' : 'Sinkronkan Data'}</span>
               </button>
             )}
 
