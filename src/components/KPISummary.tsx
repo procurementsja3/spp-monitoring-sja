@@ -20,7 +20,7 @@ export const KPISummary: React.FC<KPISummaryProps> = ({
   activeFilterLabel,
 }) => {
   const total = items.length;
-  const closedPOs = items.filter((i) => i.statusPO === 'CLOSE').length;
+  const closedPOs = items.filter((i) => i.statusPO === 'CLOSE' || !!(i.poNumber && i.poNumber.trim() !== '')).length;
   const openPOs = total - closedPOs;
   const ontimeCount = items.filter((i) => i.statusOntime === 'ONTIME').length;
   const lateCount = total - ontimeCount;

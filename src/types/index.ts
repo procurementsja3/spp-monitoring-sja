@@ -46,6 +46,9 @@ export interface SPPItem {
   // Fitur Kasus Khusus Pengadaan (Perubahan Spek/Data, Hold PO, dll)
   specialCondition?: string;         // Kategori / Keterangan Kondisi Khusus
   specialConditionReason?: string;   // Penjelasan detail kasus / alasan PO belum bisa dibuat
+
+  // Status sinkronisasi pending lokal/server agar auto-pull Google Sheet tidak menimpa editan terbaru
+  pendingSheetSync?: boolean;
 }
 
 export interface IndonesianHoliday {

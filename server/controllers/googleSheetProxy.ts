@@ -44,37 +44,63 @@ export async function proxyGoogleSheetPush(req: any, res: any) {
 
     const responseText = await googleRes.text();
     let googleData: any = null;
+    let isValidJson = false;
     try {
       googleData = JSON.parse(responseText);
+      isValidJson = true;
     } catch {
       googleData = { raw: responseText };
     }
 
-    // Sinkronkan juga salinan ke lokal disk
+    if (!googleRes.ok || !isValidJson || googleData?.status === 'error') {
+      const errDetail =
+        googleData?.message ||
+        (!isValidJson
+          ? `Respons Apps Script bukan JSON valid (HTTP ${googleRes.status}).`
+          : `HTTP Error ${googleRes.status} dari Google Apps Script.`);
+      return res.status(502).json({
+        success: false,
+        error: errDetail,
+        googleResponse: googleData,
+      });
+    }
+
+    // Sinkronkan juga salinan ke lokal disk setelah push Google Sheet terkonfirmasi sukses
     if (itemsList.length > 0) {
       try {
         const currentItems = readSPPItemsFromDisk();
         if (action === 'UPSERT_BATCH' || action === 'UPSERT_SINGLE') {
-          const currentMap = new Map(currentItems.map((i: any) => [i.id || i.sppNumber, i]));
+          const getCanonKey = (item: any) => {
+            const spp = String(item?.sppNumber || '').trim().toLowerCase();
+            const itemArea = String(item?.area || area || '').trim().toUpperCase();
+            if (spp && itemArea) return `${itemArea}::${spp}`;
+            return String(item?.id || spp);
+          };
+
+          const mergedList = [...currentItems];
           itemsList.forEach((newItem: any) => {
-            currentMap.set(newItem.id || newItem.sppNumber, newItem);
+            const syncedItem = { ...newItem, pendingSheetSync: false };
+            const newCanon = getCanonKey(syncedItem);
+            const idx = mergedList.findIndex(
+              (cur: any) =>
+                (syncedItem.id && cur.id === syncedItem.id) ||
+                getCanonKey(cur) === newCanon
+            );
+            if (idx !== -1) {
+              mergedList[idx] = { ...mergedList[idx], ...syncedItem };
+            } else {
+              mergedList.push(syncedItem);
+            }
           });
-          saveSPPItemsToDisk(Array.from(currentMap.values()));
+          saveSPPItemsToDisk(mergedList);
         } else if (action === 'SYNC_FULL' && area) {
           const filteredOtherAreas = currentItems.filter((i: any) => i.area !== area);
-          saveSPPItemsToDisk([...itemsList, ...filteredOtherAreas]);
+          const cleaned = itemsList.map((item: any) => ({ ...item, pendingSheetSync: false }));
+          saveSPPItemsToDisk([...cleaned, ...filteredOtherAreas]);
         }
       } catch (storageErr) {
         console.warn('[GoogleSheetProxy] Gagal sinkronkan salinan lokal disk:', storageErr);
       }
-    }
-
-    if (googleData?.status === 'error') {
-      return res.status(502).json({
-        success: false,
-        error: googleData.message || 'Apps Script melaporkan error',
-        googleResponse: googleData,
-      });
     }
 
     return res.json({

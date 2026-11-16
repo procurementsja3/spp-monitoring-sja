@@ -123,7 +123,7 @@ export function calculateWorkingDays(
   }
 
   const start = parseISODate(startDateStr);
-  const end = endDateStr ? parseISODate(endDateStr) : new Date();
+  const end = endDateStr ? parseISODate(endDateStr) : parseISODate(formatDateToISO(new Date()));
 
   // Jika tanggal mulai lebih besar dari akhir (misal data invalid)
   if (start > end) {

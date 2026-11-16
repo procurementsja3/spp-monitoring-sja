@@ -548,7 +548,18 @@ export async function pushToGoogleSheet(
       }
       throw new Error(data?.error || 'Gagal mengirim data via backend proxy');
     }
+
+    // Jika server proxy Express aktif namun mengembalikan error (4xx/5xx dari Apps Script),
+    // JANGAN fallback ke no-cors agar pendingSheetSync tidak dianggap sukses palsu.
+    const errBody = await proxyRes.json().catch(() => null);
+    throw Object.assign(
+      new Error(errBody?.error || `Proxy Google Sheet HTTP ${proxyRes.status}`),
+      { isProxyUpstreamError: true }
+    );
   } catch (proxyErr: any) {
+    if (proxyErr?.isProxyUpstreamError) {
+      throw proxyErr;
+    }
     console.warn('[Backend Proxy Push Error, mencoba fallback direct]:', proxyErr);
     // Jika server sedang offline / static mode, lanjutkan fallback ke fetch direct di bawah
   }

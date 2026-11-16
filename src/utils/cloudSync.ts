@@ -220,16 +220,37 @@ export async function fetchCloudSPPItems(): Promise<SPPItem[] | null> {
 /**
  * Menyimpan data SPP ke Cloud Server Backend agar sinkron di semua PC
  */
-export async function saveCloudSPPItemsToServer(items: SPPItem[]): Promise<boolean> {
+export async function saveCloudSPPItemsToServer(
+  items: SPPItem[],
+  options?: { source?: 'USER_SAVE' | 'AUTO_PULL' }
+): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/spp-items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items, source: options?.source || 'USER_SAVE' }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Gagal sinkronisasi SPP items ke cloud server:', err);
+    return false;
+  }
+}
+
+/**
+ * Upsert atomik 1 atau beberapa item SPP ke Cloud Server Backend agar tidak tertimpa race condition tab lain
+ */
+export async function upsertCloudSPPItemsToServer(items: SPPItem[]): Promise<boolean> {
+  if (!items || items.length === 0) return true;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/spp-items/upsert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items }),
     });
     return res.ok;
   } catch (err) {
-    console.warn('Gagal sinkronisasi SPP items ke cloud server:', err);
+    console.warn('Gagal upsert SPP items ke cloud server:', err);
     return false;
   }
 }

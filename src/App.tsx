@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   SPPItem, 
   UserProfile, 
@@ -39,7 +39,8 @@ import {
   fetchCloudAreaConfigs, 
   saveCloudAreaConfigToServer, 
   fetchCloudSPPItems, 
-  saveCloudSPPItemsToServer, 
+  saveCloudSPPItemsToServer,
+  upsertCloudSPPItemsToServer,
   getFallbackAreaConfigs 
 } from './utils/cloudSync';
 
@@ -218,10 +219,69 @@ export default function App() {
     return getFallbackAreaConfigs();
   });
 
+  // Refs sinkron agar timer & listener background selalu membaca state terbaru (anti stale-closure)
+  const itemsRef = useRef<SPPItem[]>(items);
+  itemsRef.current = items;
+  const areaConfigsRef = useRef<AreaSheetConfigMap>(areaConfigs);
+  areaConfigsRef.current = areaConfigs;
+  const holidaysRef = useRef<IndonesianHoliday[]>(holidays);
+
+  // Guard konkurensi: mencegah polling cloud / auto-sync menimpa perubahan lokal yang baru disimpan
+  const isSavingRef = useRef<boolean>(false);
+  const isSyncingSheetRef = useRef<boolean>(false);
+  const mutationEpochRef = useRef<number>(0);
+  const lastLocalMutationAtRef = useRef<number>(0);
+  const pendingSheetSyncKeysRef = useRef<Set<string>>((() => {
+    try {
+      const saved = localStorage.getItem('sja_pending_sheet_sync_keys');
+      if (saved) {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return new Set<string>();
+  })());
+
+  const persistPendingSheetKeys = () => {
+    try {
+      localStorage.setItem(
+        'sja_pending_sheet_sync_keys',
+        JSON.stringify(Array.from(pendingSheetSyncKeysRef.current))
+      );
+    } catch {}
+  };
+
+  const getItemSyncKey = (item: Pick<SPPItem, 'area' | 'sppNumber' | 'id'>) =>
+    `${item.area}::${(item.sppNumber || item.id || '').trim().toLowerCase()}`;
+
+  const isItemClosed = (item?: Pick<SPPItem, 'statusPO' | 'poNumber'> | null) =>
+    !!(item && (item.statusPO === 'CLOSE' || (item.poNumber && String(item.poNumber).trim() !== '')));
+
+  const toEpochMs = (iso?: string) => {
+    if (!iso) return 0;
+    const ms = Date.parse(iso);
+    return Number.isFinite(ms) ? ms : 0;
+  };
+
+  const commitItemsLocally = (nextItems: SPPItem[]) => {
+    mutationEpochRef.current += 1;
+    lastLocalMutationAtRef.current = Date.now();
+    itemsRef.current = nextItems;
+    try {
+      localStorage.setItem('spp_monitoring_data', JSON.stringify(nextItems));
+    } catch {}
+    setItems(nextItems);
+  };
+
   // Sinkronisasi dua arah dengan Cloud Server Backend (Multi-PC & Multi-Browser Support)
   useEffect(() => {
     let isMounted = true;
     const syncFromCloud = async () => {
+      // Jangan timpa state jika sedang menyimpan atau baru saja terjadi mutasi lokal (< 5 detik)
+      if (isSavingRef.current || isSyncingSheetRef.current) return;
+      if (Date.now() - lastLocalMutationAtRef.current < 5000) return;
+
+      const epochAtStart = mutationEpochRef.current;
       try {
         const cloudConfigs = await fetchCloudAreaConfigs();
         if (isMounted && cloudConfigs) {
@@ -230,8 +290,50 @@ export default function App() {
 
         // Sinkronisasi data SPP dari cloud jika tersedia
         const cloudItems = await fetchCloudSPPItems();
-        if (isMounted && cloudItems && cloudItems.length > 0) {
-          setItems(cloudItems);
+        if (
+          isMounted &&
+          cloudItems &&
+          cloudItems.length > 0 &&
+          !isSavingRef.current &&
+          !isSyncingSheetRef.current &&
+          mutationEpochRef.current === epochAtStart &&
+          Date.now() - lastLocalMutationAtRef.current >= 5000
+        ) {
+          const localByKey = new Map<string, SPPItem>();
+          itemsRef.current.forEach((loc) => {
+            localByKey.set(getItemSyncKey(loc), loc);
+            if (loc.id) localByKey.set(loc.id, loc);
+          });
+
+          const mergedCloudItems = cloudItems.map((rawCloudItem) => {
+            const normalizedCloud = recalculateSPPFields(rawCloudItem, holidaysRef.current);
+            const syncKey = getItemSyncKey(normalizedCloud);
+            const localMatch = localByKey.get(syncKey) || (normalizedCloud.id ? localByKey.get(normalizedCloud.id) : undefined);
+
+            if (
+              localMatch &&
+              (localMatch.pendingSheetSync === true || pendingSheetSyncKeysRef.current.has(syncKey)) &&
+              toEpochMs(localMatch.updatedAt) >= toEpochMs(normalizedCloud.updatedAt)
+            ) {
+              return localMatch;
+            }
+            return normalizedCloud;
+          });
+
+          // Pastikan item pending lokal yang belum ada di server ikut dipertahankan
+          const cloudKeySet = new Set(mergedCloudItems.map((i) => getItemSyncKey(i)));
+          const extraPendingLocals = itemsRef.current.filter(
+            (loc) =>
+              (loc.pendingSheetSync === true || pendingSheetSyncKeysRef.current.has(getItemSyncKey(loc))) &&
+              !cloudKeySet.has(getItemSyncKey(loc))
+          );
+          const finalCloudList = [...extraPendingLocals, ...mergedCloudItems];
+
+          itemsRef.current = finalCloudList;
+          try {
+            localStorage.setItem('spp_monitoring_data', JSON.stringify(finalCloudList));
+          } catch {}
+          setItems(finalCloudList);
         }
       } catch (err) {
         console.warn('Sync cloud error:', err);
@@ -379,14 +481,13 @@ export default function App() {
     mode: 'ALL',
   });
 
-  // Simpan ke localStorage & Cloud Server saat data berubah
+  // Sinkronkan perubahan holidays ref & localStorage
+  holidaysRef.current = holidays;
+
   useEffect(() => {
     try {
       localStorage.setItem('spp_monitoring_data', JSON.stringify(items));
     } catch {}
-    if (items.length > 0) {
-      saveCloudSPPItemsToServer(items);
-    }
   }, [items]);
 
   useEffect(() => {
@@ -488,298 +589,432 @@ export default function App() {
     setAuditLogs((prev) => [newLog, ...prev]);
   };
 
-  // Simpan SPP Baru atau Update (Otomatis Sinkron 2 Arah Langsung ke Google Sheet Cabang)
+  // Helper sinkronisasi Google Sheet di background setelah simpan lokal & server sukses
+  const pushItemsToGoogleSheetInBackground = async (
+    area: SJAArea,
+    itemsToPush: SPPItem[],
+    toastLabel?: string
+  ) => {
+    if (itemsToPush.length === 0) return;
+    const cfg = areaConfigsRef.current[area] || getFallbackAreaConfigs()[area];
+    const targetUrl = cfg?.webAppUrl?.trim() || '';
+    const areaName = AREA_METADATA[area]?.name || area;
+    if (!targetUrl.startsWith('http')) return;
+
+    try {
+      await pushToGoogleSheet(targetUrl, itemsToPush, 'UPSERT_BATCH', area);
+      const syncedKeys = new Set(itemsToPush.map((p) => getItemSyncKey(p)));
+      itemsToPush.forEach((p) => pendingSheetSyncKeysRef.current.delete(getItemSyncKey(p)));
+      persistPendingSheetKeys();
+
+      // Tandai pendingSheetSync = false di state lokal & server tanpa memicu overwrite mutasi baru
+      const clearedItems: SPPItem[] = [];
+      const nextList = itemsRef.current.map((cur) => {
+        if (syncedKeys.has(getItemSyncKey(cur)) && cur.pendingSheetSync) {
+          const cleanItem = { ...cur, pendingSheetSync: false };
+          clearedItems.push(cleanItem);
+          return cleanItem;
+        }
+        return cur;
+      });
+      if (clearedItems.length > 0) {
+        commitItemsLocally(nextList);
+        upsertCloudSPPItemsToServer(clearedItems).catch(() => {});
+      }
+
+      setSyncToast({
+        type: 'success',
+        title: `✓ Otomatis Masuk ke Google Sheet ${areaName}`,
+        description:
+          toastLabel ||
+          `${itemsToPush.length} data SPP (${itemsToPush.map((i: SPPItem) => i.sppNumber).join(', ')}) berhasil disimpan permanen dan disinkronkan ke Google Sheet ${areaName}.`,
+      });
+      setTimeout(() => setSyncToast(null), 6000);
+    } catch (err: any) {
+      console.error(`Gagal auto sync push ke Google Sheet (${area}):`, err);
+      setSyncToast({
+        type: 'warning',
+        title: 'Tersimpan di Sistem (Google Sheet Tertunda)',
+        description: `Data sudah tersimpan permanen di server aplikasi, namun sinkronisasi ke Google Sheet ${areaName} sedang antre/tertunda: ${err?.message || err}. Sistem akan otomatis mencoba ulang.`,
+      });
+      setTimeout(() => setSyncToast(null), 7000);
+    }
+  };
+
+  // Simpan SPP Baru atau Update (Langsung tersimpan di Server, lalu Sinkron ke Google Sheet Cabang)
   const handleSaveSPP = async (itemsData: Partial<SPPItem>[]) => {
     if (!itemsData || itemsData.length === 0 || !currentUser) return;
 
+    isSavingRef.current = true;
+    const editedSnapshot = editItem;
     let updatedList: SPPItem[] = [];
     const affectedAreas = new Set<SJAArea>();
     let newCreatedItems: SPPItem[] = [];
+    let changedItemsToPersist: SPPItem[] = [];
+    const currentItemsSnapshot = itemsRef.current;
 
-    if (editItem) {
-      const formData = itemsData[0];
-      const isUrgent = !!formData.isUrgentAdvance;
-      const calc = calculateWorkingDays(formData.budgetReceivedDate!, formData.poDate, holidays);
-      const hasPo = formData.poNumber && formData.poNumber.trim() !== '';
-      const statusPO = hasPo ? 'CLOSE' : 'OPEN';
-      const slaLimit = formData.slaLimit || 10;
-      // Jika dispensasi darurat & PO terbit: respon cepat = 0 hari kerja, selalu ONTIME
-      const processDays = isUrgent && hasPo ? 0 : calc.workingDays;
-      const statusOntime = isUrgent ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
-      const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
-      const isSignificantDelay = !isUrgent && processDays > slaLimit;
+    try {
+      const nowIso = new Date().toISOString();
 
-      const targetArea: SJAArea = (formData.area || editItem.area) as SJAArea;
-      affectedAreas.add(targetArea);
+      if (editedSnapshot) {
+        const formData = itemsData[0];
+        const isUrgent = !!formData.isUrgentAdvance;
+        const calc = calculateWorkingDays(formData.budgetReceivedDate!, formData.poDate, holidaysRef.current);
+        const hasPo = !!(formData.poNumber && formData.poNumber.trim() !== '');
+        const statusPO = hasPo ? 'CLOSE' : 'OPEN';
+        const slaLimit = formData.slaLimit || 10;
+        // Jika dispensasi darurat & PO terbit: respon cepat = 0 hari kerja, selalu ONTIME
+        const processDays = isUrgent && hasPo ? 0 : calc.workingDays;
+        const statusOntime = isUrgent ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
+        const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
+        const isSignificantDelay = !isUrgent && processDays > slaLimit;
 
-      updatedList = items.map((i) => {
-        if (i.id === editItem.id) {
-          // Sistem track record: kondisi khusus tetap disimpan sebagai rekam jejak faktor penyebab
-          const effectiveSpecialCondition = formData.specialCondition !== undefined
-            ? (formData.specialCondition ? formData.specialCondition.trim() : undefined)
-            : i.specialCondition;
-          const effectiveSpecialConditionReason = formData.specialConditionReason !== undefined
-            ? (formData.specialConditionReason ? formData.specialConditionReason.trim() : undefined)
-            : i.specialConditionReason;
-          const effectiveNotes = formData.notes !== undefined ? formData.notes : i.notes;
+        const targetArea: SJAArea = (formData.area || editedSnapshot.area) as SJAArea;
+        affectedAreas.add(targetArea);
 
-          return {
-            ...i,
+        const editedSppNorm = (editedSnapshot.sppNumber || '').trim().toLowerCase();
+        let matchedAny = false;
+
+        updatedList = currentItemsSnapshot.map((i) => {
+          const isMatch =
+            i.id === editedSnapshot.id ||
+            (editedSppNorm !== '' &&
+              (i.sppNumber || '').trim().toLowerCase() === editedSppNorm &&
+              i.area === editedSnapshot.area);
+
+          if (isMatch) {
+            matchedAny = true;
+            // Sistem track record: kondisi khusus tetap disimpan sebagai rekam jejak faktor penyebab
+            const effectiveSpecialCondition = formData.specialCondition !== undefined
+              ? (formData.specialCondition ? formData.specialCondition.trim() : undefined)
+              : i.specialCondition;
+            const effectiveSpecialConditionReason = formData.specialConditionReason !== undefined
+              ? (formData.specialConditionReason ? formData.specialConditionReason.trim() : undefined)
+              : i.specialConditionReason;
+            const effectiveNotes = formData.notes !== undefined ? formData.notes : i.notes;
+
+            const updatedItem: SPPItem = {
+              ...i,
+              ...formData,
+              area: targetArea,
+              poDate: formData.poDate || undefined,
+              poNumber: formData.poNumber?.trim() || undefined,
+              processDays,
+              statusPO,
+              statusOntime,
+              isHPlus3Overdue,
+              isSignificantDelay,
+              isUrgentAdvance: isUrgent,
+              urgentReason: formData.urgentReason || i.urgentReason,
+              urgentApprovedBy: formData.urgentApprovedBy || i.urgentApprovedBy,
+              budgetStatus: formData.budgetStatus || i.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
+              specialCondition: effectiveSpecialCondition,
+              specialConditionReason: effectiveSpecialConditionReason,
+              notes: effectiveNotes,
+              pendingSheetSync: true,
+              updatedAt: nowIso,
+            };
+            changedItemsToPersist.push(updatedItem);
+            return updatedItem;
+          }
+          return i;
+        });
+
+        // Fallback jika item belum ada di snapshot terbaru
+        if (!matchedAny) {
+          const fallbackUpdated: SPPItem = {
+            ...editedSnapshot,
             ...formData,
             area: targetArea,
+            poDate: formData.poDate || undefined,
+            poNumber: formData.poNumber?.trim() || undefined,
             processDays,
             statusPO,
             statusOntime,
             isHPlus3Overdue,
             isSignificantDelay,
             isUrgentAdvance: isUrgent,
-            urgentReason: formData.urgentReason || i.urgentReason,
-            urgentApprovedBy: formData.urgentApprovedBy || i.urgentApprovedBy,
-            budgetStatus: formData.budgetStatus || i.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
-            specialCondition: effectiveSpecialCondition,
-            specialConditionReason: effectiveSpecialConditionReason,
-            notes: effectiveNotes,
-            updatedAt: new Date().toISOString(),
+            budgetStatus: formData.budgetStatus || editedSnapshot.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
+            pendingSheetSync: true,
+            updatedAt: nowIso,
           } as SPPItem;
+          changedItemsToPersist.push(fallbackUpdated);
+          updatedList = [fallbackUpdated, ...currentItemsSnapshot];
         }
-        return i;
-      });
+      } else {
+        newCreatedItems = itemsData.map((formData, index) => {
+          const isUrgent = !!formData.isUrgentAdvance;
+          const calc = calculateWorkingDays(formData.budgetReceivedDate!, formData.poDate, holidaysRef.current);
+          const hasPo = !!(formData.poNumber && formData.poNumber.trim() !== '');
+          const statusPO = hasPo ? 'CLOSE' : 'OPEN';
+          const slaLimit = formData.slaLimit || 10;
+          const processDays = isUrgent && hasPo ? 0 : calc.workingDays;
+          const statusOntime = isUrgent ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
+          const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
+          const isSignificantDelay = !isUrgent && processDays > slaLimit;
 
-      setItems(updatedList);
-      await addAuditLog('UPDATE_SPP', `Memperbarui dokumen SPP ${formData.sppNumber} (Area: ${targetArea})`, editItem.id);
-    } else {
-      newCreatedItems = itemsData.map((formData, index) => {
-        const isUrgent = !!formData.isUrgentAdvance;
-        const calc = calculateWorkingDays(formData.budgetReceivedDate!, formData.poDate, holidays);
-        const hasPo = formData.poNumber && formData.poNumber.trim() !== '';
-        const statusPO = hasPo ? 'CLOSE' : 'OPEN';
-        const slaLimit = formData.slaLimit || 10;
-        const processDays = isUrgent && hasPo ? 0 : calc.workingDays;
-        const statusOntime = isUrgent ? 'ONTIME' : (processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT');
-        const isHPlus3Overdue = !isUrgent && statusPO === 'OPEN' && processDays >= 3;
-        const isSignificantDelay = !isUrgent && processDays > slaLimit;
+          const assignedArea: SJAArea = formData.area || (currentUser.role === 'SUPERADMIN' ? (activeAreaFilter !== 'ALL' ? activeAreaFilter : 'SEPANJANG') : (currentUser.area as SJAArea));
+          affectedAreas.add(assignedArea);
 
-        const assignedArea: SJAArea = formData.area || (currentUser.role === 'SUPERADMIN' ? (activeAreaFilter !== 'ALL' ? activeAreaFilter : 'SEPANJANG') : (currentUser.area as SJAArea));
-        affectedAreas.add(assignedArea);
+          const areaCode = assignedArea === 'SEPANJANG' ? 'SPJ' : assignedArea === 'KARAWANG' ? 'KRW' : assignedArea === 'SUKODONO' ? 'SKD' : 'SMG';
+          const finalSppNumber = formData.sppNumber?.trim() || `SPP/${areaCode}/${new Date().getFullYear()}/${String(Date.now() + index).slice(-4)}`;
 
-        const areaCode = assignedArea === 'SEPANJANG' ? 'SPJ' : assignedArea === 'KARAWANG' ? 'KRW' : assignedArea === 'SUKODONO' ? 'SKD' : 'SMG';
-        const finalSppNumber = formData.sppNumber?.trim() || `SPP/${areaCode}/${new Date().getFullYear()}/${String(Date.now() + index).slice(-4)}`;
-
-        return {
-          id: `SPP-${Date.now()}-${index}`,
-          budgetReceivedDate: formData.budgetReceivedDate || new Date().toISOString().split('T')[0],
-          sppNumber: finalSppNumber,
-          pic: (formData.pic && formData.pic.trim() !== '' && formData.pic.trim() !== '-') ? formData.pic.trim() : '-',
-          area: assignedArea,
-          poDate: formData.poDate,
-          poNumber: formData.poNumber,
-          processDays,
-          statusPO,
-          statusOntime,
-          slaLimit,
-          isHPlus3Overdue,
-          isSignificantDelay,
-          notes: formData.notes,
-          specialCondition: formData.specialCondition,
-          specialConditionReason: formData.specialConditionReason,
-          isUrgentAdvance: isUrgent,
-          urgentReason: formData.urgentReason,
-          urgentApprovedBy: formData.urgentApprovedBy,
-          budgetStatus: formData.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-      });
-
-      updatedList = [...newCreatedItems, ...items];
-      setItems(updatedList);
-      await addAuditLog(
-        'CREATE_SPP_BATCH',
-        `Menyimpan batch ${newCreatedItems.length} dokumen SPP baru`
-      );
-    }
-
-    setEditItem(null);
-
-    // OTOMATIS CREATE / SINKRONKAN KE GOOGLE SHEET CABANG (2-WAY SYNC REAL-TIME)
-    for (const area of Array.from(affectedAreas)) {
-      const cfg = areaConfigs[area] || getFallbackAreaConfigs()[area];
-      const targetUrl = cfg?.webAppUrl?.trim() || '';
-      const areaName = AREA_METADATA[area]?.name || area;
-      const itemsToPush: SPPItem[] = editItem
-        ? updatedList.filter((i: SPPItem) => i.id === editItem.id)
-        : newCreatedItems.filter((i: SPPItem) => i.area === area);
-
-      if (itemsToPush.length === 0) continue;
-
-      try {
-        await pushToGoogleSheet(targetUrl, itemsToPush, 'UPSERT_BATCH', area);
-        setSyncToast({
-          type: 'success',
-          title: `✓ Otomatis Masuk ke Google Sheet ${areaName}`,
-          description: `${itemsToPush.length} data SPP (${itemsToPush.map((i: SPPItem) => i.sppNumber).join(', ')}) berhasil disimpan di aplikasi dan otomatis dibuatkan baris baru di Google Sheet ${areaName}.`,
+          return {
+            id: `SPP-${Date.now()}-${index}`,
+            budgetReceivedDate: formData.budgetReceivedDate || new Date().toISOString().split('T')[0],
+            sppNumber: finalSppNumber,
+            pic: (formData.pic && formData.pic.trim() !== '' && formData.pic.trim() !== '-') ? formData.pic.trim() : '-',
+            area: assignedArea,
+            poDate: formData.poDate || undefined,
+            poNumber: formData.poNumber?.trim() || undefined,
+            processDays,
+            statusPO,
+            statusOntime,
+            slaLimit,
+            isHPlus3Overdue,
+            isSignificantDelay,
+            notes: formData.notes,
+            specialCondition: formData.specialCondition,
+            specialConditionReason: formData.specialConditionReason,
+            isUrgentAdvance: isUrgent,
+            urgentReason: formData.urgentReason,
+            urgentApprovedBy: formData.urgentApprovedBy,
+            budgetStatus: formData.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
+            pendingSheetSync: true,
+            createdAt: nowIso,
+            updatedAt: nowIso,
+          };
         });
-        setTimeout(() => setSyncToast(null), 6000);
-      } catch (err: any) {
-        console.error(`Gagal auto sync push ke Google Sheet (${area}):`, err);
-        setSyncToast({
-          type: 'warning',
-          title: 'Tersimpan di Sistem (Google Sheet Tertunda)',
-          description: `Data tersimpan di sistem aplikasi, namun pembuatan baris di Google Sheet ${areaName} mengalami kendala: ${err?.message || err}. Anda dapat menyinkronkan ulang lewat tab 'Integrasi Google Sheet'.`,
-        });
-        setTimeout(() => setSyncToast(null), 7000);
+
+        changedItemsToPersist = [...newCreatedItems];
+        updatedList = [...newCreatedItems, ...currentItemsSnapshot];
       }
+
+      // Tandai pendingSheetSyncKeys SEBELUM async call agar refresh/auto-pull tidak menimpa data baru
+      changedItemsToPersist.forEach((p) => pendingSheetSyncKeysRef.current.add(getItemSyncKey(p)));
+      persistPendingSheetKeys();
+
+      // Update UI lokal seketika (OPEN langsung berubah jadi CLOSE -> 0 OPEN)
+      commitItemsLocally(updatedList);
+
+      // Simpan atomik ke server backend (upsert atomik + full snapshot backup)
+      const [upsertOk, batchOk] = await Promise.all([
+        upsertCloudSPPItemsToServer(changedItemsToPersist),
+        saveCloudSPPItemsToServer(updatedList, { source: 'USER_SAVE' }),
+      ]);
+
+      if (!upsertOk && !batchOk) {
+        console.warn('[SaveSPP] Backend server tidak merespons, data tersimpan sementara di localStorage browser.');
+      }
+
+      await addAuditLog(
+        editedSnapshot ? 'UPDATE_SPP' : 'CREATE_SPP_BATCH',
+        editedSnapshot
+          ? `Memperbarui dokumen SPP ${changedItemsToPersist[0]?.sppNumber || editedSnapshot.sppNumber}`
+          : `Menyimpan batch ${newCreatedItems.length} dokumen SPP baru`,
+        editedSnapshot?.id
+      );
+
+      // Tampilkan notifikasi langsung tersimpan, lalu kirim ke Google Sheet di background (non-blocking)
+      setSyncToast({
+        type: 'info',
+        title: '✓ Data SPP Tersimpan Permanen',
+        description: `Perubahan status & nomor PO telah tersimpan di sistem. Menyinkronkan ke Google Sheet...`,
+      });
+      setTimeout(() => setSyncToast((cur) => (cur?.type === 'info' ? null : cur)), 5000);
+
+      for (const area of Array.from(affectedAreas)) {
+        const itemsToPush = changedItemsToPersist.filter((i) => i.area === area);
+        if (itemsToPush.length > 0) {
+          void pushItemsToGoogleSheetInBackground(area, itemsToPush);
+        }
+      }
+    } finally {
+      lastLocalMutationAtRef.current = Date.now();
+      isSavingRef.current = false;
     }
   };
 
   // Quick Update No PO (Otomatis Close & Auto Sync Google Sheet)
   const handleQuickUpdatePO = async (id: string, poNumber: string, poDate: string) => {
-    const targetItem = items.find((i) => i.id === id);
-    const updated = items.map((i) => {
-      if (i.id === id) {
-        const calc = calculateWorkingDays(i.budgetReceivedDate, poDate, holidays);
-        const processDays = calc.workingDays;
-        const slaLimit = i.slaLimit || 10;
-        return {
-          ...i,
-          poNumber,
-          poDate,
-          statusPO: 'CLOSE' as const,
-          processDays,
-          statusOntime: processDays <= slaLimit ? ('ONTIME' as const) : ('TERLAMBAT' as const),
-          isHPlus3Overdue: false,
-          isSignificantDelay: processDays > slaLimit,
-          // Track record kondisi khusus: saat No PO diisikan, kondisi khusus tetap dipertahankan & ditampilkan sebagai histori faktor kendala
-          specialCondition: i.specialCondition,
-          specialConditionReason: i.specialConditionReason,
-          notes: i.notes,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-      return i;
-    });
-
-    setItems(updated);
-    await addAuditLog(
-      'QUICK_UPDATE_PO_CLOSE',
-      `Memperbarui No. PO ${poNumber} tanggal ${poDate} untuk SPP ID ${id} -> Status otomatis CLOSE`,
-      id
-    );
-
-    // Otomatis sinkronkan update nomor PO ke Google Sheet
-    if (targetItem?.area) {
-      const cfg = areaConfigs[targetItem.area] || getFallbackAreaConfigs()[targetItem.area];
-      const targetUpdatedItem = updated.find((i) => i.id === id);
-      if (targetUpdatedItem) {
-        try {
-          await pushToGoogleSheet(cfg?.webAppUrl || '', [targetUpdatedItem], 'UPSERT_BATCH', targetItem.area);
-        } catch (err) {
-          console.error(`Auto sync quick PO (${targetItem.area}) gagal:`, err);
+    isSavingRef.current = true;
+    try {
+      const nowIso = new Date().toISOString();
+      const currentSnapshot = itemsRef.current;
+      let updatedTarget: SPPItem | null = null;
+      const updated = currentSnapshot.map((i) => {
+        if (i.id === id) {
+          const calc = calculateWorkingDays(i.budgetReceivedDate, poDate, holidaysRef.current);
+          const processDays = calc.workingDays;
+          const slaLimit = i.slaLimit || 10;
+          const nextItem: SPPItem = {
+            ...i,
+            poNumber: poNumber.trim(),
+            poDate,
+            statusPO: 'CLOSE',
+            processDays,
+            statusOntime: processDays <= slaLimit ? 'ONTIME' : 'TERLAMBAT',
+            isHPlus3Overdue: false,
+            isSignificantDelay: processDays > slaLimit,
+            // Track record kondisi khusus: saat No PO diisikan, kondisi khusus tetap dipertahankan & ditampilkan sebagai histori faktor kendala
+            specialCondition: i.specialCondition,
+            specialConditionReason: i.specialConditionReason,
+            notes: i.notes,
+            pendingSheetSync: true,
+            updatedAt: nowIso,
+          };
+          updatedTarget = nextItem;
+          return nextItem;
         }
+        return i;
+      });
+
+      if (updatedTarget) {
+        pendingSheetSyncKeysRef.current.add(getItemSyncKey(updatedTarget));
+        persistPendingSheetKeys();
       }
+
+      commitItemsLocally(updated);
+      await Promise.all([
+        updatedTarget ? upsertCloudSPPItemsToServer([updatedTarget]) : Promise.resolve(true),
+        saveCloudSPPItemsToServer(updated, { source: 'USER_SAVE' }),
+      ]);
+      await addAuditLog(
+        'QUICK_UPDATE_PO_CLOSE',
+        `Memperbarui No. PO ${poNumber} tanggal ${poDate} untuk SPP ID ${id} -> Status otomatis CLOSE`,
+        id
+      );
+
+      // Sinkronkan update nomor PO ke Google Sheet di background
+      if (updatedTarget && (updatedTarget as SPPItem).area) {
+        const target = updatedTarget as SPPItem;
+        void pushItemsToGoogleSheetInBackground(target.area, [target]);
+      }
+    } finally {
+      lastLocalMutationAtRef.current = Date.now();
+      isSavingRef.current = false;
     }
   };
 
   // Hapus Single SPP
   const handleDeleteSPP = async (id: string) => {
-    const target = items.find((i) => i.id === id);
-    const updated = items.filter((i) => i.id !== id);
-    setItems(updated);
-    await addAuditLog('DELETE_SPP', `Menghapus dokumen SPP ${target?.sppNumber || id} (Area: ${target?.area})`, id);
+    isSavingRef.current = true;
+    try {
+      const currentSnapshot = itemsRef.current;
+      const target = currentSnapshot.find((i) => i.id === id);
+      const updated = currentSnapshot.filter((i) => i.id !== id);
+      commitItemsLocally(updated);
+      await saveCloudSPPItemsToServer(updated);
+      await addAuditLog('DELETE_SPP', `Menghapus dokumen SPP ${target?.sppNumber || id} (Area: ${target?.area})`, id);
 
-    // Otomatis sinkronkan penghapusan ke Google Sheet jika cabang terhubung (Komunikasi 2 Arah)
-    if (target?.area) {
-      const cfg = areaConfigs[target.area];
-      if (cfg?.webAppUrl && cfg.webAppUrl.trim().startsWith('http')) {
-        try {
-          const remainingAreaItems = updated.filter((i) => i.area === target.area);
-          await pushToGoogleSheet(cfg.webAppUrl, remainingAreaItems, 'SYNC_FULL');
-        } catch (err) {
-          console.error(`Auto sync delete ke Google Sheet (${target.area}) gagal:`, err);
+      // Otomatis sinkronkan penghapusan ke Google Sheet jika cabang terhubung (Komunikasi 2 Arah)
+      if (target?.area) {
+        const cfg = areaConfigsRef.current[target.area];
+        if (cfg?.webAppUrl && cfg.webAppUrl.trim().startsWith('http')) {
+          try {
+            const remainingAreaItems = updated.filter((i) => i.area === target.area);
+            await pushToGoogleSheet(cfg.webAppUrl, remainingAreaItems, 'SYNC_FULL', target.area);
+          } catch (err) {
+            console.error(`Auto sync delete ke Google Sheet (${target.area}) gagal:`, err);
+          }
         }
       }
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
   // Hapus Banyak SPP Sekaligus (Batch Delete)
   const handleDeleteBatchSPP = async (ids: string[]) => {
-    const targets = items.filter((i) => ids.includes(i.id));
-    const count = ids.length;
-    const updated = items.filter((i) => !ids.includes(i.id));
-    setItems(updated);
-    await addAuditLog('DELETE_SPP_BATCH', `Menghapus ${count} dokumen SPP sekaligus`);
+    isSavingRef.current = true;
+    try {
+      const currentSnapshot = itemsRef.current;
+      const targets = currentSnapshot.filter((i) => ids.includes(i.id));
+      const count = ids.length;
+      const updated = currentSnapshot.filter((i) => !ids.includes(i.id));
+      commitItemsLocally(updated);
+      await saveCloudSPPItemsToServer(updated);
+      await addAuditLog('DELETE_SPP_BATCH', `Menghapus ${count} dokumen SPP sekaligus`);
 
-    // Otomatis sinkronkan penghapusan batch ke Google Sheet (Komunikasi 2 Arah)
-    const affectedAreas = Array.from(new Set(targets.map((t) => t.area)));
-    for (const area of affectedAreas) {
-      const cfg = areaConfigs[area];
-      if (cfg?.webAppUrl && cfg.webAppUrl.trim().startsWith('http')) {
-        try {
-          const remainingAreaItems = updated.filter((i) => i.area === area);
-          await pushToGoogleSheet(cfg.webAppUrl, remainingAreaItems, 'SYNC_FULL');
-        } catch (err) {
-          console.error(`Auto sync batch delete ke Google Sheet (${area}) gagal:`, err);
+      // Otomatis sinkronkan penghapusan batch ke Google Sheet (Komunikasi 2 Arah)
+      const affectedAreas = Array.from(new Set(targets.map((t) => t.area)));
+      for (const area of affectedAreas) {
+        const cfg = areaConfigsRef.current[area];
+        if (cfg?.webAppUrl && cfg.webAppUrl.trim().startsWith('http')) {
+          try {
+            const remainingAreaItems = updated.filter((i) => i.area === area);
+            await pushToGoogleSheet(cfg.webAppUrl, remainingAreaItems, 'SYNC_FULL', area);
+          } catch (err) {
+            console.error(`Auto sync batch delete ke Google Sheet (${area}) gagal:`, err);
+          }
         }
       }
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
   // Kosongkan Seluruh Data SPP (dengan opsi sinkronisasi ke Google Sheet yang terhubung)
   const handleClearAllSPP = async (syncWithGoogleSheet: boolean = true) => {
     if (!currentUser) return;
-    const isSuperadminAll = currentUser.role === 'SUPERADMIN' && activeAreaFilter === 'ALL';
-    const targetArea = currentUser.role === 'SUPERADMIN' ? activeAreaFilter : currentUser.area;
-    
-    let updated: SPPItem[];
-    let countCleared = 0;
-    if (isSuperadminAll) {
-      countCleared = items.length;
-      updated = [];
-    } else {
-      const itemsToClear = items.filter((i) => i.area === targetArea);
-      countCleared = itemsToClear.length;
-      updated = items.filter((i) => i.area !== targetArea);
-    }
-
-    setItems(updated);
+    isSavingRef.current = true;
     try {
-      localStorage.setItem('spp_monitoring_data', JSON.stringify(updated));
-    } catch {}
+      const currentSnapshot = itemsRef.current;
+      const isSuperadminAll = currentUser.role === 'SUPERADMIN' && activeAreaFilter === 'ALL';
+      const targetArea = currentUser.role === 'SUPERADMIN' ? activeAreaFilter : currentUser.area;
 
-    // Sinkronkan pengosongan ke Google Sheet jika opsi dicentang
-    const clearedSheetNames: string[] = [];
-    if (syncWithGoogleSheet) {
-      const areasToSync: SJAArea[] = isSuperadminAll
-        ? (['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'] as SJAArea[])
-        : ([targetArea as SJAArea]);
+      let updated: SPPItem[];
+      let countCleared = 0;
+      if (isSuperadminAll) {
+        countCleared = currentSnapshot.length;
+        updated = [];
+      } else {
+        const itemsToClear = currentSnapshot.filter((i) => i.area === targetArea);
+        countCleared = itemsToClear.length;
+        updated = currentSnapshot.filter((i) => i.area !== targetArea);
+      }
 
-      for (const a of areasToSync) {
-        const cfg = areaConfigs[a];
-        if (cfg?.webAppUrl && cfg.webAppUrl.trim().startsWith('http')) {
-          try {
-            await clearGoogleSheet(cfg.webAppUrl);
-            clearedSheetNames.push(AREA_METADATA[a]?.name || a);
-          } catch (err) {
-            console.error(`Gagal mengosongkan Google Sheet ${a}:`, err);
+      commitItemsLocally(updated);
+      await saveCloudSPPItemsToServer(updated);
+
+      // Sinkronkan pengosongan ke Google Sheet jika opsi dicentang
+      const clearedSheetNames: string[] = [];
+      if (syncWithGoogleSheet) {
+        const areasToSync: SJAArea[] = isSuperadminAll
+          ? (['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'] as SJAArea[])
+          : ([targetArea as SJAArea]);
+
+        for (const a of areasToSync) {
+          const cfg = areaConfigsRef.current[a];
+          if (cfg?.webAppUrl && cfg.webAppUrl.trim().startsWith('http')) {
+            try {
+              await clearGoogleSheet(cfg.webAppUrl, a);
+              clearedSheetNames.push(AREA_METADATA[a]?.name || a);
+            } catch (err) {
+              console.error(`Gagal mengosongkan Google Sheet ${a}:`, err);
+            }
           }
         }
       }
+
+      const sheetLog = clearedSheetNames.length > 0
+        ? ` serta membersihkan baris data Google Sheet (${clearedSheetNames.join(', ')})`
+        : '';
+
+      await addAuditLog(
+        'CLEAR_ALL_SPP',
+        `Mengosongkan ${countCleared} dokumen SPP${sheetLog}`
+      );
+    } finally {
+      isSavingRef.current = false;
     }
-
-    const sheetLog = clearedSheetNames.length > 0
-      ? ` serta membersihkan baris data Google Sheet (${clearedSheetNames.join(', ')})`
-      : '';
-
-    await addAuditLog(
-      'CLEAR_ALL_SPP',
-      `Mengosongkan ${countCleared} dokumen SPP${sheetLog}`
-    );
   };
 
   // Muat Contoh Data Demo
   const handleLoadSampleData = async () => {
     const sampleItems = buildProcessedSPP(SAMPLE_DEMO_ITEMS);
-    setItems(sampleItems);
+    commitItemsLocally(sampleItems);
+    await saveCloudSPPItemsToServer(sampleItems);
     await addAuditLog('LOAD_SAMPLE_DATA', `Memuat kembali ${sampleItems.length} contoh data demo SPP`);
   };
 
@@ -788,7 +1023,7 @@ export default function App() {
     const nextHolidays = [...holidays, newH];
     setHolidays(nextHolidays);
 
-    const reprocessed = items.map((item) => {
+    const reprocessed = itemsRef.current.map((item) => {
       const calc = calculateWorkingDays(item.budgetReceivedDate, item.poDate, nextHolidays);
       return {
         ...item,
@@ -798,7 +1033,8 @@ export default function App() {
         isSignificantDelay: calc.workingDays > 10,
       } as SPPItem;
     });
-    setItems(reprocessed);
+    commitItemsLocally(reprocessed);
+    await saveCloudSPPItemsToServer(reprocessed);
 
     await addAuditLog('ADD_HOLIDAY', `Menambahkan tanggal libur kustom: ${newH.name} (${newH.date})`);
   };
@@ -811,23 +1047,43 @@ export default function App() {
 
   // Sinkronisasi Google Sheets Per-Area (2 Arah Penuh: Tarik data baru, update data, dan hapus data yang telah dihapus di Google Sheet)
   const handlePullFromSheet = async (area: SJAArea) => {
-    const cfg = areaConfigs[area];
+    const cfg = areaConfigsRef.current[area] || getFallbackAreaConfigs()[area];
     if (!cfg?.webAppUrl) throw new Error(`Web App URL belum diisi untuk ${AREA_METADATA[area]?.name}`);
-    
-    const rawFromSheet = await fetchFromGoogleSheet(cfg.webAppUrl);
+
+    const epochAtStart = mutationEpochRef.current;
+    const rawFromSheet = await fetchFromGoogleSheet(cfg.webAppUrl, area);
     if (!Array.isArray(rawFromSheet)) {
       throw new Error(`Format data tidak valid dari Google Sheet ${AREA_METADATA[area]?.name}`);
     }
 
-    // Ambil data yang saat ini ada di aplikasi untuk area ini
-    const existingAreaItems = items.filter((i) => i.area === area);
+    // Jika selama fetch ada aksi simpan/hapus lokal yang baru saja terjadi, batalkan overwrite agar editan tidak hilang
+    if (isSavingRef.current || mutationEpochRef.current !== epochAtStart) {
+      return {
+        area,
+        areaName: AREA_METADATA[area]?.name || area,
+        totalInSheet: rawFromSheet.length,
+        addedCount: 0,
+        updatedCount: 0,
+        deletedCount: 0,
+        deletedItemNumbers: [],
+      };
+    }
+
+    // Ambil data terbaru yang saat ini ada di aplikasi untuk area ini
+    const currentSnapshot = itemsRef.current;
+    const existingAreaItems = currentSnapshot.filter((i) => i.area === area);
+    const itemsNeedingPushBack: SPPItem[] = [];
 
     // Proses data yang ditarik dari Google Sheet
     const tagged: SPPItem[] = rawFromSheet.map((i, idx) => {
+      const existing = existingAreaItems.find(
+        (cur) => cur.sppNumber.trim().toLowerCase() === (i.sppNumber || '').trim().toLowerCase()
+      );
+
       const cleanBudget = normalizeDateString(i.budgetReceivedDate) || new Date().toISOString().split('T')[0];
       const cleanPo = normalizeDateString(i.poDate);
 
-      const calc = calculateWorkingDays(cleanBudget, cleanPo, holidays);
+      const calc = calculateWorkingDays(cleanBudget, cleanPo, holidaysRef.current);
       const processDays = calc.workingDays;
       const hasPo = !!(i.poNumber && i.poNumber.trim() !== '');
       const statusPO = hasPo ? 'CLOSE' : 'OPEN';
@@ -836,17 +1092,37 @@ export default function App() {
       const isHPlus3Overdue = statusPO === 'OPEN' && processDays >= 3;
       const isSignificantDelay = processDays > slaLimit;
 
-      const existing = existingAreaItems.find(
-        (cur) => cur.sppNumber.trim().toLowerCase() === (i.sppNumber || '').trim().toLowerCase()
+      // Proteksi perubahan lokal/server yang belum tersinkron ke Google Sheet agar TIDAK tertimpa data OPEN lama dari Sheet
+      const syncKey = existing ? getItemSyncKey(existing) : '';
+      const hasPendingSync = !!(
+        existing &&
+        (existing.pendingSheetSync === true || pendingSheetSyncKeysRef.current.has(syncKey))
+      );
+      const localClosedWhileSheetOpen = !!(
+        existing &&
+        isItemClosed(existing) &&
+        !hasPo &&
+        (hasPendingSync || toEpochMs(existing.updatedAt) >= toEpochMs(i.updatedAt) || toEpochMs(i.updatedAt) === 0)
       );
 
-      return {
+      if (existing && (hasPendingSync || localClosedWhileSheetOpen)) {
+        // Apabila Google Sheet ternyata sudah memiliki PO yang identik dengan editan lokal, selesaikan pending sync
+        if (hasPo && isItemClosed(existing) && (i.poNumber || '').trim() === (existing.poNumber || '').trim()) {
+          pendingSheetSyncKeysRef.current.delete(syncKey);
+          persistPendingSheetKeys();
+          return { ...existing, pendingSheetSync: false };
+        }
+        itemsNeedingPushBack.push(existing);
+        return existing;
+      }
+
+      const normalizedPulledItem: SPPItem = {
         ...i,
         id: existing?.id || i.id || `SPP-${Date.now()}-${idx}`,
         budgetReceivedDate: cleanBudget,
         sppNumber: i.sppNumber.trim(),
         area: area,
-        pic: i.pic?.trim() || existing?.pic || 'PIC Pengadaan',
+        pic: i.pic?.trim() || existing?.pic || '-',
         poDate: cleanPo || undefined,
         poNumber: i.poNumber?.trim() || undefined,
         processDays,
@@ -862,36 +1138,105 @@ export default function App() {
         urgentReason: i.urgentReason || existing?.urgentReason,
         urgentApprovedBy: i.urgentApprovedBy || existing?.urgentApprovedBy,
         budgetStatus: i.budgetStatus || existing?.budgetStatus || (hasPo ? 'APPROVED' : undefined),
+        pendingSheetSync: false,
         createdAt: existing?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        updatedAt: existing?.updatedAt || i.updatedAt || new Date().toISOString(),
       };
+
+      // Hanya push balik ke Google Sheet bila status PO di Sheet belum selaras (misal baru diisi No PO di Sheet tapi statusPO masih OPEN)
+      // atau dokumen sudah CLOSE namun kolom Hari Kerja berbeda (hindari push berulang tiap 30 detik untuk dokumen OPEN)
+      if (
+        i.statusPO !== statusPO ||
+        (statusPO === 'CLOSE' && (Number(i.processDays) !== processDays || i.statusOntime !== statusOntime))
+      ) {
+        itemsNeedingPushBack.push({
+          ...normalizedPulledItem,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      return normalizedPulledItem;
     });
 
+    // Pastikan item baru yang dibuat di lokal/server & masih pendingSheetSync tidak ikut terhapus oleh pull sebelum berhasil terpush
+    const pulledSppSet = new Set(tagged.map((t) => t.sppNumber.toLowerCase()));
+    const pendingCreatedLocals = existingAreaItems.filter((e) => {
+      const syncKey = getItemSyncKey(e);
+      return (
+        !pulledSppSet.has(e.sppNumber.toLowerCase()) &&
+        (e.pendingSheetSync === true || pendingSheetSyncKeysRef.current.has(syncKey))
+      );
+    });
+    pendingCreatedLocals.forEach((p) => itemsNeedingPushBack.push(p));
+
+    const finalTagged = [...pendingCreatedLocals, ...tagged];
+
     // 1. Deteksi data yang dihapus di Google Sheet: ada di aplikasi tapi TIDAK ADA lagi di Google Sheet
-    const newSheetSppSet = new Set(tagged.map((t) => t.sppNumber.toLowerCase()));
+    const newSheetSppSet = new Set(finalTagged.map((t) => t.sppNumber.toLowerCase()));
     const deletedFromSheet = existingAreaItems.filter((e) => !newSheetSppSet.has(e.sppNumber.toLowerCase()));
     const deletedCount = deletedFromSheet.length;
 
     // 2. Deteksi data baru yang ditambahkan di Google Sheet
     const existingSppSet = new Set(existingAreaItems.map((e) => e.sppNumber.toLowerCase()));
-    const addedCount = tagged.filter((t) => !existingSppSet.has(t.sppNumber.toLowerCase())).length;
-    const updatedCount = tagged.length - addedCount;
+    const addedCount = finalTagged.filter((t) => !existingSppSet.has(t.sppNumber.toLowerCase())).length;
+    const updatedCount = finalTagged.length - addedCount;
 
-    // UPDATE STATE APLIKASI: Ganti data area ini dengan tagged (Sehingga data yang dihapus di Google Sheet otomatis terhapus dari aplikasi!)
-    setItems((prev) => [
-      ...tagged,
-      ...prev.filter((i) => i.area !== area),
-    ]);
+    // Cek ulang race condition tepat sebelum commit agar mutasi terbaru user tidak pernah tertimpa
+    if (isSavingRef.current || mutationEpochRef.current !== epochAtStart) {
+      return {
+        area,
+        areaName: AREA_METADATA[area]?.name || area,
+        totalInSheet: finalTagged.length,
+        addedCount: 0,
+        updatedCount: 0,
+        deletedCount: 0,
+        deletedItemNumbers: [],
+      };
+    }
 
-    // 3. SINKRONISASI 2 ARAH BALIK KE GOOGLE SHEET:
-    // Update kembali nilai kolom 'Hari Kerja Proses' dan 'Status SLA' hasil rekalkulasi terbaru ke Google Sheet
-    try {
-      const cfg = areaConfigs[area] || getFallbackAreaConfigs()[area];
-      if (cfg?.webAppUrl && tagged.length > 0) {
-        await pushToGoogleSheet(cfg.webAppUrl, tagged, 'UPSERT_BATCH', area);
+    // Deteksi apakah benar-benar ada perubahan dibanding state saat ini agar tidak spam disk setiap 30 detik
+    const toAreaSignature = (list: SPPItem[]) =>
+      list
+        .map((x) => `${x.id}|${x.sppNumber}|${x.pic}|${x.poDate || ''}|${x.poNumber || ''}|${x.statusPO}|${x.processDays}|${x.notes || ''}|${x.specialCondition || ''}|${x.specialConditionReason || ''}|${Boolean(x.pendingSheetSync)}`)
+        .sort()
+        .join(';;');
+
+    const hasAreaChanges = toAreaSignature(existingAreaItems) !== toAreaSignature(finalTagged);
+
+    // UPDATE STATE APLIKASI & SERVER CLOUD
+    const mergedAllItems = [
+      ...finalTagged,
+      ...itemsRef.current.filter((i) => i.area !== area),
+    ];
+    if (hasAreaChanges) {
+      commitItemsLocally(mergedAllItems);
+      await saveCloudSPPItemsToServer(mergedAllItems, { source: 'AUTO_PULL' });
+    }
+
+    // 3. SINKRONISASI 2 ARAH BALIK KE GOOGLE SHEET HANYA UNTUK ITEM YANG PERLU REKALKULASI / PENDING RETRY
+    if (itemsNeedingPushBack.length > 0 && cfg?.webAppUrl) {
+      try {
+        await pushToGoogleSheet(cfg.webAppUrl, itemsNeedingPushBack, 'UPSERT_BATCH', area);
+        const pushedKeys = new Set(itemsNeedingPushBack.map((p) => getItemSyncKey(p)));
+        itemsNeedingPushBack.forEach((p) => pendingSheetSyncKeysRef.current.delete(getItemSyncKey(p)));
+        persistPendingSheetKeys();
+
+        const clearedItems: SPPItem[] = [];
+        const syncedList = itemsRef.current.map((cur) => {
+          if (pushedKeys.has(getItemSyncKey(cur)) && cur.pendingSheetSync) {
+            const cleanItem = { ...cur, pendingSheetSync: false };
+            clearedItems.push(cleanItem);
+            return cleanItem;
+          }
+          return cur;
+        });
+        if (clearedItems.length > 0) {
+          commitItemsLocally(syncedList);
+          await upsertCloudSPPItemsToServer(clearedItems);
+        }
+      } catch (pushBackErr) {
+        console.warn(`[2-Way Sync Push-Back Notice] Gagal memperbarui Google Sheet (${area}):`, pushBackErr);
       }
-    } catch (pushBackErr) {
-      console.warn(`[2-Way Sync Push-Back Notice] Gagal memperbarui kolom Hari Kerja di Google Sheet (${area}):`, pushBackErr);
     }
 
     setAreaConfigs((prev) => ({
@@ -904,7 +1249,7 @@ export default function App() {
     }));
 
     const areaName = AREA_METADATA[area]?.name || area;
-    let logText = `Sinkronisasi 2 arah ${areaName}: ${tagged.length} data aktif diselaraskan (${addedCount} baru, ${updatedCount} diperbarui, kolom hari kerja proses di Google Sheet terbarui)`;
+    let logText = `Sinkronisasi 2 arah ${areaName}: ${tagged.length} data aktif diselaraskan (${addedCount} baru, ${updatedCount} diperbarui)`;
     if (deletedCount > 0) {
       logText += `, serta ${deletedCount} data yang dihapus di Google Sheet telah dihapus dari aplikasi (${deletedFromSheet.map((d) => d.sppNumber).slice(0, 3).join(', ')}${deletedCount > 3 ? '...' : ''})`;
     }
@@ -914,7 +1259,7 @@ export default function App() {
     return {
       area,
       areaName,
-      totalInSheet: tagged.length,
+      totalInSheet: finalTagged.length,
       addedCount,
       updatedCount,
       deletedCount,
@@ -925,8 +1270,9 @@ export default function App() {
   // Handler Sinkronisasi Data Google Sheet (Manual maupun Auto Live Background)
   const handleSyncGoogleSheet = async (isSilent: boolean = false) => {
     if (!currentUser) return;
-    if (isSyncingSheet) return; // hindari duplicate request bersamaan
+    if (isSyncingSheetRef.current || isSavingRef.current) return; // hindari duplicate / race dengan proses simpan
 
+    isSyncingSheetRef.current = true;
     setIsSyncingSheet(true);
     try {
       const isSuperadminAll = currentUser.role === 'SUPERADMIN' && activeAreaFilter === 'ALL';
@@ -934,8 +1280,9 @@ export default function App() {
         ? (['SEPANJANG', 'KARAWANG', 'SUKODONO', 'SEMARANG'] as SJAArea[])
         : ([((currentUser.role === 'SUPERADMIN' ? activeAreaFilter : currentUser.area) as SJAArea)]);
 
+      const latestConfigs = areaConfigsRef.current;
       const configuredAreas = areasToSync.filter(
-        (a) => areaConfigs[a]?.webAppUrl && areaConfigs[a].webAppUrl.trim().startsWith('http')
+        (a) => latestConfigs[a]?.webAppUrl && latestConfigs[a].webAppUrl.trim().startsWith('http')
       );
 
       if (configuredAreas.length === 0) {
@@ -997,10 +1344,15 @@ export default function App() {
         setTimeout(() => setSyncToast(null), 6000);
       }
     } finally {
+      isSyncingSheetRef.current = false;
       setIsSyncingSheet(false);
       setAutoSyncCountdown(autoSyncInterval);
     }
   };
+
+  // Simpan referensi handler terbaru agar timer/event listener tidak memakai stale closure
+  const handleSyncGoogleSheetRef = useRef(handleSyncGoogleSheet);
+  handleSyncGoogleSheetRef.current = handleSyncGoogleSheet;
 
   // Toggle & Interval Handler untuk Auto Live Sync
   const handleToggleAutoSync = (enabled?: boolean) => {
@@ -1029,9 +1381,9 @@ export default function App() {
     const timer = setInterval(() => {
       setAutoSyncCountdown((prev) => {
         if (prev <= 1) {
-          // Trigger sync live background jika tidak sedang sync manual
-          if (!isSyncingSheet) {
-            handleSyncGoogleSheet(true);
+          // Trigger sync live background jika tidak sedang sync manual atau menyimpan
+          if (!isSyncingSheetRef.current && !isSavingRef.current) {
+            handleSyncGoogleSheetRef.current(true);
           }
           return autoSyncInterval;
         }
@@ -1040,18 +1392,24 @@ export default function App() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [currentUser, isAutoSyncEnabled, autoSyncInterval, isSyncingSheet, activeAreaFilter]);
+  }, [currentUser, isAutoSyncEnabled, autoSyncInterval, activeAreaFilter]);
 
   // Auto Sync saat tab browser kembali aktif (Focus)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isAutoSyncEnabled && currentUser && !isSyncingSheet) {
-        handleSyncGoogleSheet(true);
+      if (
+        document.visibilityState === 'visible' &&
+        isAutoSyncEnabled &&
+        currentUser &&
+        !isSyncingSheetRef.current &&
+        !isSavingRef.current
+      ) {
+        handleSyncGoogleSheetRef.current(true);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isAutoSyncEnabled, currentUser, isSyncingSheet, activeAreaFilter]);
+  }, [isAutoSyncEnabled, currentUser, activeAreaFilter]);
 
   const handlePushToSheet = async (area: SJAArea) => {
     const cfg = areaConfigs[area];
@@ -1357,7 +1715,10 @@ export default function App() {
         {/* Modals & Drawers */}
         <SPPFormModal
           isOpen={isFormOpen}
-          onClose={() => setIsFormOpen(false)}
+          onClose={() => {
+            setIsFormOpen(false);
+            setEditItem(null);
+          }}
           onSave={handleSaveSPP}
           editItem={editItem}
           holidays={holidays}
@@ -1415,6 +1776,8 @@ export default function App() {
               className={`p-4 rounded-xl shadow-2xl border flex items-start gap-3 backdrop-blur-md ${
                 syncToast.type === 'success'
                   ? 'bg-slate-900/95 border-emerald-500/80 text-white'
+                  : syncToast.type === 'info'
+                  ? 'bg-slate-900/95 border-blue-500/80 text-white'
                   : syncToast.type === 'warning'
                   ? 'bg-slate-900/95 border-amber-500/80 text-white'
                   : 'bg-slate-900/95 border-rose-500/80 text-white'
@@ -1423,6 +1786,10 @@ export default function App() {
               <div className="shrink-0 mt-0.5">
                 {syncToast.type === 'success' ? (
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                ) : syncToast.type === 'info' ? (
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
                 ) : syncToast.type === 'warning' ? (

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAllSPPItems, saveSPPItemsBatch, deleteSPPItem } from '../controllers/sppController.js';
+import { getAllSPPItems, saveSPPItemsBatch, upsertSPPItems, deleteSPPItem } from '../controllers/sppController.js';
 import { getAreaConfigs, saveAreaConfig } from '../controllers/configController.js';
 import {
   proxyGoogleSheetPush,
@@ -34,6 +34,7 @@ apiRouter.post('/area-configs', saveAreaConfig);
 // 3. SPP & PO Items CRUD
 apiRouter.get('/spp-items', getAllSPPItems);
 apiRouter.post('/spp-items', saveSPPItemsBatch);
+apiRouter.post('/spp-items/upsert', upsertSPPItems);
 apiRouter.delete('/spp-items/:id', deleteSPPItem);
 
 // 4. Google Sheets Proxy Endpoints

@@ -86,82 +86,183 @@ export async function getAllSPPItems(_req: any, res: any) {
   }
 }
 
+function getCanonicalItemKey(item: any): string {
+  const spp = String(item?.sppNumber || '').trim().toLowerCase();
+  const area = String(item?.area || '').trim().toUpperCase();
+  if (spp && area) return `${area}::${spp}`;
+  return String(item?.id || spp);
+}
+
+function hasFilledPO(item: any): boolean {
+  return !!(item && item.poNumber && String(item.poNumber).trim() !== '');
+}
+
+function toTimestampMs(val: any): number {
+  if (!val) return 0;
+  const ms = Date.parse(String(val));
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+async function persistItemsToMySQL(items: any[]) {
+  const pool = getDbPool();
+  if (!isUsingMySQL() || !pool || items.length === 0) return;
+  try {
+    const sql = `
+      INSERT INTO spp_items (
+        id, budget_received_date, spp_number, pic, area,
+        po_date, po_number, process_days, status_po, status_ontime,
+        sla_limit, is_urgent_advance, urgent_reason, urgent_approved_by,
+        budget_status, special_condition, special_condition_reason, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        budget_received_date = VALUES(budget_received_date),
+        spp_number = VALUES(spp_number),
+        pic = VALUES(pic),
+        area = VALUES(area),
+        po_date = VALUES(po_date),
+        po_number = VALUES(po_number),
+        process_days = VALUES(process_days),
+        status_po = VALUES(status_po),
+        status_ontime = VALUES(status_ontime),
+        sla_limit = VALUES(sla_limit),
+        is_urgent_advance = VALUES(is_urgent_advance),
+        urgent_reason = VALUES(urgent_reason),
+        urgent_approved_by = VALUES(urgent_approved_by),
+        budget_status = VALUES(budget_status),
+        special_condition = VALUES(special_condition),
+        special_condition_reason = VALUES(special_condition_reason),
+        notes = VALUES(notes),
+        updated_at = NOW()
+    `;
+
+    for (const item of items) {
+      await pool.execute(sql, [
+        item.id || item.sppNumber,
+        item.budgetReceivedDate || new Date().toISOString().slice(0, 10),
+        item.sppNumber,
+        item.pic || '-',
+        item.area || 'SEPANJANG',
+        item.poDate || null,
+        item.poNumber || null,
+        item.processDays || 0,
+        hasFilledPO(item) ? 'CLOSE' : (item.statusPO || 'OPEN'),
+        item.statusOntime || 'ONTIME',
+        item.slaLimit || 10,
+        item.isUrgentAdvance ? 1 : 0,
+        item.urgentReason || null,
+        item.urgentApprovedBy || null,
+        item.budgetStatus || 'APPROVED',
+        item.specialCondition || null,
+        item.specialConditionReason || null,
+        item.notes || null,
+      ]);
+    }
+  } catch (dbErr) {
+    console.warn('[SPPController] Gagal upsert batch ke MySQL:', dbErr);
+  }
+}
+
 /**
  * Controller: Menyimpan daftar SPP secara batch
  */
 export async function saveSPPItemsBatch(req: any, res: any) {
   try {
-    const { items } = req.body;
+    const { items, source } = req.body;
     if (!Array.isArray(items)) {
       return res.status(400).json({ error: 'Data items harus berupa Array' });
     }
 
+    let itemsToPersist = items;
+    if (source === 'AUTO_PULL') {
+      const existingDisk = readSPPItemsFromDisk();
+      const existingByKey = new Map<string, any>();
+      existingDisk.forEach((cur) => {
+        existingByKey.set(getCanonicalItemKey(cur), cur);
+        if (cur?.id) existingByKey.set(String(cur.id), cur);
+      });
+
+      itemsToPersist = items.map((incoming: any) => {
+        const cur = existingByKey.get(getCanonicalItemKey(incoming)) || (incoming?.id ? existingByKey.get(String(incoming.id)) : undefined);
+        if (!cur) return incoming;
+
+        // Lindungi perubahan yang belum tersinkron ke Google Sheet atau item CLOSE yg lebih baru dari timpaan AUTO_PULL
+        if (cur.pendingSheetSync === true) {
+          return cur;
+        }
+        const curClosed = hasFilledPO(cur) || cur.statusPO === 'CLOSE';
+        const incClosed = hasFilledPO(incoming) || incoming.statusPO === 'CLOSE';
+        if (curClosed && !incClosed) {
+          const curMs = toTimestampMs(cur.updatedAt);
+          const incMs = toTimestampMs(incoming.updatedAt);
+          if (curMs >= incMs || incMs === 0) {
+            return cur;
+          }
+        }
+        return incoming;
+      });
+    }
+
     // Simpan ke disk selalu untuk jaminan backup
-    saveSPPItemsToDisk(items);
+    saveSPPItemsToDisk(itemsToPersist);
 
     // Simpan ke MySQL jika aktif
-    const pool = getDbPool();
-    if (isUsingMySQL() && pool && items.length > 0) {
-      try {
-        const sql = `
-          INSERT INTO spp_items (
-            id, budget_received_date, spp_number, pic, area,
-            po_date, po_number, process_days, status_po, status_ontime,
-            sla_limit, is_urgent_advance, urgent_reason, urgent_approved_by,
-            budget_status, special_condition, special_condition_reason, notes
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-            budget_received_date = VALUES(budget_received_date),
-            spp_number = VALUES(spp_number),
-            pic = VALUES(pic),
-            area = VALUES(area),
-            po_date = VALUES(po_date),
-            po_number = VALUES(po_number),
-            process_days = VALUES(process_days),
-            status_po = VALUES(status_po),
-            status_ontime = VALUES(status_ontime),
-            sla_limit = VALUES(sla_limit),
-            is_urgent_advance = VALUES(is_urgent_advance),
-            urgent_reason = VALUES(urgent_reason),
-            urgent_approved_by = VALUES(urgent_approved_by),
-            budget_status = VALUES(budget_status),
-            special_condition = VALUES(special_condition),
-            special_condition_reason = VALUES(special_condition_reason),
-            notes = VALUES(notes),
-            updated_at = NOW()
-        `;
-
-        for (const item of items) {
-          await pool.execute(sql, [
-            item.id || item.sppNumber,
-            item.budgetReceivedDate || new Date().toISOString().slice(0, 10),
-            item.sppNumber,
-            item.pic || '-',
-            item.area || 'SEPANJANG',
-            item.poDate || null,
-            item.poNumber || null,
-            item.processDays || 0,
-            item.statusPO || 'OPEN',
-            item.statusOntime || 'ONTIME',
-            item.slaLimit || 10,
-            item.isUrgentAdvance ? 1 : 0,
-            item.urgentReason || null,
-            item.urgentApprovedBy || null,
-            item.budgetStatus || 'APPROVED',
-            item.specialCondition || null,
-            item.specialConditionReason || null,
-            item.notes || null,
-          ]);
-        }
-      } catch (dbErr) {
-        console.warn('[SPPController] Gagal upsert batch ke MySQL:', dbErr);
-      }
-    }
+    await persistItemsToMySQL(itemsToPersist);
 
     return res.json({
       success: true,
-      count: items.length,
-      message: `${items.length} item SPP berhasil disinkronkan ke server`,
+      count: itemsToPersist.length,
+      items: itemsToPersist,
+      message: `${itemsToPersist.length} item SPP berhasil disinkronkan ke server`,
+      engine: isUsingMySQL() ? 'mysql + disk' : 'disk',
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+/**
+ * Controller: Upsert atomik 1 atau beberapa item SPP tanpa menimpa perubahan paralel tab lain
+ */
+export async function upsertSPPItems(req: any, res: any) {
+  try {
+    const rawItems = Array.isArray(req.body?.items)
+      ? req.body.items
+      : req.body?.item
+      ? [req.body.item]
+      : [];
+
+    if (rawItems.length === 0) {
+      return res.status(400).json({ success: false, error: 'Data items/item untuk upsert kosong' });
+    }
+
+    const current = readSPPItemsFromDisk();
+    const merged = [...current];
+
+    rawItems.forEach((incoming: any) => {
+      const incomingCanon = getCanonicalItemKey(incoming);
+      const idx = merged.findIndex(
+        (cur: any) =>
+          (incoming.id && cur.id === incoming.id) ||
+          getCanonicalItemKey(cur) === incomingCanon
+      );
+      if (idx !== -1) {
+        merged[idx] = {
+          ...merged[idx],
+          ...incoming,
+        };
+      } else {
+        merged.unshift(incoming);
+      }
+    });
+
+    saveSPPItemsToDisk(merged);
+    await persistItemsToMySQL(rawItems);
+
+    return res.json({
+      success: true,
+      count: rawItems.length,
+      total: merged.length,
+      message: `${rawItems.length} item SPP berhasil diperbarui secara atomik`,
       engine: isUsingMySQL() ? 'mysql + disk' : 'disk',
     });
   } catch (err: any) {

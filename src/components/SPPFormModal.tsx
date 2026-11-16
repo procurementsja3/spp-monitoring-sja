@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { SPPItem, IndonesianHoliday, SJAArea, UserProfile, AreaSheetConfigMap } from '../types';
 import { calculateWorkingDays } from '../utils/holidayCalendar';
 import { AREA_METADATA, AREA_PIC_LIST } from '../utils/initialData';
@@ -579,7 +579,106 @@ const SAMPLE_EXCEL_DATA = `08 October 2026\tSPP/014/PROD-III/IX/2026\tSukodono\t
 
 const EXCEL_HEADER_SAMPLE = `Tanggal Terima Budget\tNomor SPP\tCabang / Area\tPIC\tTanggal PO\tNo. PO\tKondisi Khusus\tSLA`;
 
-export const SPPFormModal: React.FC<SPPFormModalProps> = ({
+const createDefaultDraftRow = (index = 0, rowArea: SJAArea): DraftRow => {
+  const todayISO = new Date().toISOString().split('T')[0];
+  const defaultPic = AREA_PIC_LIST[rowArea]?.[0] || 'Felita';
+
+  return {
+    tempId: `draft-${Date.now()}-${index}-${Math.random()}`,
+    budgetReceivedDate: todayISO,
+    sppNumber: '',
+    pic: defaultPic,
+    area: rowArea,
+    poDate: '',
+    poNumber: '',
+    slaLimit: 10,
+    isUrgentAdvance: false,
+    urgentReason: 'Breakdown Mesin Pabrik / Line Stop (Kritis)',
+    urgentApprovedBy: 'Kepala Cabang / Plant Manager',
+    budgetStatus: 'APPROVED',
+    specialCondition: '',
+    specialConditionReason: '',
+    notes: '',
+  };
+};
+
+const normalizePicForArea = (rawPic: string | undefined, area: SJAArea): string => {
+  const trimmed = (rawPic || '').trim();
+  if (!trimmed || trimmed === '-') return '-';
+  const branchPics = AREA_PIC_LIST[area] || [];
+  const matched = branchPics.find((p) => p.toLowerCase() === trimmed.toLowerCase());
+  return matched || trimmed;
+};
+
+const buildInitialDraftRows = (editItem: SPPItem | null | undefined, initialArea: SJAArea): DraftRow[] => {
+  if (!editItem) {
+    return [createDefaultDraftRow(0, initialArea)];
+  }
+  const rowArea = editItem.area || initialArea;
+  return [
+    {
+      tempId: editItem.id,
+      budgetReceivedDate: editItem.budgetReceivedDate,
+      sppNumber: editItem.sppNumber,
+      pic: normalizePicForArea(editItem.pic, rowArea),
+      area: rowArea,
+      poDate: editItem.poDate || '',
+      poNumber: editItem.poNumber || '',
+      slaLimit: editItem.slaLimit || 10,
+      isUrgentAdvance: editItem.isUrgentAdvance || false,
+      urgentReason: editItem.urgentReason || 'Breakdown Mesin Pabrik / Line Stop (Kritis)',
+      urgentApprovedBy: editItem.urgentApprovedBy || 'Kepala Cabang / Plant Manager',
+      budgetStatus: editItem.budgetStatus || (editItem.isUrgentAdvance ? 'PENDING_ACC' : 'APPROVED'),
+      specialCondition: (() => {
+        if (editItem.sppNumber?.trim() === 'SPP/173/MTC-III/IX/2026') {
+          return editItem.specialCondition || 'Kendala Khusus Lainnya';
+        }
+        if (editItem.specialCondition) return editItem.specialCondition;
+        if (editItem.notes?.startsWith('Kondisi Khusus:')) {
+          const content = editItem.notes.replace('Kondisi Khusus:', '').trim();
+          const splitIdx = content.indexOf(' - ');
+          return splitIdx !== -1 ? content.substring(0, splitIdx).trim() : content;
+        }
+        return '';
+      })(),
+      specialConditionReason: (() => {
+        if (editItem.sppNumber?.trim() === 'SPP/173/MTC-III/IX/2026') {
+          return editItem.specialConditionReason || 'Menunggu kelengkapan spp';
+        }
+        if (editItem.specialConditionReason) return editItem.specialConditionReason;
+        if (editItem.notes?.startsWith('Kondisi Khusus:')) {
+          const content = editItem.notes.replace('Kondisi Khusus:', '').trim();
+          const splitIdx = content.indexOf(' - ');
+          return splitIdx !== -1 ? content.substring(splitIdx + 3).trim() : '';
+        }
+        return '';
+      })(),
+      notes: (() => {
+        return editItem.sppNumber?.trim() === 'SPP/173/MTC-III/IX/2026'
+          ? (editItem.notes || 'Kondisi Khusus: Kendala Khusus Lainnya - Menunggu kelengkapan spp')
+          : (editItem.notes || '');
+      })(),
+    },
+  ];
+};
+
+export const SPPFormModal: React.FC<SPPFormModalProps> = (props) => {
+  if (!props.isOpen) return null;
+
+  const isSuperadmin = props.currentUser.role === 'SUPERADMIN';
+  const initialArea: SJAArea = !isSuperadmin
+    ? (props.currentUser.area as SJAArea)
+    : props.currentAreaFilter !== 'ALL'
+    ? props.currentAreaFilter
+    : 'SEPANJANG';
+  const modalKey = props.editItem
+    ? `EDIT::${props.editItem.id}`
+    : `NEW::${initialArea}`;
+
+  return <SPPFormModalInner key={modalKey} {...props} />;
+};
+
+const SPPFormModalInner: React.FC<SPPFormModalProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -598,36 +697,17 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
   // State Pilihan Metode Input: 'MANUAL' (Metode 1) atau 'PASTE_EXCEL' (Metode 2)
   const [activeInputMethod, setActiveInputMethod] = useState<'MANUAL' | 'PASTE_EXCEL'>('MANUAL');
 
-  // State untuk Metode 1 (Manual Form)
-  const createDefaultRow = (index = 0, rowArea: SJAArea = initialArea): DraftRow => {
-    const todayISO = new Date().toISOString().split('T')[0];
-    const defaultPic = AREA_PIC_LIST[rowArea]?.[0] || 'Felita';
+  // State untuk Metode 1 (Manual Form) - langsung terisi sinkron saat modal mount
+  const createDefaultRow = (index = 0, rowArea: SJAArea = initialArea): DraftRow =>
+    createDefaultDraftRow(index, rowArea);
 
-    return {
-      tempId: `draft-${Date.now()}-${index}-${Math.random()}`,
-      budgetReceivedDate: todayISO,
-      sppNumber: '',
-      pic: defaultPic,
-      area: rowArea,
-      poDate: '',
-      poNumber: '',
-      slaLimit: 10,
-      isUrgentAdvance: false,
-      urgentReason: 'Breakdown Mesin Pabrik / Line Stop (Kritis)',
-      urgentApprovedBy: 'Kepala Cabang / Plant Manager',
-      budgetStatus: 'APPROVED',
-      specialCondition: '',
-      specialConditionReason: '',
-      notes: '',
-    };
-  };
-
-  const [rows, setRows] = useState<DraftRow[]>([createDefaultRow(0, initialArea)]);
+  const [rows, setRows] = useState<DraftRow[]>(() => buildInitialDraftRows(editItem, initialArea));
   const [commonDate, setCommonDate] = useState(new Date().toISOString().split('T')[0]);
   const [commonArea, setCommonArea] = useState<SJAArea>(initialArea);
   const [commonPic, setCommonPic] = useState(AREA_PIC_LIST[initialArea]?.[0] || 'Felita');
   const [customRowCount, setCustomRowCount] = useState<number>(20);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // State untuk Metode 2 (Copy-Paste Excel)
   const [pastedText, setPastedText] = useState<string>('');
@@ -644,60 +724,6 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
     const autoNum = `SPP/${areaCode}/${yyyy}/${mm}/${String(Date.now() + idx).slice(-4)}`;
     handleUpdateRow(tempId, 'sppNumber', autoNum);
   };
-
-  useEffect(() => {
-    if (editItem) {
-      setActiveInputMethod('MANUAL');
-      setRows([
-        {
-          tempId: editItem.id,
-          budgetReceivedDate: editItem.budgetReceivedDate,
-          sppNumber: editItem.sppNumber,
-          pic: editItem.pic,
-          area: editItem.area || initialArea,
-          poDate: editItem.poDate || '',
-          poNumber: editItem.poNumber || '',
-          slaLimit: editItem.slaLimit || 10,
-          isUrgentAdvance: editItem.isUrgentAdvance || false,
-          urgentReason: editItem.urgentReason || 'Breakdown Mesin Pabrik / Line Stop (Kritis)',
-          urgentApprovedBy: editItem.urgentApprovedBy || 'Kepala Cabang / Plant Manager',
-          budgetStatus: editItem.budgetStatus || (editItem.isUrgentAdvance ? 'PENDING_ACC' : 'APPROVED'),
-          specialCondition: (() => {
-            if (editItem.sppNumber?.trim() === 'SPP/173/MTC-III/IX/2026') {
-              return editItem.specialCondition || 'Kendala Khusus Lainnya';
-            }
-            if (editItem.specialCondition) return editItem.specialCondition;
-            if (editItem.notes?.startsWith('Kondisi Khusus:')) {
-              const content = editItem.notes.replace('Kondisi Khusus:', '').trim();
-              const splitIdx = content.indexOf(' - ');
-              return splitIdx !== -1 ? content.substring(0, splitIdx).trim() : content;
-            }
-            return '';
-          })(),
-          specialConditionReason: (() => {
-            if (editItem.sppNumber?.trim() === 'SPP/173/MTC-III/IX/2026') {
-              return editItem.specialConditionReason || 'Menunggu kelengkapan spp';
-            }
-            if (editItem.specialConditionReason) return editItem.specialConditionReason;
-            if (editItem.notes?.startsWith('Kondisi Khusus:')) {
-              const content = editItem.notes.replace('Kondisi Khusus:', '').trim();
-              const splitIdx = content.indexOf(' - ');
-              return splitIdx !== -1 ? content.substring(splitIdx + 3).trim() : '';
-            }
-            return '';
-          })(),
-          notes: (() => {
-            return editItem.sppNumber?.trim() === 'SPP/173/MTC-III/IX/2026'
-              ? (editItem.notes || 'Kondisi Khusus: Kendala Khusus Lainnya - Menunggu kelengkapan spp')
-              : (editItem.notes || '');
-          })(),
-        },
-      ]);
-    } else {
-      setRows([createDefaultRow(0, initialArea)]);
-      setPastedText('');
-    }
-  }, [editItem, isOpen, initialArea]);
 
   // Parsing Real-time Data Copy-Paste Excel ke Item Terstruktur
   const parsedExcelData = useMemo(() => {
@@ -1516,8 +1542,9 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
 
       await onSave(payload);
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saat menyimpan SPP:', err);
+      setSubmitError(err?.message || 'Gagal menyimpan data SPP. Silakan coba lagi.');
     } finally {
       setIsSubmitting(false);
     }
@@ -2559,7 +2586,20 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                 <p className="text-[10px] text-slate-400 pt-1 font-mono">
                   *Sabtu, Minggu dan Hari Libur Nasional SKB 3 Menteri otomatis tidak dihitung dalam proses.
                 </p>
+                {openCount > 0 && (
+                  <p className="text-[10px] text-amber-300/90 pt-0.5 leading-snug">
+                    ℹ️ Catatan Status PO: Dokumen tetap berstatus <strong>OPEN (Menunggu PO)</strong> selama kolom <strong>Nomor PO</strong> masih kosong. Isi Nomor PO apabila PO telah terbit agar status berubah menjadi <strong>CLOSE</strong>.
+                  </p>
+                )}
               </div>
+
+              {/* Error banner jika gagal simpan */}
+              {submitError && (
+                <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{submitError}</span>
+                </div>
+              )}
 
               {/* Footer Action Buttons Metode 1 */}
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200/90 dark:border-slate-800 shrink-0">
@@ -2579,7 +2619,7 @@ export const SPPFormModal: React.FC<SPPFormModalProps> = ({
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Menyimpan ke Google Sheet...</span>
+                      <span>Menyimpan Data SPP...</span>
                     </>
                   ) : (
                     <>

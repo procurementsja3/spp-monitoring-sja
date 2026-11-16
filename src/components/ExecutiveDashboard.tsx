@@ -245,8 +245,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const [pipelineModalTab, setPipelineModalTab] = useState<'ALL' | 'SPECIAL' | 'ONTIME' | 'LATE'>('ALL');
 
   // Total dan rasio umum
+  const isItemClosed = (i: SPPItem) => i.statusPO === 'CLOSE' || !!(i.poNumber && i.poNumber.trim() !== '');
   const totalSPP = items.length;
-  const closedPOs = items.filter((i) => i.statusPO === 'CLOSE').length;
+  const closedPOs = items.filter(isItemClosed).length;
   const openPOs = totalSPP - closedPOs;
   const completionRate = totalSPP > 0 ? ((closedPOs / totalSPP) * 100).toFixed(1) : '0';
 
@@ -326,7 +327,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const areaBreakdown = relevantAreas.map((areaKey) => {
     const areaItems = items.filter((i) => i.area === areaKey);
     const count = areaItems.length;
-    const closed = areaItems.filter((i) => i.statusPO === 'CLOSE').length;
+    const closed = areaItems.filter(isItemClosed).length;
     const open = count - closed;
     const ontime = areaItems.filter((i) => i.statusOntime === 'ONTIME').length;
     const rate = count > 0 ? Math.round((ontime / count) * 100) : 100;
@@ -2630,7 +2631,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
       {/* MODAL POPUP: DAFTAR DOKUMEN MENUNGGU PO (STATUS OPEN) */}
       {showOpenPoModal && (() => {
-        const openItems = items.filter((i) => i.statusPO === 'OPEN');
+        const openItems = items.filter((i) => !isItemClosed(i));
         const openWithCondition = openItems.filter((i) => i.specialCondition && i.specialCondition.trim() !== '');
         const openNormal = openItems.filter((i) => !i.specialCondition || i.specialCondition.trim() === '');
         const openH3 = openItems.filter((i) => i.isHPlus3Overdue);
@@ -2979,8 +2980,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         const basePipelineItems = isBudget
           ? items
           : isWaiting
-          ? items.filter((i) => i.statusPO === 'OPEN')
-          : items.filter((i) => i.statusPO === 'CLOSE');
+          ? items.filter((i) => !isItemClosed(i))
+          : items.filter((i) => isItemClosed(i));
 
         const titleLabel = isBudget
           ? '1. Masuk dari Tim Budget (Seluruh Dokumen Terdaftar)'
