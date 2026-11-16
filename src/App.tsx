@@ -355,6 +355,35 @@ export default function App() {
     };
   }, []);
 
+  // Sinkronisasi awal OTOMATIS & INSTAN dengan Google Sheet saat link web dibuka / user login
+  // (Agar angka KPI langsung menampilkan update terbaru tanpa perlu klik manual atau menunggu timer 30 detik)
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+
+    const runInitialSheetSync = async () => {
+      try {
+        const latestConfigs = await fetchCloudAreaConfigs();
+        if (cancelled) return;
+        if (latestConfigs) {
+          areaConfigsRef.current = latestConfigs;
+          setAreaConfigs(latestConfigs);
+        }
+      } catch {}
+
+      if (cancelled) return;
+      if (!isSyncingSheetRef.current && !isSavingRef.current) {
+        await handleSyncGoogleSheetRef.current(true);
+      }
+    };
+
+    void runInitialSheetSync();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id]);
+
   useEffect(() => {
     try {
       localStorage.setItem('sja_area_sheet_configs', JSON.stringify(areaConfigs));
@@ -503,20 +532,7 @@ export default function App() {
       localStorage.setItem('sja_active_user', JSON.stringify(user));
     } catch {}
     if (user.role !== 'SUPERADMIN' && user.area !== 'ALL') {
-      const userArea = user.area as SJAArea;
-      setActiveAreaFilter(userArea);
-
-      // Terhubung otomatis ke Google Sheet cabang sesuai username saat login
-      const targetConfig = areaConfigs[userArea];
-      if (
-        targetConfig?.webAppUrl &&
-        targetConfig.webAppUrl.trim().startsWith('http') &&
-        targetConfig.autoSync !== false
-      ) {
-        handlePullFromSheet(userArea).catch((err) => {
-          console.warn(`Gagal sinkronisasi otomatis Google Sheet ${userArea} saat login:`, err);
-        });
-      }
+      setActiveAreaFilter(user.area as SJAArea);
     } else {
       setActiveAreaFilter('ALL');
     }
