@@ -549,13 +549,26 @@ export async function pushToGoogleSheet(
       throw new Error(data?.error || 'Gagal mengirim data via backend proxy');
     }
 
-    // Jika server proxy Express aktif namun mengembalikan error (4xx/5xx dari Apps Script),
+    // Jika server proxy Express aktif dan mengembalikan error JSON terstruktur (mis. 502 dari Apps Script),
     // JANGAN fallback ke no-cors agar pendingSheetSync tidak dianggap sukses palsu.
+    // Sebaliknya, jika HTTP 404/405/501 atau respons bukan JSON (mis. GitHub Pages / static hosting tanpa Express),
+    // lanjutkan ke fallback direct fetch ke Google Apps Script Web App URL.
     const errBody = await proxyRes.json().catch(() => null);
-    throw Object.assign(
-      new Error(errBody?.error || `Proxy Google Sheet HTTP ${proxyRes.status}`),
-      { isProxyUpstreamError: true }
-    );
+    const isExpressJsonError =
+      proxyRes.status !== 404 &&
+      proxyRes.status !== 405 &&
+      proxyRes.status !== 501 &&
+      !!errBody &&
+      typeof errBody === 'object' &&
+      typeof errBody.error === 'string';
+
+    if (isExpressJsonError) {
+      throw Object.assign(
+        new Error(errBody.error || `Proxy Google Sheet HTTP ${proxyRes.status}`),
+        { isProxyUpstreamError: true }
+      );
+    }
+    console.warn(`[GoogleSheetPush] Proxy tidak tersedia (HTTP ${proxyRes.status}), beralih ke direct push Apps Script...`);
   } catch (proxyErr: any) {
     if (proxyErr?.isProxyUpstreamError) {
       throw proxyErr;

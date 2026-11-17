@@ -758,6 +758,11 @@ export default function App() {
           updatedList = [fallbackUpdated, ...currentItemsSnapshot];
         }
       } else {
+        const existingByCanonKey = new Map<string, SPPItem>();
+        currentItemsSnapshot.forEach((cur) => {
+          existingByCanonKey.set(getItemSyncKey(cur), cur);
+        });
+
         newCreatedItems = itemsData.map((formData, index) => {
           const isUrgent = !!formData.isUrgentAdvance;
           const calc = calculateWorkingDays(formData.budgetReceivedDate!, formData.poDate, holidaysRef.current);
@@ -774,12 +779,13 @@ export default function App() {
 
           const areaCode = assignedArea === 'SEPANJANG' ? 'SPJ' : assignedArea === 'KARAWANG' ? 'KRW' : assignedArea === 'SUKODONO' ? 'SKD' : 'SMG';
           const finalSppNumber = formData.sppNumber?.trim() || `SPP/${areaCode}/${new Date().getFullYear()}/${String(Date.now() + index).slice(-4)}`;
+          const matchedExisting = existingByCanonKey.get(`${assignedArea}::${finalSppNumber.toLowerCase()}`);
 
           return {
-            id: `SPP-${Date.now()}-${index}`,
-            budgetReceivedDate: formData.budgetReceivedDate || new Date().toISOString().split('T')[0],
+            id: matchedExisting?.id || `SPP-${Date.now()}-${index}`,
+            budgetReceivedDate: formData.budgetReceivedDate || matchedExisting?.budgetReceivedDate || new Date().toISOString().split('T')[0],
             sppNumber: finalSppNumber,
-            pic: (formData.pic && formData.pic.trim() !== '' && formData.pic.trim() !== '-') ? formData.pic.trim() : '-',
+            pic: (formData.pic && formData.pic.trim() !== '' && formData.pic.trim() !== '-') ? formData.pic.trim() : (matchedExisting?.pic || '-'),
             area: assignedArea,
             poDate: formData.poDate || undefined,
             poNumber: formData.poNumber?.trim() || undefined,
@@ -789,21 +795,26 @@ export default function App() {
             slaLimit,
             isHPlus3Overdue,
             isSignificantDelay,
-            notes: formData.notes,
-            specialCondition: formData.specialCondition,
-            specialConditionReason: formData.specialConditionReason,
+            notes: formData.notes ?? matchedExisting?.notes,
+            specialCondition: formData.specialCondition ?? matchedExisting?.specialCondition,
+            specialConditionReason: formData.specialConditionReason ?? matchedExisting?.specialConditionReason,
             isUrgentAdvance: isUrgent,
             urgentReason: formData.urgentReason,
             urgentApprovedBy: formData.urgentApprovedBy,
             budgetStatus: formData.budgetStatus || (isUrgent ? 'PENDING_ACC' : 'APPROVED'),
             pendingSheetSync: true,
-            createdAt: nowIso,
+            createdAt: matchedExisting?.createdAt || nowIso,
             updatedAt: nowIso,
           };
         });
 
         changedItemsToPersist = [...newCreatedItems];
-        updatedList = [...newCreatedItems, ...currentItemsSnapshot];
+        const upsertedMap = new Map<string, SPPItem>();
+        newCreatedItems.forEach((item) => upsertedMap.set(getItemSyncKey(item), item));
+        const remainingExisting = currentItemsSnapshot.filter(
+          (cur) => !upsertedMap.has(getItemSyncKey(cur))
+        );
+        updatedList = [...newCreatedItems, ...remainingExisting];
       }
 
       // Tandai pendingSheetSyncKeys SEBELUM async call agar refresh/auto-pull tidak menimpa data baru

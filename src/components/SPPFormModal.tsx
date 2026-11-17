@@ -1360,10 +1360,12 @@ const SPPFormModalInner: React.FC<SPPFormModalProps> = ({
         };
       });
 
+      setSubmitError(null);
       await onSave(payload);
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saat menyimpan hasil paste Excel:', err);
+      setSubmitError(err?.message || 'Gagal menyimpan data hasil Copy-Paste Excel. Silakan coba lagi.');
     } finally {
       setIsSubmitting(false);
     }
