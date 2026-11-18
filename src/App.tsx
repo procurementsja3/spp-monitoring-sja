@@ -80,16 +80,20 @@ export function recalculateSPPFields(item: any, holidaysList: IndonesianHoliday[
     specialCondition = item.specialCondition || 'Kendala Khusus Lainnya';
     specialConditionReason = item.specialConditionReason || 'Menunggu kelengkapan spp';
     notes = item.notes || 'Kondisi Khusus: Kendala Khusus Lainnya - Menunggu kelengkapan spp';
-  } else if (!specialConditionReason && notes && typeof notes === 'string' && notes.startsWith('Kondisi Khusus:')) {
-    const content = notes.replace('Kondisi Khusus:', '').trim();
-    const splitIdx = content.indexOf(' - ');
-    if (splitIdx !== -1) {
-      if (!specialCondition) {
-        specialCondition = content.substring(0, splitIdx).trim();
+  } else if (!specialConditionReason && notes && typeof notes === 'string') {
+    if (notes.startsWith('Kondisi Khusus:')) {
+      const content = notes.replace('Kondisi Khusus:', '').trim();
+      const splitIdx = content.indexOf(' - ');
+      if (splitIdx !== -1) {
+        if (!specialCondition) {
+          specialCondition = content.substring(0, splitIdx).trim();
+        }
+        specialConditionReason = content.substring(splitIdx + 3).trim();
+      } else {
+        if (!specialCondition) specialCondition = content;
       }
-      specialConditionReason = content.substring(splitIdx + 3).trim();
-    } else {
-      if (!specialCondition) specialCondition = content;
+    } else if (specialCondition && notes.trim() !== '' && notes.trim() !== '-' && notes.trim().toLowerCase() !== 'normal') {
+      specialConditionReason = notes.trim();
     }
   }
 
@@ -1159,7 +1163,13 @@ export default function App() {
         isHPlus3Overdue,
         isSignificantDelay,
         specialCondition: i.specialCondition || existing?.specialCondition || undefined,
-        specialConditionReason: i.specialConditionReason || existing?.specialConditionReason || undefined,
+        specialConditionReason:
+          i.specialConditionReason ||
+          (i.specialCondition && i.notes && i.notes.trim() !== '-' && i.notes.trim().toLowerCase() !== 'normal'
+            ? i.notes.trim()
+            : undefined) ||
+          existing?.specialConditionReason ||
+          undefined,
         notes: i.notes || existing?.notes || undefined,
         isUrgentAdvance: i.isUrgentAdvance ?? existing?.isUrgentAdvance ?? false,
         urgentReason: i.urgentReason || existing?.urgentReason,

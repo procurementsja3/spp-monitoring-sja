@@ -2903,6 +2903,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                       const parts = item.notes.replace('Kondisi Khusus:', '').split(' - ');
                                       if (parts.length > 1) return parts.slice(1).join(' - ').trim();
                                     }
+                                    if (item.notes && item.notes.trim() !== '' && item.notes.trim() !== '-' && item.notes.trim().toLowerCase() !== 'normal') {
+                                      return item.notes.trim();
+                                    }
                                     return item.specialCondition || '';
                                   })();
 

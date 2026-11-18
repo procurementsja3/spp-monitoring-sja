@@ -365,7 +365,7 @@ export const detectSpecialConditionFromText = (raw: string): {
   if (
     isLikelyPic(text) ||
     ALL_KNOWN_PICS.some((p) => p.toLowerCase() === text.toLowerCase()) ||
-    text.toUpperCase().startsWith('SPP') ||
+    /^SPP(?:[\/\-]|\s+\d)/i.test(text) ||
     text.includes('/PROD') ||
     text.includes('/MTC') ||
     text.includes('/ENG') ||
@@ -754,7 +754,7 @@ const SPPFormModalInner: React.FC<SPPFormModalProps> = ({
         return false;
       }
 
-      // Cek apakah murni baris judul kolom header Excel
+      // Cek apakah murni baris judul kolom header Excel (minimal cocok 2 kolom header atau 1 sel header tanpa angka)
       const headerColumnTitles = [
         'tanggal terima budget', 'tgl terima budget', 'tanggal terima', 'tgl terima', 'tgl budget', 'tanggal budget',
         'nomor spp', 'no. spp', 'no spp', 'no dokumen', 'no. dokumen',
@@ -762,13 +762,21 @@ const SPPFormModalInner: React.FC<SPPFormModalProps> = ({
         'no. po', 'no po', 'nomor po', 'kondisi khusus', 'sla', 'durasi', 'keterangan', 'catatan'
       ];
       const lower = firstLine.toLowerCase();
-      const matchesHeaderTitle = headerColumnTitles.some((title) => lower.includes(title));
+      const matchedTitlesCount = headerColumnTitles.filter((title) => lower.includes(title)).length;
 
       if (totalCount === 1) {
-        return matchesHeaderTitle && !/\d/.test(firstLine);
+        return matchedTitlesCount >= 1 && !/\d/.test(firstLine);
       }
 
-      return matchesHeaderTitle;
+      if (firstLine.includes('\t')) {
+        const cells = firstLine.split('\t').map((c) => c.trim().toLowerCase()).filter(Boolean);
+        const headerCellHits = cells.filter((cell) =>
+          headerColumnTitles.some((title) => cell === title || (cell.length <= 30 && cell.includes(title)))
+        ).length;
+        return headerCellHits >= 2;
+      }
+
+      return matchedTitlesCount >= 2;
     };
 
     const hasHeader = isFirstLineAHeader(lines[0], lines.length);
@@ -1049,8 +1057,9 @@ const SPPFormModalInner: React.FC<SPPFormModalProps> = ({
         }
       }
 
-      // Jika rawNotes memiliki angka SLA di bagian akhir (misal: "Waiting pembanding 10")
-      if (rawNotes) {
+      // Jika rawNotes memiliki angka SLA di bagian akhir (misal paste teks mentah 1 baris: "Waiting pembanding 10")
+      // Jangan potong angka pada catatan saat data berasal dari kolom tabel terpisah (parts.length >= 6)
+      if (rawNotes && parts.length <= 2) {
         const slaSuffix = rawNotes.match(/^(.*?)(?:\s+(\d{1,3}))$/);
         if (slaSuffix && !/^\d+$/.test(rawNotes) && !rawSla) {
           rawNotes = slaSuffix[1].trim();
@@ -1080,12 +1089,9 @@ const SPPFormModalInner: React.FC<SPPFormModalProps> = ({
         rawNotes.trim().toLowerCase() === 'tanpa kendala' ||
         isLikelyPic(rawNotes) ||
         ALL_KNOWN_PICS.some((p) => p.toLowerCase() === rawNotes.trim().toLowerCase()) ||
-        (rawPic && rawPic !== '-' && (
-          rawNotes.trim().toLowerCase() === rawPic.trim().toLowerCase() ||
-          rawPic.toLowerCase().includes(rawNotes.trim().toLowerCase())
-        )) ||
+        (rawPic && rawPic !== '-' && rawNotes.trim().toLowerCase() === rawPic.trim().toLowerCase()) ||
         ['sukodono', 'karawang', 'sepanjang', 'semarang', 'skd', 'krw', 'spj', 'smg', 'sja'].includes(rawNotes.trim().toLowerCase()) ||
-        rawNotes.trim().toUpperCase().startsWith('SPP') ||
+        /^SPP(?:[\/\-]|\s+\d)/i.test(rawNotes.trim()) ||
         parseRawDateToISO(rawNotes) ||
         isLikelyPoNumber(rawNotes) ||
         (rawPoNumber && (
@@ -1241,18 +1247,29 @@ const SPPFormModalInner: React.FC<SPPFormModalProps> = ({
   const handleUpdateParsedRow = (rowIdx: number, field: string, val: any) => {
     const updated = parsedExcelData.map((item, idx) => {
       if (idx !== rowIdx) return item;
+      if (field === 'notes') {
+        const textVal = String(val ?? '');
+        return {
+          ...item,
+          notes: textVal,
+          specialCondition: '',
+          specialConditionReason: textVal,
+        };
+      }
       return { ...item, [field]: val };
     });
 
     const tsv = updated
-      .map((r) => {
+      .map((r, idx) => {
         const col1 = r.budgetReceivedDate;
         const col2 = r.sppNumber;
         const col3 = r.area;
         const col4 = r.pic === '-' ? '' : r.pic;
         const col5 = r.poDate || '';
         const col6 = r.poNumber || '';
-        const col7 = r.specialConditionReason || r.notes || r.specialCondition || '';
+        const col7 = idx === rowIdx && field === 'notes'
+          ? String(val ?? '')
+          : (r.specialConditionReason || r.notes || r.specialCondition || '');
         const col8 = r.slaLimit;
         return `${col1}\t${col2}\t${col3}\t${col4}\t${col5}\t${col6}\t${col7}\t${col8}`;
       })
